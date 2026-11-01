@@ -134,7 +134,7 @@ describe.each(['de', 'en'] as const)('popup form (%s)', (lang) => {
     await screen.findByLabelText(tx.required);
     expect(screen.getByText('example.com')).toBeTruthy();
     expect(screen.getByLabelText(lang === 'de' ? 'Projekt' : 'Project')).toBeTruthy();
-    const gear = screen.getByRole('button', { name: lang === 'de' ? 'Optionen öffnen' : 'Open options' });
+    const gear = screen.getByRole('button', { name: lang === 'de' ? 'Einstellungen öffnen' : 'Open settings' });
     expect(document.getElementById(gear.getAttribute('aria-describedby')!)!.getAttribute('role')).toBe('tooltip');
     await user.click(gear);
     expect(deps.openOptions).toHaveBeenCalled();
@@ -164,7 +164,7 @@ describe.each(['de', 'en'] as const)('popup states (%s)', (lang) => {
     const read = async (): Promise<ReadTabResult> => ({ ok: false, kind: 'unsupported', message: 'x' });
     const { user, deps } = setup(lang, { read });
     expect((await screen.findByRole('alert')).textContent).toContain(de_ ? de['popup.unreadable.title'] : en['popup.unreadable.title']);
-    await user.click(screen.getByRole('button', { name: de_ ? 'Optionen öffnen' : 'Open options' }));
+    await user.click(screen.getByRole('button', { name: de_ ? 'Einstellungen öffnen' : 'Open settings' }));
     expect(deps.openOptions).toHaveBeenCalled();
   });
 

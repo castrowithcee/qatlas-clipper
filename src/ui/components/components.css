@@ -68,10 +68,10 @@
 .q-switch:checked::before { background: var(--color-on-accent); transform: translate(1rem, -50%); }
 .q-switch[aria-invalid='true'] { border-color: var(--color-danger); border-width: 2px; }
 
-/* Tooltip */
+/* Tooltip: fixed so it never changes document size; Tooltip.tsx sets top and left, clamped to the window. */
 .q-tooltip-wrap { position: relative; display: inline-flex; }
 .q-tooltip {
-  position: absolute; z-index: 10; top: 100%; left: 0; margin-top: var(--space-1);
+  position: fixed; z-index: 10; top: 0; left: 0; margin-top: var(--space-1);
   width: max-content; max-width: min(18rem, 80vw); padding: var(--space-2) var(--space-3);
   font-size: var(--font-size-small); line-height: var(--line-height); font-weight: normal;
   color: var(--color-text); background: var(--color-surface);

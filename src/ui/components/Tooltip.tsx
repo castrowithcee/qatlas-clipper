@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useId, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { placeTooltip } from './placeTooltip';
 import './components.css';
 
 export interface TooltipTriggerProps {
@@ -18,6 +19,28 @@ export function Tooltip({ content, children }: Props) {
   const id = useId();
   const [open, setOpen] = useState(false);
   const hide = useCallback(() => setOpen(false), []);
+  const wrapRef = useRef<HTMLSpanElement>(null);
+  const tipRef = useRef<HTMLSpanElement>(null);
+
+  useLayoutEffect(() => {
+    if (!open) return;
+    const place = () => {
+      const wrap = wrapRef.current;
+      const tip = tipRef.current;
+      if (!wrap || !tip) return;
+      const gap = parseFloat(getComputedStyle(tip).marginTop) || 0;
+      const pos = placeTooltip(wrap.getBoundingClientRect(), tip.getBoundingClientRect(), { width: window.innerWidth, height: window.innerHeight }, gap);
+      tip.style.left = `${pos.left}px`;
+      tip.style.top = `${pos.top}px`;
+    };
+    place();
+    window.addEventListener('resize', place);
+    window.addEventListener('scroll', place, true);
+    return () => {
+      window.removeEventListener('resize', place);
+      window.removeEventListener('scroll', place, true);
+    };
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -29,9 +52,9 @@ export function Tooltip({ content, children }: Props) {
   }, [open]);
 
   return (
-    <span className="q-tooltip-wrap" onMouseEnter={() => setOpen(true)} onMouseLeave={hide}>
+    <span ref={wrapRef} className="q-tooltip-wrap" onMouseEnter={() => setOpen(true)} onMouseLeave={hide}>
       {children({ 'aria-describedby': id, onFocus: () => setOpen(true), onBlur: hide })}
-      <span role="tooltip" id={id} hidden={!open} className="q-tooltip">
+      <span ref={tipRef} role="tooltip" id={id} hidden={!open} className="q-tooltip">
         {content}
       </span>
     </span>
