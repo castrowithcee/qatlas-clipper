@@ -5,6 +5,8 @@ import userEvent from '@testing-library/user-event';
 import { CONFIG_KEY, HEADER_VALUES_KEY, loadConfig, type StorageArea } from '../src/config';
 import type { PermissionsApi } from '../src/options/permissions';
 import { OptionsApp } from '../src/options/OptionsApp';
+import { SettingsProvider, SETTINGS_KEY } from '../src/settings';
+import { de, en } from '../src/i18n/catalog';
 
 afterEach(cleanup);
 
@@ -45,20 +47,26 @@ async function mount(storage: StorageArea, permissions: PermissionsApi = fakePer
   return user;
 }
 
+const addSite = async (user: ReturnType<typeof userEvent.setup>, text: string) => {
+  await user.type(screen.getByLabelText('Add website'), text);
+  await user.click(screen.getByRole('button', { name: 'Add' }));
+};
+
 describe('options page', () => {
   it('creates a project with scope and field and persists it across re-mount', async () => {
     const storage = fakeStorage();
     const user = await mount(storage);
+    expect(screen.getByText('No project yet')).toBeTruthy();
     await user.click(screen.getByRole('button', { name: 'Add project' }));
     const name = screen.getByLabelText('Project name');
     await user.clear(name);
     await user.type(name, 'Articles');
-    await user.selectOptions(screen.getByLabelText('Applies to'), 'domains');
-    await user.type(screen.getByLabelText('Domain 1'), 'example.com');
-    await user.click(screen.getByRole('button', { name: 'Add domain' }));
-    await user.type(screen.getByLabelText('Domain 2'), 'example.org');
-    await user.click(screen.getByRole('button', { name: 'Remove domain 2' }));
-    await user.type(screen.getByLabelText('Page type'), 'Article');
+    await user.click(screen.getByRole('radio', { name: 'Specific websites' }));
+    await addSite(user, 'example.com');
+    await addSite(user, 'example.org');
+    await user.click(screen.getByRole('button', { name: 'Remove website example.org' }));
+    await user.selectOptions(screen.getByLabelText('Only on pages of this kind'), 'article');
+    await user.type(screen.getByLabelText('Custom page type'), 'Article');
     expect(screen.queryByLabelText('Regular expression')).toBeNull();
     await user.click(screen.getByRole('button', { name: 'Add field' }));
     const field = screen.getByRole('group', { name: 'Field 1' });
@@ -70,36 +78,89 @@ describe('options page', () => {
 
     cleanup();
     await mount(storage);
-    await user.click(screen.getByRole('button', { name: 'Articles' }));
-    expect(screen.getByLabelText('Domain 1')).toHaveProperty('value', 'example.com');
+    expect(screen.getByRole('button', { name: 'Remove website example.com' })).toBeTruthy();
     const saved = await loadConfig(storage);
-    expect(saved.projects[0]?.scope).toEqual({ allSites: false, domains: ['example.com'], pageType: 'Article' });
+    expect(saved.projects[0]?.scope).toEqual({ allSites: false, domains: ['example.com'], pageKind: 'article', pageType: 'Article' });
     expect(saved.projects[0]?.fields[0]?.sources).toEqual({
       schemaOrgPath: 'Article.headline',
       manual: { type: 'choice', values: ['Draft', 'Final'] },
     });
   });
 
-  it('rejects an invalid domain at the input and does not save', async () => {
-    const storage = fakeStorage(stored(project('p1', 'A', { scope: { allSites: false, domains: ['example.com'] } })));
+  it('renames a project in the list and the project view', async () => {
+    const storage = fakeStorage(stored(project('p1', 'A')));
     const user = await mount(storage);
-    const input = screen.getByLabelText('Domain 1');
-    await user.clear(input);
-    await user.type(input, 'https://example.com/x');
+    const name = screen.getByLabelText('Project name');
+    await user.clear(name);
+    expect(screen.getByText('Please enter a name.')).toBeTruthy();
+    await user.type(name, 'Renamed');
+    expect(screen.getByRole('button', { name: 'Renamed' })).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+    await screen.findByText('Saved.');
+    expect((await loadConfig(storage)).projects[0]?.name).toBe('Renamed');
+  });
+
+  it('takes a pasted address over as the website and rejects invalid input at the field', async () => {
+    const storage = fakeStorage(stored(project('p1', 'A', { scope: { allSites: false, domains: ['example.org'] } })));
+    const user = await mount(storage);
+    await addSite(user, 'https://www.example.com/jobs/1');
+    expect(screen.getByRole('button', { name: 'Remove website example.com' })).toBeTruthy();
+    expect(screen.getByLabelText('Add website')).toHaveProperty('value', '');
+
+    await addSite(user, 'not a site');
+    const input = screen.getByLabelText('Add website');
     expect(input.getAttribute('aria-invalid')).toBe('true');
-    expect(screen.getAllByText(/must be a lowercase host name/).length).toBeGreaterThan(0);
+    expect(screen.getByText('This is not a valid website. Example: example.com')).toBeTruthy();
+    await user.clear(input);
+    await addSite(user, 'EXAMPLE.org');
+    expect(screen.getByText('This website is already in the list.')).toBeTruthy();
+    await user.clear(screen.getByLabelText('Add website'));
+
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+    await screen.findByText('Saved.');
+    expect((await loadConfig(storage)).projects[0]?.scope.domains).toEqual(['example.org', 'example.com']);
+  });
+
+  it('adds a website with Enter and needs at least one website when sites are specific', async () => {
+    const storage = fakeStorage(stored(project('p1', 'A')));
+    const user = await mount(storage);
+    await user.click(screen.getByRole('radio', { name: 'Specific websites' }));
+    expect(screen.getByText('Add at least one website.')).toBeTruthy();
     await user.click(screen.getByRole('button', { name: 'Save changes' }));
     await screen.findByText(/Not saved/);
-    expect((storage.data[CONFIG_KEY] as { projects: { scope: { domains: string[] } }[] }).projects[0]?.scope.domains).toEqual(['example.com']);
-    expect(input).toHaveProperty('value', 'https://example.com/x');
+    expect(document.activeElement).toBe(screen.getByLabelText('Add website'));
+    await user.type(screen.getByLabelText('Add website'), 'example.com{Enter}');
+    expect(screen.getByRole('button', { name: 'Remove website example.com' })).toBeTruthy();
+    expect(screen.queryByText('Add at least one website.')).toBeNull();
+  });
+
+  it('keeps the page kind list and the custom type apart, the custom type under Advanced', async () => {
+    const storage = fakeStorage(stored(project('p1', 'A')));
+    const user = await mount(storage);
+    const kind = screen.getByLabelText('Only on pages of this kind');
+    expect([...(kind as HTMLSelectElement).options].map((o) => o.text)).toEqual([
+      'Any kind of page', 'Product', 'Job posting', 'Article', 'Event', 'Recipe', 'Local business',
+    ]);
+    await user.selectOptions(kind, 'jobPosting');
+    expect(screen.getByRole('button', { name: 'Advanced' }).getAttribute('aria-expanded')).toBe('false');
+    expect(screen.getByLabelText('Custom page type').closest('[hidden]')).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Advanced' }));
+    await user.type(screen.getByLabelText('Custom page type'), ' Course ');
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+    await screen.findByText('Saved.');
+    expect((await loadConfig(storage)).projects[0]?.scope).toEqual({ allSites: true, domains: [], pageKind: 'jobPosting', pageType: 'Course' });
+    await user.selectOptions(kind, '');
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+    await screen.findByText('Saved.');
+    expect((await loadConfig(storage)).projects[0]?.scope).toEqual({ allSites: true, domains: [], pageType: 'Course' });
   });
 
   it('changes scope back to all sites, dropping domains, and clears the page type', async () => {
     const storage = fakeStorage(stored(project('p1', 'A', { scope: { allSites: false, domains: ['example.com'], pageType: 'Product' } })));
     const user = await mount(storage);
-    await user.selectOptions(screen.getByLabelText('Applies to'), 'all');
-    expect(screen.queryByLabelText('Domain 1')).toBeNull();
-    await user.clear(screen.getByLabelText('Page type'));
+    await user.click(screen.getByRole('radio', { name: 'All pages' }));
+    expect(screen.queryByLabelText('Add website')).toBeNull();
+    await user.clear(screen.getByLabelText('Custom page type'));
     await user.click(screen.getByRole('button', { name: 'Save changes' }));
     await screen.findByText('Saved.');
     expect((await loadConfig(storage)).projects[0]?.scope).toEqual({ allSites: true, domains: [] });
@@ -123,42 +184,55 @@ describe('options page', () => {
     const storage = fakeStorage(stored(project('p1', 'A'), project('p2', 'B')));
     const user = await mount(storage);
     await user.click(screen.getByRole('button', { name: 'Delete project A' }));
+    expect(screen.getByRole('dialog', { name: 'Delete project?' })).toBeTruthy();
     await user.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(screen.queryByRole('dialog')).toBeNull();
     expect(screen.getByRole('button', { name: 'A' })).toBeTruthy();
     await user.click(screen.getByRole('button', { name: 'Delete project A' }));
-    await user.click(screen.getByRole('button', { name: 'Confirm delete' }));
+    await user.click(screen.getByRole('button', { name: 'Delete project' }));
     expect(screen.queryByRole('button', { name: 'A' })).toBeNull();
     await user.click(screen.getByRole('button', { name: 'Save changes' }));
     await screen.findByText('Saved.');
     expect((await loadConfig(storage)).projects.map((p) => p.id)).toEqual(['p2']);
   });
 
-  it('reorders projects', async () => {
+  it('reorders projects and explains the order in a tooltip', async () => {
     const storage = fakeStorage(stored(project('p1', 'A'), project('p2', 'B')));
     const user = await mount(storage);
-    expect(screen.getByText(/first one is preselected/)).toBeTruthy();
-    await user.click(screen.getByRole('button', { name: 'Move up project B' }));
+    const up = screen.getByRole('button', { name: 'Move up project B' });
+    expect(screen.getByRole('button', { name: 'Move up project A' })).toHaveProperty('disabled', true);
+    expect(document.getElementById(up.getAttribute('aria-describedby')!)?.textContent).toMatch(/preselected first in the popup/);
+    await user.click(up);
     await user.click(screen.getByRole('button', { name: 'Save changes' }));
     await screen.findByText('Saved.');
     expect((await loadConfig(storage)).projects.map((p) => p.id)).toEqual(['p2', 'p1']);
   });
 
-  it('shows and deletes site mappings, and carries them on key rename', async () => {
-    const f = (key: string) => ({ key, label: key, required: false, sources: {} });
+  it('shows click mappings by field label with the selector only in the tooltip, and deletes them', async () => {
+    const f = (key: string, label: string) => ({ key, label, required: false, sources: {} });
     const storage = fakeStorage(
       stored(project('p1', 'A', {
-        fields: [f('title'), f('price')],
+        fields: [f('title', 'Headline'), f('price', 'Price')],
         siteMappings: { 'example.com': { title: 'h1', price: '.price' }, 'example.org': { title: '.t' } },
       })),
     );
     const user = await mount(storage);
-    expect(screen.getByText('h1')).toBeTruthy();
-    await user.click(screen.getByRole('button', { name: 'Delete mapping price for example.com' }));
+    const group = within(screen.getByRole('region', { name: 'Click mappings for example.com' }));
+    expect(group.getByText('Headline')).toBeTruthy();
+    expect(group.queryByText('title')).toBeNull();
+    const tip = group.getAllByRole('tooltip', { hidden: true })[0]!;
+    expect(tip.textContent).toBe('h1');
+    expect(tip.hidden).toBe(true);
+    expect(screen.queryAllByText('h1').filter((e) => e.getAttribute('role') !== 'tooltip')).toEqual([]);
+    await user.click(group.getByRole('button', { name: 'Show saved selection for Headline' }));
+    expect(tip.hidden).toBe(false);
+
+    await user.click(screen.getByRole('button', { name: 'Delete mapping Price for example.com' }));
     await user.click(screen.getByRole('button', { name: 'Delete all mappings for example.org' }));
     const key = within(screen.getByRole('group', { name: 'Field 1' })).getByLabelText('Key');
     await user.clear(key);
     await user.type(key, 'headline');
-    expect(screen.getByText(/\(headline\)/)).toBeTruthy();
+    expect(within(screen.getByRole('region', { name: 'Click mappings for example.com' })).getByText('Headline')).toBeTruthy();
     await user.click(screen.getByRole('button', { name: 'Save changes' }));
     await screen.findByText('Saved.');
     expect((await loadConfig(storage)).projects[0]?.siteMappings).toEqual({ 'example.com': { headline: 'h1' } });
@@ -169,6 +243,7 @@ describe('options page', () => {
     const storage = fakeStorage(stored(project('p1', 'A', { fields: [f], siteMappings: { 'example.com': { title: 'h1' } } })));
     const user = await mount(storage);
     await user.click(screen.getByRole('button', { name: 'Delete field title' }));
+    expect(screen.getByText('No click mappings yet.')).toBeTruthy();
     await user.click(screen.getByRole('button', { name: 'Save changes' }));
     await screen.findByText('Saved.');
     expect((await loadConfig(storage)).projects[0]?.siteMappings).toEqual({});
@@ -261,7 +336,7 @@ describe('options page', () => {
       const url = screen.getByLabelText('Target URL');
       await user.clear(url);
       await user.type(url, 'http://localhost:8080/hook');
-      expect(screen.queryByText(/only allowed for localhost/, { selector: 'p.error' })).toBeNull();
+      expect(screen.queryByText(/only allowed for localhost/)).toBeNull();
       await user.click(screen.getByRole('button', { name: 'Save changes' }));
       await screen.findByText('Saved.');
       expect((await loadConfig(storage)).projects[0]?.targets[0]?.url).toBe('http://localhost:8080/hook');
@@ -369,5 +444,30 @@ describe('import and export', () => {
     await user.click(screen.getByRole('button', { name: 'Fetch from URL' }));
     await screen.findByText(/only allowed for localhost/);
     expect(permissions.request).not.toHaveBeenCalled();
+  });
+});
+
+describe('options page language', () => {
+  it('switches the redesigned areas without reload and never shows catalog keys', async () => {
+    const f = { key: 'title', label: 'Headline', required: false, sources: {} };
+    const storage = fakeStorage({
+      ...stored(project('p1', 'A', { scope: { allSites: false, domains: ['example.com'] }, fields: [f], siteMappings: { 'example.com': { title: 'h1' } } }), project('p2', 'B')),
+      [SETTINGS_KEY]: { language: 'en', appearance: 'light' },
+    });
+    const user = userEvent.setup();
+    render(
+      <SettingsProvider storage={storage} subscribe={() => () => {}} media={{ matches: false, addEventListener() {}, removeEventListener() {} }} browserLanguage="en-US">
+        <OptionsApp storage={storage} permissions={fakePermissions()} />
+      </SettingsProvider>,
+    );
+    await screen.findByRole('heading', { name: en['options.title'] });
+    expect(screen.getByRole('heading', { name: en['options.scope.title'] })).toBeTruthy();
+    await user.selectOptions(screen.getByLabelText('Language'), 'de');
+    await screen.findByRole('heading', { name: de['options.title'] });
+    for (const key of ['options.scope.title', 'options.mappings.title', 'options.projects.title', 'options.save', 'options.scope.kind.label'] as const) {
+      expect(screen.getAllByText(de[key]).length, key).toBeGreaterThan(0);
+    }
+    expect(screen.getByRole('button', { name: de['options.projects.moveUp'].replace('{name}', 'B') })).toBeTruthy();
+    expect(document.body.textContent).not.toMatch(/\boptions\.[a-z]+\.[A-Za-z.]+/);
   });
 });

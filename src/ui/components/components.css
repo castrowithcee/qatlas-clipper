@@ -128,3 +128,11 @@
 .q-disclosure-toggle[aria-expanded='true'] .q-disclosure-chevron { transform: none; }
 .q-disclosure-panel { padding: var(--space-2) 0 0 var(--space-5); }
 .q-disclosure-panel[hidden] { display: none; }
+
+/* Chip */
+.q-chip {
+  display: inline-flex; align-items: center; gap: var(--space-1); padding: 0 var(--space-1) 0 var(--space-3);
+  background: var(--color-surface); border: 1px solid var(--color-border); border-radius: calc(var(--radius-md) * 4);
+}
+.q-chip-label { overflow-wrap: anywhere; }
+.q-button--icon.q-chip-remove { min-width: 1.75rem; min-height: 1.75rem; padding: var(--space-1); border-radius: 50%; }

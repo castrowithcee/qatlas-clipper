@@ -14,9 +14,10 @@ import {
 import { defaultPermissions, originPattern, originPatterns, type PermissionStatus, type PermissionsApi } from './permissions';
 import { ImportExport } from './ImportExport';
 import { ProjectEditor } from './ProjectEditor';
-import { ItemButtons } from './fields';
+import { ProjectList } from './ProjectList';
 import { moveItem, newProject, normalize, unmappedIssues, validate } from './draft';
-import { SettingsSection } from '../settings/SettingsSection';
+import { SettingsSection, useI18n } from '../settings';
+import { Button, Disclosure, EmptyState, ErrorState, LoadingState, Toast } from '../ui/components';
 import './options.css';
 
 type Load = { state: 'loading' } | { state: 'error'; message: string } | { state: 'ready'; saved: Config; values: HeaderValues };
@@ -29,6 +30,7 @@ interface Props {
 }
 
 export function OptionsApp({ storage, permissions = defaultPermissions }: Props) {
+  const { t } = useI18n();
   const [loaded, setLoaded] = useState<Load>({ state: 'loading' });
   const [attempt, setAttempt] = useState(0);
 
@@ -42,23 +44,25 @@ export function OptionsApp({ storage, permissions = defaultPermissions }: Props)
     };
   }, [storage, attempt]);
 
-  if (loaded.state === 'loading') return <main><p role="status">Loading configuration…</p></main>;
+  const reload = () => {
+    setLoaded({ state: 'loading' });
+    setAttempt((n) => n + 1);
+  };
+
+  if (loaded.state === 'loading') return <main><LoadingState /></main>;
   if (loaded.state === 'error') {
     // The stored config is left untouched; nothing can be saved from this state.
     return (
       <main>
-        <h1>qatlas-clipper options</h1>
-        <div role="alert" className="error">
-          <p>The stored configuration could not be loaded and was not changed.</p>
-          <pre>{loaded.message}</pre>
-        </div>
-        <button type="button" onClick={() => { setLoaded({ state: 'loading' }); setAttempt((n) => n + 1); }}>
-          Retry
-        </button>
+        <h1>{t('options.title')}</h1>
+        <ErrorState title={t('options.loadError.title')} message={t('options.loadError.text')} onRetry={reload} />
+        <Disclosure title={t('options.loadError.details')}>
+          <pre className="options-details">{loaded.message}</pre>
+        </Disclosure>
       </main>
     );
   }
-  return <Editor key={attempt} initial={loaded.saved} initialValues={loaded.values} storage={storage} permissions={permissions} onReload={() => { setLoaded({ state: 'loading' }); setAttempt((n) => n + 1); }} />;
+  return <Editor key={attempt} initial={loaded.saved} initialValues={loaded.values} storage={storage} permissions={permissions} onReload={reload} />;
 }
 
 // Empty per-target maps carry no value, so they must not count as changes.
@@ -76,10 +80,10 @@ interface EditorProps {
 }
 
 function Editor({ initial, initialValues, storage, permissions, onReload }: EditorProps) {
+  const { t, tn } = useI18n();
   const [saved, setSaved] = useState(initial);
   const [draft, setDraft] = useState(initial);
   const [selectedId, setSelectedId] = useState<string | undefined>(initial.projects[0]?.id);
-  const [confirmId, setConfirmId] = useState<string>();
   const [status, setStatus] = useState<{ kind: 'ok' | 'error'; text: string }>();
   const [busy, setBusy] = useState(false);
   // Header values are edited apart from the config draft and stored under their own key.
@@ -122,11 +126,16 @@ function Editor({ initial, initialValues, storage, permissions, onReload }: Edit
   );
   const selectedIndex = Math.max(0, draft.projects.findIndex((p) => p.id === selectedId));
   const selected = draft.projects[selectedIndex];
-  const confirmProject = draft.projects.find((p) => p.id === confirmId);
 
   const edit = (projects: Project[]) => {
     setDraft({ ...draft, projects });
     setStatus(undefined);
+  };
+
+  const addProject = () => {
+    const p = newProject(t('options.projects.newName'));
+    edit([...draft.projects, p]);
+    setSelectedId(p.id);
   };
 
   const save = async () => {
@@ -155,10 +164,16 @@ function Editor({ initial, initialValues, storage, permissions, onReload }: Edit
       }
       setSaved(result);
       setDraft(result);
-      setStatus({ kind: 'ok', text: 'Saved.' });
+      setStatus({ kind: 'ok', text: t('options.status.saved') });
     } catch (e) {
       // The draft stays as it is, so no input is lost.
-      setStatus({ kind: 'error', text: e instanceof ConfigError ? 'Not saved: the configuration has problems.' : `Not saved: ${e instanceof Error ? e.message : String(e)}` });
+      if (e instanceof ConfigError) {
+        setStatus({ kind: 'error', text: tn('options.status.invalid', Math.max(1, issues.length)) });
+        // Move to the first marked input; the render with the message has to be done first.
+        setTimeout(() => document.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus(), 0);
+      } else {
+        setStatus({ kind: 'error', text: t('options.status.failed', { message: e instanceof Error ? e.message : String(e) }) });
+      }
     } finally {
       setBusy(false);
     }
@@ -173,21 +188,29 @@ function Editor({ initial, initialValues, storage, permissions, onReload }: Edit
   };
 
   const summary = unmappedIssues(issues, selectedIndex);
-  const projectName = (i: number) => draft.projects[i]?.name ?? `project ${i + 1}`;
+  const projectName = (i: number) => draft.projects[i]?.name || t('options.projects.fallbackName', { n: i + 1 });
 
   return (
     <main>
-      <h1>qatlas-clipper options</h1>
-      <div className="bar">
-        <button type="button" onClick={save} disabled={busy}>Save changes</button>
-        <button type="button" onClick={() => { setDraft(saved); setValues(storedValues); setStatus(undefined); setConfirmId(undefined); }} disabled={!dirty || busy}>
-          Discard changes
-        </button>
-        <span role="status">{status?.text ?? (dirty ? 'Unsaved changes.' : '')}</span>
+      <h1>{t('options.title')}</h1>
+      <div className="options-bar">
+        <Button variant="primary" onClick={save} disabled={busy}>
+          {t('options.save')}
+        </Button>
+        <Button onClick={() => { setDraft(saved); setValues(storedValues); setStatus(undefined); }} disabled={!dirty || busy}>
+          {t('options.discard')}
+        </Button>
+        {status ? (
+          <Toast kind={status.kind === 'ok' ? 'success' : 'error'} onDismiss={() => setStatus(undefined)}>
+            {status.text}
+          </Toast>
+        ) : (
+          <p role="status" className="q-hint">{dirty ? t('options.status.dirty') : ''}</p>
+        )}
       </div>
       {summary.length > 0 && (
-        <div role="alert" className="error">
-          <p>Problems that block saving:</p>
+        <div role="alert" className="options-problems">
+          <p>{t('options.problems.title')}</p>
           <ul>
             {summary.map((i, n) => {
               const m = /^projects\[(\d+)\]\.(.*)$/.exec(i.path);
@@ -196,61 +219,41 @@ function Editor({ initial, initialValues, storage, permissions, onReload }: Edit
           </ul>
         </div>
       )}
+      {draft.projects.length === 0 ? (
+        <EmptyState
+          title={t('options.empty.title')}
+          description={t('options.empty.text')}
+          action={<Button variant="primary" icon="plus" onClick={addProject}>{t('options.projects.add')}</Button>}
+        />
+      ) : (
+        <div className="options-layout">
+          <ProjectList
+            projects={draft.projects}
+            selectedIndex={selectedIndex}
+            onSelect={setSelectedId}
+            onAdd={addProject}
+            onMove={(i, d) => edit(moveItem(draft.projects, i, d))}
+            onDelete={(id) => edit(draft.projects.filter((p) => p.id !== id))}
+          />
+          <div>
+            {selected && (
+              <ProjectEditor
+                key={selected.id}
+                project={selected}
+                index={selectedIndex}
+                issues={issues}
+                headerValues={values}
+                onHeaderValues={(v) => { setValues(v); setStatus(undefined); }}
+                permissionStatus={permissionStatus}
+                onRequestPermission={requestOne}
+                onChange={(p) => edit(draft.projects.map((x, i) => (i === selectedIndex ? p : x)))}
+              />
+            )}
+          </div>
+        </div>
+      )}
       <SettingsSection />
       <ImportExport storage={storage} permissions={permissions} dirty={dirty} onImported={onReload} />
-      <div className="layout">
-        <nav aria-label="Projects">
-          <h2>Projects</h2>
-          <p className="hint">Order of matching projects: the first one is preselected.</p>
-          {draft.projects.length === 0 && <p>No projects yet.</p>}
-          <ol>
-            {draft.projects.map((p, i) => (
-              <li key={p.id}>
-                <button type="button" aria-current={i === selectedIndex ? 'true' : undefined} onClick={() => setSelectedId(p.id)}>
-                  {p.name || '(unnamed)'}
-                </button>
-                <ItemButtons
-                  noun="project"
-                  name={p.name}
-                  index={i}
-                  count={draft.projects.length}
-                  onMove={(d) => edit(moveItem(draft.projects, i, d))}
-                  onDelete={() => setConfirmId(p.id)}
-                />
-              </li>
-            ))}
-          </ol>
-          {confirmProject && (
-            <div role="alertdialog" aria-label="Confirm project deletion" className="confirm">
-              <p>Delete project "{confirmProject.name}" with its scope, fields and site mappings?</p>
-              <button type="button" onClick={() => { edit(draft.projects.filter((p) => p.id !== confirmProject.id)); setConfirmId(undefined); }}>
-                Confirm delete
-              </button>
-              <button type="button" onClick={() => setConfirmId(undefined)}>Cancel</button>
-            </div>
-          )}
-          <button type="button" onClick={() => { const p = newProject(); edit([...draft.projects, p]); setSelectedId(p.id); }}>
-            Add project
-          </button>
-        </nav>
-        <section aria-label="Project settings">
-          {selected ? (
-            <ProjectEditor
-              key={selected.id}
-              project={selected}
-              index={selectedIndex}
-              issues={issues}
-              headerValues={values}
-              onHeaderValues={(v) => { setValues(v); setStatus(undefined); }}
-              permissionStatus={permissionStatus}
-              onRequestPermission={requestOne}
-              onChange={(p) => edit(draft.projects.map((x, i) => (i === selectedIndex ? p : x)))}
-            />
-          ) : (
-            <p>Add a project to get started.</p>
-          )}
-        </section>
-      </div>
     </main>
   );
 }

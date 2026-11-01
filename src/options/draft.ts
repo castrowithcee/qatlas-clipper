@@ -11,8 +11,8 @@ export function moveItem<T>(items: T[], index: number, delta: -1 | 1): T[] {
   return next;
 }
 
-export function newProject(): Project {
-  return { id: newId(), name: 'New project', scope: { allSites: true, domains: [] }, fields: [], siteMappings: {}, targets: [] };
+export function newProject(name: string): Project {
+  return { id: newId(), name, scope: { allSites: true, domains: [] }, fields: [], siteMappings: {}, targets: [] };
 }
 
 export function newTarget(): Target {
@@ -26,10 +26,36 @@ export function newField(existing: Field[]): Field {
   return { key: `field${n}`, label: 'New field', required: false, sources: {} };
 }
 
-/** Switching to "all sites" drops the domain list; switching to "domains" starts with one empty entry. */
+/** Switching to "all sites" drops the domain list; switching to specific sites starts with an empty list. */
 export function setAllSites(scope: Scope, allSites: boolean): Scope {
   if (allSites === scope.allSites) return scope;
-  return { ...scope, allSites, domains: allSites ? [] : [''] };
+  return { ...scope, allSites, domains: [] };
+}
+
+const HOSTNAME = /^(?=.{1,253}$)[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)+$/;
+
+/**
+ * Turns a typed host name or a pasted address into the domain stored in the scope:
+ * lowercase, without scheme, path, port and a leading "www.". Undefined if no valid host name remains.
+ */
+export function parseWebsite(input: string): string | undefined {
+  const text = input.trim();
+  if (text === '' || /\s/.test(text)) return undefined;
+  let host: string;
+  try {
+    host = new URL(/^[a-z][a-z0-9+.-]*:\/\//i.test(text) ? text : `https://${text}`).hostname;
+  } catch {
+    return undefined;
+  }
+  host = host.toLowerCase().replace(/^www\./, '');
+  return HOSTNAME.test(host) ? host : undefined;
+}
+
+/** `undefined` removes the key, since an absent page kind means "any page". */
+export function setPageKind(scope: Scope, kind: Scope['pageKind'] | undefined): Scope {
+  const { pageKind: _old, ...rest } = scope;
+  void _old;
+  return kind ? { ...rest, pageKind: kind } : rest;
 }
 
 /**
