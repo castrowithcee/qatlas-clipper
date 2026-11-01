@@ -66,6 +66,8 @@ jobs:
           name: release-zip
           path: .output/*.zip
           if-no-files-found: error
+          # .output/ is hidden; upload-artifact skips hidden paths by default.
+          include-hidden-files: true
 
   publish:
     needs: verify
