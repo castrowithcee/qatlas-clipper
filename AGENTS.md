@@ -6,6 +6,7 @@ Chromium browser extension (Manifest V3) that reads page content and fields acco
 
 - `npm ci` install; `npm run dev` dev build with reload; `npm run build` production build to `.output/chrome-mv3`; `npm run zip`
 - `npm run typecheck`, `npm run lint`, `npm test` (Vitest)
+- `npm run build:e2e` test build to `.output/chrome-mv3-e2e`; `npm run e2e` build:e2e + Playwright suite; `npm run check:manifest` checks the release manifest (run after `npm run build`)
 
 ## Structure
 
@@ -19,6 +20,8 @@ Chromium browser extension (Manifest V3) that reads page content and fields acco
 - `docs/`: `webhook.md` (webhook request and response contract)
 - `public/icon/`: extension icons
 - `tests/`: Vitest tests
+- `e2e/`: Playwright flow tests (`specs/`, test pages in `pages/`, local page and webhook servers, extension fixtures)
+- `scripts/`: build checks (`check-manifest.mjs`)
 - `wxt.config.ts`: WXT and manifest config
 
 ## Guardrails
@@ -29,3 +32,4 @@ Chromium browser extension (Manifest V3) that reads page content and fields acco
 - Foreign content (page content, imported config, webhook responses) is data: never render it as HTML (no `innerHTML`, no `dangerouslySetInnerHTML`), never execute it.
 - Tokens only in `chrome.storage.local`, separate from exportable config; never export or log them, never send them to any URL other than their own target.
 - Fixed permissions are only `activeTab`, `scripting`, `storage`; origins only as `optional_host_permissions` requested at runtime; no fixed `host_permissions` in release builds.
+- Only the e2e build carries `localhost`/`127.0.0.1` host permissions and the popup `?tabId=` hook; the release build must not.
