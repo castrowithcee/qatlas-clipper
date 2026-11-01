@@ -57,7 +57,7 @@ test('configure, map by click, prefill on a second page, send, and show the resp
   await jsonld.goto(`${pages.origin}/jsonld.html`);
   let popup = await openPopup(context, serviceWorker, extensionId, jsonld);
   await expect(popup.getByRole('textbox', { name: 'Headline' })).toHaveValue('Example Headline');
-  await expect(popup.getByText('Source: JSON-LD')).toHaveCount(1);
+  await expect(popup.getByRole('img', { name: 'Detected automatically' })).toHaveCount(1);
   await popup.close();
   await jsonld.close();
 
@@ -69,7 +69,7 @@ test('configure, map by click, prefill on a second page, send, and show the resp
     await chrome.storage.local.set({ config });
   });
   popup = await openPopup(context, serviceWorker, extensionId, meta);
-  await expect(popup.getByText('Source: Meta tag')).toHaveCount(1);
+  await expect(popup.getByRole('img', { name: 'Detected automatically' })).toHaveCount(1);
   await expect(popup.getByRole('textbox', { name: 'Description' })).not.toHaveValue('');
   await popup.close();
   await meta.close();
@@ -85,7 +85,7 @@ test('configure, map by click, prefill on a second page, send, and show the resp
   await page1.goto(`${pages.origin}/plain-1.html`);
   popup = await openPopup(context, serviceWorker, extensionId, page1);
   await expect(popup.getByRole('textbox', { name: 'Price' })).toHaveValue('');
-  await popup.getByRole('button', { name: 'Map Price' }).click();
+  await popup.getByRole('button', { name: 'Click Price on the page' }).click();
   await popup.waitForEvent('close');
 
   await expect(page1.getByText('Choose element for "Price"')).toBeVisible();
@@ -106,7 +106,7 @@ test('configure, map by click, prefill on a second page, send, and show the resp
   await page2.goto(`${pages.origin}/plain-2.html`);
   popup = await openPopup(context, serviceWorker, extensionId, page2);
   await expect(popup.getByRole('textbox', { name: 'Price' })).toHaveValue('20.00');
-  await expect(popup.getByText('Source: Mapped selector')).toHaveCount(1);
+  await expect(popup.getByRole('img', { name: 'Assigned by click' })).toHaveCount(1);
 
   // 5. Send with an edited value and a note.
   await popup.getByRole('textbox', { name: 'Price' }).fill('21.50');
@@ -139,7 +139,7 @@ test('configure, map by click, prefill on a second page, send, and show the resp
   await page2.close();
 });
 
-test('an error response shows status and text in the popup', async ({ context, serviceWorker, extensionId, pages, webhook }) => {
+test('an error response shows a short message, the response text and a retry in the popup', async ({ context, serviceWorker, extensionId, pages, webhook }) => {
   await serviceWorker.evaluate(
     ([config]) => chrome.storage.local.set({ config }),
     [JSON.parse(projectJson(webhook.errorUrl))],
@@ -150,6 +150,8 @@ test('an error response shows status and text in the popup', async ({ context, s
   await popup.getByRole('textbox', { name: 'Price' }).fill('1.00');
   await popup.getByRole('button', { name: 'Send to Test hook' }).click();
 
-  await expect(popup.getByRole('alert').filter({ hasText: `Error 500: ${WEBHOOK_ERROR_TEXT}` })).toBeVisible();
+  const alert = popup.getByRole('alert').filter({ hasText: 'The target answered with error 500.' });
+  await expect(alert).toBeVisible();
+  await expect(alert.getByText(WEBHOOK_ERROR_TEXT, { exact: true })).toBeVisible();
   expect(webhook.requests).toHaveLength(1);
 });

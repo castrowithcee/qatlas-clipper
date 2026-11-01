@@ -24,6 +24,6 @@ test('popup shows the values read from the JSON-LD page', async ({ context, serv
 
   await expect(popup.getByRole('textbox', { name: 'Headline' })).toHaveValue('Example Headline');
   await expect(popup.getByRole('textbox', { name: 'Author' })).toHaveValue('Example Author');
-  await expect(popup.getByText('Source: JSON-LD')).toHaveCount(2);
+  await expect(popup.getByRole('img', { name: 'Detected automatically' })).toHaveCount(2);
   await expect(popup.getByRole('button', { name: 'Send to Test hook' })).toBeVisible();
 });

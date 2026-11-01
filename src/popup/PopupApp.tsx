@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useId, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { browser } from 'wxt/browser';
 import { defaultStorage, loadConfig, type Config, type Field, type StorageArea } from '../config';
-import type { FieldSource } from '../extract';
 import { readTab, type ReadTabResult } from '../extract/inject';
 import type { ReadResult } from '../extract/result';
+import { useI18n } from '../settings';
+import { Button } from '../ui/components';
 import { defaultPermissions, originPattern, type PermissionsApi } from '../options/permissions';
 import { startPicker } from '../picker/start';
 import { buildPayload } from '../send/payload';
@@ -21,6 +22,10 @@ import {
   saveDraft,
   type Draft,
 } from './draft';
+import { FieldForm } from './FieldForm';
+import { Header } from './Header';
+import { MissingHint, ResultView } from './Outcome';
+import { BlockedView, LoadingView, NoPermissionView, NoProjectsView, NoTargetView, type BlockReason } from './States';
 import './popup.css';
 
 export interface PopupDeps {
@@ -41,14 +46,6 @@ export interface PopupDeps {
   pollMs?: number;
   close?: () => void;
 }
-
-const SOURCE_LABELS: Record<FieldSource, string> = {
-  detect: 'Detected',
-  schemaOrg: 'JSON-LD',
-  meta: 'Meta tag',
-  selector: 'Mapped selector',
-  manual: 'Manual',
-};
 
 type TabRef = { id?: number; url?: string } | undefined;
 
@@ -78,7 +75,7 @@ const defaultTab = () =>
 
 type State =
   | { phase: 'loading' }
-  | { phase: 'error'; message: string }
+  | { phase: 'blocked'; reason: BlockReason }
   | { phase: 'ready'; config: Config; tabId: number; tabUrl: string; read: ReadResult; projectId: string | null };
 
 export function PopupApp({
@@ -98,7 +95,9 @@ export function PopupApp({
   const [storage] = useState(() => storageProp ?? defaultStorage());
   const [draftStorage] = useState(() => draftProp ?? defaultDraftStorage());
   const [resultStorage] = useState(() => resultProp ?? defaultResultStorage());
+  const { t } = useI18n();
   const [state, setState] = useState<State>({ phase: 'loading' });
+  const [reload, setReload] = useState(0);
   const [sendState, setSendState] = useState<SendState>({ results: {}, inFlight: [] });
   const [hint, setHint] = useState<{ targetId: string; kind: 'missing' | 'permission'; keys: string[] } | null>(null);
   // Synchronous guard: state updates are too late to stop a fast double click.
@@ -123,19 +122,19 @@ export function PopupApp({
     (async () => {
       try {
         const tab = await getActiveTab();
-        if (tab?.id === undefined) return setState({ phase: 'error', message: 'No active tab found.' });
+        if (tab?.id === undefined) return setState({ phase: 'blocked', reason: 'no-tab' });
         const config = await loadConfig(storage);
         const url = tab.url ?? '';
         const [saved, last] = await Promise.all([loadDraft(draftStorage, url), storage.get([LAST_PROJECT_KEY])]);
         const lastId = typeof last[LAST_PROJECT_KEY] === 'string' ? (last[LAST_PROJECT_KEY] as string) : undefined;
         let result = await read(tab.id, config.projects);
         if (stale()) return;
-        if (!result.ok) return setState({ phase: 'error', message: result.message });
+        if (!result.ok) return setState({ phase: 'blocked', reason: result.kind });
         const projectId = pickProject(config.projects, result.result.matchingProjects.map((p) => p.id), saved.projectId, lastId);
         if (projectId && projectId !== result.result.selectedProjectId) {
           const again = await read(tab.id, config.projects, projectId);
           if (stale()) return;
-          if (!again.ok) return setState({ phase: 'error', message: again.message });
+          if (!again.ok) return setState({ phase: 'blocked', reason: again.kind });
           result = again;
         }
         setDraft(saved);
@@ -144,14 +143,14 @@ export function PopupApp({
         if (stored) setSendState(stored);
         setState({ phase: 'ready', config, tabId: tab.id, tabUrl: url, read: result.result, projectId });
       } catch {
-        if (!stale()) setState({ phase: 'error', message: 'Loading the popup failed.' });
+        if (!stale()) setState({ phase: 'blocked', reason: 'load-failed' });
       }
     })();
     // Invalidates in-flight loads on unmount.
     return () => {
       requestId.current = -1;
     };
-  }, [storage, draftStorage, resultStorage, getActiveTab, read]);
+  }, [storage, draftStorage, resultStorage, getActiveTab, read, reload]);
 
   const tabUrl = state.phase === 'ready' ? state.tabUrl : '';
   const anyInFlight = sendState.inFlight.length > 0;
@@ -163,15 +162,28 @@ export function PopupApp({
     return () => clearInterval(timer);
   }, [state.phase, anyInFlight, tabUrl, resultStorage, pollMs]);
 
-  if (state.phase === 'loading') return <main><p role="status">Loading…</p></main>;
-  if (state.phase === 'error') return <main><p role="alert" className="error">{state.message}</p></main>;
+  const openOpts = () => void openOptions();
+  if (state.phase === 'loading') return <main className="popup"><LoadingView /></main>;
+  if (state.phase === 'blocked') {
+    return (
+      <main className="popup">
+        <BlockedView
+          reason={state.reason}
+          onOpenOptions={openOpts}
+          onRetry={() => {
+            setState({ phase: 'loading' });
+            setReload((n) => n + 1);
+          }}
+        />
+      </main>
+    );
+  }
 
   const { config, tabId, tabUrl: stateUrl, read: page, projectId } = state;
   if (config.projects.length === 0 || projectId === null) {
     return (
-      <main>
-        <p>No projects configured yet.</p>
-        <button type="button" onClick={() => void openOptions()}>Open options</button>
+      <main className="popup">
+        <NoProjectsView onOpenOptions={openOpts} />
       </main>
     );
   }
@@ -187,7 +199,7 @@ export function PopupApp({
     void Promise.resolve(storage.set({ [LAST_PROJECT_KEY]: id })).catch(() => undefined);
     const result = await read(tabId, config.projects, id);
     if (rid !== requestId.current) return;
-    if (!result.ok) return setState({ phase: 'error', message: result.message });
+    if (!result.ok) return setState({ phase: 'blocked', reason: result.kind });
     setState({ ...state, read: result.result, projectId: id });
   };
 
@@ -199,7 +211,7 @@ export function PopupApp({
       await writes.current;
       close();
     } catch {
-      setActionError('Starting the picker failed.');
+      setActionError(t('popup.field.pickFailed'));
     }
   };
 
@@ -248,179 +260,71 @@ export function PopupApp({
   };
 
   const missingKeys = hint?.kind === 'missing' ? hint.keys : [];
+  const header = (
+    <Header
+      title={page.title}
+      url={page.url}
+      projects={ordered}
+      matchingIds={page.matchingProjects.map((p) => p.id)}
+      value={projectId}
+      onChange={(id) => void changeProject(id)}
+      onOpenOptions={openOpts}
+    />
+  );
+
+  if (project.targets.length === 0) {
+    return (
+      <main className="popup">
+        {header}
+        <NoTargetView onOpenOptions={openOpts} />
+      </main>
+    );
+  }
 
   return (
-    <main>
-      <ProjectSelect
-        projects={ordered}
-        matchingIds={page.matchingProjects.map((p) => p.id)}
-        value={projectId}
-        onChange={(id) => void changeProject(id)}
+    <main className="popup">
+      {header}
+      {actionError && <p role="alert" className="popup-error">{actionError}</p>}
+      <FieldForm
+        key={projectId}
+        fields={project.fields}
+        found={page.fields}
+        edits={edits}
+        invalidKeys={missingKeys}
+        note={current.note}
+        onChange={(key, v) => {
+          setHint((h) => (h?.kind === 'missing' ? null : h));
+          persist({ ...current, projectId, fields: { ...current.fields, [projectId]: { ...edits, [key]: v } } });
+        }}
+        onNote={(note) => persist({ ...current, projectId, note })}
+        onPick={(field) => void map(field)}
       />
-      <dl className="page">
-        <dt>Title</dt>
-        <dd>{page.title}</dd>
-        <dt>URL</dt>
-        <dd className="url">{page.url}</dd>
-      </dl>
-      {actionError && <p role="alert" className="error">{actionError}</p>}
-      <form onSubmit={(e) => e.preventDefault()}>
-        {project.fields.map((field) => {
-          const edited = edits[field.key];
-          const found = page.fields[field.key];
-          const value = edited ?? found?.value ?? '';
-          const source = edited !== undefined ? 'manual' : (found?.source ?? 'manual');
-          return (
-            <FieldRow
-              key={`${projectId}:${field.key}`}
-              field={field}
-              value={value}
-              source={source}
-              invalid={missingKeys.includes(field.key)}
-              onChange={(v) => {
-                setHint((h) => (h?.kind === 'missing' ? null : h));
-                persist({ ...current, projectId, fields: { ...current.fields, [projectId]: { ...edits, [field.key]: v } } });
-              }}
-              onMap={() => void map(field)}
-            />
-          );
-        })}
-        <NoteField value={current.note} onChange={(note) => persist({ ...current, projectId, note })} />
-      </form>
-      <section aria-label="Send">
-        {project.targets.length === 0 && <p className="hint">This project has no targets. Add one in the options.</p>}
+      <section aria-label={t('popup.send.section')} className="popup-send">
         {project.targets.map((target) => {
           const busy = sendingIds.includes(target.id) || sendState.inFlight.includes(target.id);
           const result = sendState.results[target.id];
           const h = hint?.targetId === target.id ? hint : null;
           const noPermission = h?.kind === 'permission' || result?.outcome.kind === 'no-permission';
           return (
-            <div className="target" key={target.id}>
-              <button type="button" disabled={busy} onClick={() => void sendTo(target)}>
-                Send to {target.name}
-              </button>
-              {busy && <p role="status" className="hint">Sending…</p>}
-              {h?.kind === 'missing' && (
-                <p role="alert" className="error">
-                  Required fields missing: {h.keys.map((k) => project.fields.find((f) => f.key === k)?.label ?? k).join(', ')}
-                </p>
-              )}
-              {noPermission && (
-                <p role="alert" className="error">
-                  Permission for this target address is missing.{' '}
-                  <button type="button" onClick={() => void openOptions()}>Open options to grant it</button>
-                </p>
-              )}
-              {result && !busy && <ResultView outcome={result.outcome} />}
+            <div className="popup-target" key={target.id}>
+              <Button variant="primary" className="popup-send-button" disabled={busy} aria-busy={busy} onClick={() => void sendTo(target)}>
+                {busy ? (
+                  <>
+                    <span className="q-spinner popup-spinner" aria-hidden="true" />
+                    {t('popup.send.busy')}
+                  </>
+                ) : (
+                  t('popup.send.to', { name: target.name })
+                )}
+              </Button>
+              {busy && <span role="status" className="popup-sr">{t('popup.send.busyTo', { name: target.name })}</span>}
+              {h?.kind === 'missing' && <MissingHint />}
+              {noPermission && <NoPermissionView onOpenOptions={openOpts} />}
+              {result && !busy && <ResultView outcome={result.outcome} at={result.at} onRetry={() => void sendTo(target)} />}
             </div>
           );
         })}
       </section>
     </main>
   );
-}
-
-function ProjectSelect(props: {
-  projects: { id: string; name: string }[];
-  matchingIds: string[];
-  value: string;
-  onChange: (id: string) => void;
-}) {
-  const id = useId();
-  return (
-    <div className="row">
-      <label htmlFor={id}>Project</label>
-      <select id={id} value={props.value} onChange={(e) => props.onChange(e.target.value)}>
-        {props.projects.map((p) => (
-          <option key={p.id} value={p.id}>
-            {p.name}
-            {props.matchingIds.includes(p.id) ? '' : ' (no match)'}
-          </option>
-        ))}
-      </select>
-    </div>
-  );
-}
-
-function FieldRow(props: {
-  field: Field;
-  value: string;
-  source: FieldSource;
-  invalid: boolean;
-  onChange: (v: string) => void;
-  onMap: () => void;
-}) {
-  const { field, value, source } = props;
-  const id = useId();
-  const choice = field.sources.manual?.type === 'choice' ? field.sources.manual.values : null;
-  return (
-    <div className="row">
-      <label htmlFor={id}>
-        {field.label}
-        {field.required && <span aria-hidden="true"> *</span>}
-      </label>
-      <div className="input-line">
-        {choice ? (
-          <select id={id} value={value} required={field.required} aria-invalid={props.invalid || undefined} onChange={(e) => props.onChange(e.target.value)}>
-            <option value="">—</option>
-            {value !== '' && !choice.includes(value) && <option value={value}>{value}</option>}
-            {choice.map((c) => (
-              <option key={c} value={c}>{c}</option>
-            ))}
-          </select>
-        ) : (
-          <input id={id} type="text" value={value} required={field.required} aria-invalid={props.invalid || undefined} onChange={(e) => props.onChange(e.target.value)} />
-        )}
-        <button type="button" aria-label={`Map ${field.label}`} onClick={props.onMap}>Map</button>
-      </div>
-      <p className="hint">Source: {SOURCE_LABELS[source]}</p>
-    </div>
-  );
-}
-
-function NoteField({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-  const id = useId();
-  return (
-    <div className="row">
-      <label htmlFor={id}>Note</label>
-      <textarea id={id} rows={3} value={value} onChange={(e) => onChange(e.target.value)} />
-    </div>
-  );
-}
-
-/** Only http(s) URLs become links; webhook data is otherwise plain text. */
-function linkOf(value: string): string | undefined {
-  try {
-    const u = new URL(value);
-    return u.protocol === 'http:' || u.protocol === 'https:' ? u.href : undefined;
-  } catch {
-    return undefined;
-  }
-}
-
-function ResultView({ outcome }: { outcome: SendOutcome }) {
-  if (outcome.kind === 'success') {
-    const href = outcome.url === undefined ? undefined : linkOf(outcome.url);
-    return (
-      <div role="status" className="result">
-        <p>Sent ({outcome.status})</p>
-        {outcome.message && <p>{outcome.message}</p>}
-        {outcome.url !== undefined &&
-          (href ? (
-            <p><a href={href} target="_blank" rel="noopener noreferrer">{href}</a></p>
-          ) : (
-            <p>{outcome.url}</p>
-          ))}
-      </div>
-    );
-  }
-  if (outcome.kind === 'http-error') {
-    return (
-      <p role="alert" className="error">
-        Error {outcome.status}{outcome.text ? `: ${outcome.text}` : ''}
-      </p>
-    );
-  }
-  if (outcome.kind === 'no-permission') return null;
-  return <p role="alert" className="error">{outcome.message}</p>;
 }

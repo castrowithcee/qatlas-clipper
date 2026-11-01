@@ -9,7 +9,7 @@ export default tseslint.config(
   ...tseslint.configs.recommended,
   reactHooks.configs.flat.recommended,
   {
-    files: ['scripts/**', 'e2e/**', 'playwright.config.ts', 'playwright.screens.config.ts'],
+    files: ['scripts/**', 'e2e/**', 'playwright.config.ts', 'playwright.screens.config.ts', 'playwright.popup-screens.config.ts'],
     languageOptions: { globals: { ...globals.node } },
   },
   {
