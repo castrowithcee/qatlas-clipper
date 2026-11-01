@@ -18,6 +18,18 @@ export const de = {
   'ui.error': 'Etwas ist schiefgelaufen',
   'ui.retry': 'Erneut versuchen',
   'settings.saveFailed': 'Die Einstellung konnte nicht gespeichert werden: {message}',
+  'picker.title': 'Element für „{field}“ wählen',
+  'picker.prompt': 'Klicke ein Element auf der Seite an.',
+  'picker.preview': 'Vorschau',
+  'picker.previewEmpty': '(kein Text)',
+  'picker.notUnique': 'Dieses Element ist nicht eindeutig. Wähle ein anderes.',
+  'picker.confirm': 'Übernehmen',
+  'picker.cancel': 'Abbrechen',
+  'picker.keyHint': 'Esc bricht ab',
+  'picker.keyHintLabel': 'Tastaturhinweis',
+  'picker.details': 'Technische Details',
+  'picker.saved': 'Zuordnung gespeichert',
+  'picker.saveFailed': 'Die Zuordnung konnte nicht gespeichert werden: {message}',
 } as const;
 
 export type MessageKey = keyof typeof de;
@@ -41,6 +53,18 @@ export const en: Record<MessageKey, string> = {
   'ui.error': 'Something went wrong',
   'ui.retry': 'Try again',
   'settings.saveFailed': 'The setting could not be saved: {message}',
+  'picker.title': 'Choose element for "{field}"',
+  'picker.prompt': 'Click an element on the page.',
+  'picker.preview': 'Preview',
+  'picker.previewEmpty': '(no text)',
+  'picker.notUnique': 'This element is not unique. Choose another one.',
+  'picker.confirm': 'Apply',
+  'picker.cancel': 'Cancel',
+  'picker.keyHint': 'Esc cancels',
+  'picker.keyHintLabel': 'Keyboard hint',
+  'picker.details': 'Technical details',
+  'picker.saved': 'Mapping saved',
+  'picker.saveFailed': 'The mapping could not be saved: {message}',
 };
 
 export type Language = 'de' | 'en';
