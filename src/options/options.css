@@ -14,3 +14,6 @@ nav li { margin-bottom: 0.5rem; }
 .confirm { border: 2px solid #b00020; padding: 0.5rem; margin: 0.5rem 0; }
 [aria-current='true'] { font-weight: bold; }
 button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 3px solid #1a5fb4; outline-offset: 2px; }
+
+.import-export { border: 1px solid #888; padding: 0.5rem; margin-bottom: 1rem; }
+.import-export > div { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin: 0.25rem 0; }
