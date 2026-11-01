@@ -17,11 +17,12 @@ Chromium browser extension (Manifest V3) that reads page content and fields acco
 - `src/options/`: options page components (projects, scope, fields, site mappings, targets with header values and host permissions, import and export)
 - `src/popup/`: popup components (project choice, field form, picker start) and the per-URL draft cache of user edits (`storage.session`)
 - `src/send/`: send core (payload builder, service-worker send with header binding and timeout, response evaluation, per-URL result storage in `storage.session`, runtime message API)
-- `docs/`: `webhook.md` (webhook request and response contract)
+- `docs/`: `webhook.md` (webhook request and response contract), `release-checklist.md` (manual Brave and Edge check per release)
+- `.github/workflows/`: `ci.yml` (checks and E2E), `release.yml` (tag `vX.Y.Z` release with ZIP; `workflow_dispatch` is a dry run)
 - `public/icon/`: extension icons
 - `tests/`: Vitest tests
 - `e2e/`: Playwright flow tests (`specs/`, test pages in `pages/`, local page and webhook servers, extension fixtures)
-- `scripts/`: build checks (`check-manifest.mjs`)
+- `scripts/`: build and release checks (`check-manifest.mjs`, `check-version.mjs`)
 - `wxt.config.ts`: WXT and manifest config
 
 ## Guardrails
