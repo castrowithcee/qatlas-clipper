@@ -12,6 +12,7 @@ import {
   type StorageArea,
 } from '../config';
 import { defaultPermissions, originPattern, originPatterns, type PermissionStatus, type PermissionsApi } from './permissions';
+import { ImportExport } from './ImportExport';
 import { ProjectEditor } from './ProjectEditor';
 import { ItemButtons } from './fields';
 import { moveItem, newProject, normalize, unmappedIssues, validate } from './draft';
@@ -56,7 +57,7 @@ export function OptionsApp({ storage, permissions = defaultPermissions }: Props)
       </main>
     );
   }
-  return <Editor key={attempt} initial={loaded.saved} initialValues={loaded.values} storage={storage} permissions={permissions} />;
+  return <Editor key={attempt} initial={loaded.saved} initialValues={loaded.values} storage={storage} permissions={permissions} onReload={() => { setLoaded({ state: 'loading' }); setAttempt((n) => n + 1); }} />;
 }
 
 // Empty per-target maps carry no value, so they must not count as changes.
@@ -69,9 +70,11 @@ interface EditorProps {
   initialValues: HeaderValues;
   storage?: StorageArea;
   permissions: PermissionsApi;
+  /** Reloads everything from storage, e.g. after an import replaced the configuration. */
+  onReload: () => void;
 }
 
-function Editor({ initial, initialValues, storage, permissions }: EditorProps) {
+function Editor({ initial, initialValues, storage, permissions, onReload }: EditorProps) {
   const [saved, setSaved] = useState(initial);
   const [draft, setDraft] = useState(initial);
   const [selectedId, setSelectedId] = useState<string | undefined>(initial.projects[0]?.id);
@@ -192,6 +195,7 @@ function Editor({ initial, initialValues, storage, permissions }: EditorProps) {
           </ul>
         </div>
       )}
+      <ImportExport storage={storage} permissions={permissions} dirty={dirty} onImported={onReload} />
       <div className="layout">
         <nav aria-label="Projects">
           <h2>Projects</h2>

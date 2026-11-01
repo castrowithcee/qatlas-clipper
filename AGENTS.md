@@ -13,7 +13,7 @@ Chromium browser extension (Manifest V3) that reads page content and fields acco
 - `src/config/`: configuration model, validation, storage, migration, import and export
 - `src/extract/`: project scope matching and field sources (JSON-LD, meta tags, selectors) as pure functions over a `Document`
 - `src/picker/`: CSS selector generation, click-mapping overlay (Shadow DOM), mapping persistence and picker start
-- `src/options/`: options page components (projects, scope, fields, site mappings, targets with header values and host permissions)
+- `src/options/`: options page components (projects, scope, fields, site mappings, targets with header values and host permissions, import and export)
 - `public/icon/`: extension icons
 - `tests/`: Vitest tests
 - `wxt.config.ts`: WXT and manifest config

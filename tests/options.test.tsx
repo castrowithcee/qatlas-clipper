@@ -268,3 +268,106 @@ describe('options page', () => {
     });
   });
 });
+
+describe('import and export', () => {
+  const target = { id: 't1', name: 'Hook', url: 'https://example.com/hook', headers: ['Authorization'], purpose: '' };
+  const imported = JSON.stringify({ schemaVersion: 1, projects: [project('n1', 'Imported 1'), project('n2', 'Imported 2')] });
+  const withHeader = () =>
+    fakeStorage({ ...stored(project('p1', 'Old', { targets: [target] })), [HEADER_VALUES_KEY]: { t1: { Authorization: 'secret-token' } } });
+
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('exports the saved configuration without header values and says so', async () => {
+    const storage = withHeader();
+    let blob: Blob | undefined;
+    URL.createObjectURL = vi.fn((b: Blob) => ((blob = b), 'blob:x'));
+    URL.revokeObjectURL = vi.fn();
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+    const user = await mount(storage);
+    expect(screen.getByText(/Header values are not included/)).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Export configuration' }));
+    await screen.findByText('Exported the saved configuration.');
+    const text = await blob!.text();
+    expect(text).toContain('Authorization');
+    expect(text).not.toContain('secret-token');
+    expect(click).toHaveBeenCalledOnce();
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:x');
+    click.mockRestore();
+  });
+
+  it('replaces the configuration from a file only after confirmation', async () => {
+    const storage = withHeader();
+    const before = structuredClone(storage.data);
+    const user = await mount(storage);
+    const file = new File([imported], 'c.json', { type: 'application/json' });
+    await user.upload(screen.getByLabelText('Import from file'), file);
+    const dialog = await screen.findByRole('alertdialog', { name: 'Confirm import' });
+    expect(dialog.textContent).toContain('2 projects');
+    expect(storage.data).toEqual(before);
+    await user.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(screen.queryByRole('alertdialog', { name: 'Confirm import' })).toBeNull();
+    expect(storage.data).toEqual(before);
+
+    await user.upload(screen.getByLabelText('Import from file'), file);
+    await user.click(await screen.findByRole('button', { name: 'Confirm import' }));
+    expect(await screen.findByRole('button', { name: 'Imported 1' })).toBeTruthy();
+    expect((await loadConfig(storage)).projects.map((p) => p.name)).toEqual(['Imported 1', 'Imported 2']);
+  });
+
+  it('shows an error for invalid files without storing and without echoing content', async () => {
+    const storage = withHeader();
+    const before = structuredClone(storage.data);
+    const user = await mount(storage);
+    await user.upload(screen.getByLabelText('Import from file'), new File(['{"secret-marker":'], 'c.json'));
+    const alert = await screen.findByText(/Import failed/);
+    expect(alert.textContent).not.toContain('secret-marker');
+    expect(storage.data).toEqual(before);
+  });
+
+  it('mentions discarded unsaved changes in the confirmation', async () => {
+    const user = await mount(withHeader());
+    await user.click(screen.getByRole('button', { name: 'Add project' }));
+    expect(screen.getByText(/Unsaved changes are not exported/)).toBeTruthy();
+    await user.upload(screen.getByLabelText('Import from file'), new File([imported], 'c.json'));
+    expect((await screen.findByRole('alertdialog', { name: 'Confirm import' })).textContent).toContain('unsaved changes will be discarded');
+  });
+
+  it('requests the origin permission, then fetches, previews and replaces only after confirmation', async () => {
+    const storage = withHeader();
+    const permissions = fakePermissions();
+    const fetchMock = vi.fn(async () => new Response(imported));
+    vi.stubGlobal('fetch', fetchMock);
+    const user = await mount(storage, permissions);
+    await user.type(screen.getByLabelText('Import from URL'), 'https://example.org/c.json');
+    await user.click(screen.getByRole('button', { name: 'Fetch from URL' }));
+    const dialog = await screen.findByRole('alertdialog', { name: 'Confirm import' });
+    expect(permissions.request).toHaveBeenCalledWith(['https://example.org/*']);
+    expect(fetchMock).toHaveBeenCalledWith('https://example.org/c.json', { credentials: 'omit', redirect: 'error' });
+    expect(dialog.textContent).toContain('2 projects');
+    expect((await loadConfig(storage)).projects.map((p) => p.name)).toEqual(['Old']);
+    await user.click(screen.getByRole('button', { name: 'Confirm import' }));
+    await screen.findByRole('button', { name: 'Imported 2' });
+    expect((await loadConfig(storage)).projects).toHaveLength(2);
+  });
+
+  it('does not fetch when the permission is denied', async () => {
+    const storage = withHeader();
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    const user = await mount(storage, fakePermissions(false));
+    await user.type(screen.getByLabelText('Import from URL'), 'https://example.org/c.json');
+    await user.click(screen.getByRole('button', { name: 'Fetch from URL' }));
+    await screen.findByText(/permission for the URL origin was not granted/);
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(screen.queryByRole('alertdialog', { name: 'Confirm import' })).toBeNull();
+  });
+
+  it('rejects plain http URLs except localhost without asking for permission', async () => {
+    const permissions = fakePermissions();
+    const user = await mount(withHeader(), permissions);
+    await user.type(screen.getByLabelText('Import from URL'), 'http://example.org/c.json');
+    await user.click(screen.getByRole('button', { name: 'Fetch from URL' }));
+    await screen.findByText(/only allowed for localhost/);
+    expect(permissions.request).not.toHaveBeenCalled();
+  });
+});

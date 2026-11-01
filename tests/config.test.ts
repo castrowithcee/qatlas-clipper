@@ -226,7 +226,7 @@ describe('URL import', () => {
   it('rejects non-http schemes before any permission check or fetch', async () => {
     const fetchMock = vi.fn();
     const hasPermission = vi.fn(async () => true);
-    for (const u of ['file:///etc/passwd', 'javascript:alert(1)', 'not a url']) {
+    for (const u of ['file:///etc/passwd', 'javascript:alert(1)', 'not a url', 'http://example.com/c.json']) {
       await expect(importFromUrl(u, { storage, fetch: fetchMock as unknown as typeof fetch, hasPermission })).rejects.toThrow(ConfigError);
     }
     expect(hasPermission).not.toHaveBeenCalled();

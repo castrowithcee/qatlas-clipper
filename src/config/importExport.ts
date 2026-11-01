@@ -41,29 +41,39 @@ export interface UrlImportDeps {
 
 const defaultHasPermission = (originPattern: string) => browser.permissions.contains({ origins: [originPattern] });
 
-export async function importFromUrl(url: string, deps: UrlImportDeps = {}): Promise<Config> {
+/** Same rule as target URLs: https:, or http: for localhost only. Returns the URL and its origin match pattern. */
+export function checkImportUrl(url: string): { url: URL; pattern: string } {
   let parsed: URL;
   try {
-    parsed = new URL(url);
+    parsed = new URL(url.trim());
   } catch {
     throw new ConfigError('Import URL is not a valid URL');
   }
-  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-    throw new ConfigError('Import URL must use http: or https:');
+  if (!(parsed.protocol === 'https:' || (parsed.protocol === 'http:' && parsed.hostname === 'localhost'))) {
+    throw new ConfigError('Import URL must use https: (http: is only allowed for localhost)');
   }
-  const pattern = `${parsed.origin}/*`;
+  return { url: parsed, pattern: `${parsed.origin}/*` };
+}
+
+/** Fetch the import text from a URL without storing anything. Needs an already granted host permission. */
+export async function fetchImportText(url: string, deps: Pick<UrlImportDeps, 'hasPermission' | 'fetch'> = {}): Promise<string> {
+  const { url: parsed, pattern } = checkImportUrl(url);
   if (!(await (deps.hasPermission ?? defaultHasPermission)(pattern))) {
     throw new ConfigError(`No host permission for ${parsed.origin}; grant it before importing from this URL`);
   }
-  let text: string;
   try {
     // No credentials, and no redirects: a redirect could leave the permitted origin.
     const res = await (deps.fetch ?? fetch)(parsed.href, { credentials: 'omit', redirect: 'error' });
     if (!res.ok) throw new ConfigError(`Import URL answered with HTTP ${res.status}`);
-    text = await res.text();
+    const length = Number(res.headers?.get('content-length'));
+    if (length > MAX_IMPORT_CHARS * 4) throw new ConfigError('Import is too large');
+    return await res.text();
   } catch (e) {
     if (e instanceof ConfigError) throw e;
     throw new ConfigError(`Could not fetch import URL from ${parsed.origin}`);
   }
-  return importFromText(text, deps.storage);
+}
+
+export async function importFromUrl(url: string, deps: UrlImportDeps = {}): Promise<Config> {
+  return importFromText(await fetchImportText(url, deps), deps.storage);
 }
