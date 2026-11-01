@@ -106,7 +106,7 @@ function Editor({ initial, storage }: { initial: Config; storage?: StorageArea }
       <div className="layout">
         <nav aria-label="Projects">
           <h2>Projects</h2>
-          <p className="hint">Order is trigger precedence: the first matching project wins.</p>
+          <p className="hint">Order of matching projects: the first one is preselected.</p>
           {draft.projects.length === 0 && <p>No projects yet.</p>}
           <ol>
             {draft.projects.map((p, i) => (
@@ -127,7 +127,7 @@ function Editor({ initial, storage }: { initial: Config; storage?: StorageArea }
           </ol>
           {confirmProject && (
             <div role="alertdialog" aria-label="Confirm project deletion" className="confirm">
-              <p>Delete project "{confirmProject.name}" with its triggers, fields and site mappings?</p>
+              <p>Delete project "{confirmProject.name}" with its scope, fields and site mappings?</p>
               <button type="button" onClick={() => { edit(draft.projects.filter((p) => p.id !== confirmProject.id)); setConfirmId(undefined); }}>
                 Confirm delete
               </button>

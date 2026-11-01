@@ -1,4 +1,4 @@
-import { ConfigError, parseConfig, type Config, type Field, type Project, type Trigger } from '../config';
+import { ConfigError, parseConfig, type Config, type Field, type Project, type Scope } from '../config';
 
 export const newId = (): string => crypto.randomUUID();
 
@@ -12,11 +12,7 @@ export function moveItem<T>(items: T[], index: number, delta: -1 | 1): T[] {
 }
 
 export function newProject(): Project {
-  return { id: newId(), name: 'New project', triggers: [], fields: [], siteMappings: {}, targets: [] };
-}
-
-export function newTrigger(): Trigger {
-  return { type: 'urlPrefix', value: '' };
+  return { id: newId(), name: 'New project', scope: { allSites: true, domains: [] }, fields: [], siteMappings: {}, targets: [] };
 }
 
 export function newField(existing: Field[]): Field {
@@ -26,9 +22,10 @@ export function newField(existing: Field[]): Field {
   return { key: `field${n}`, label: 'New field', required: false, sources: {} };
 }
 
-export function changeTriggerType(type: Trigger['type']): Trigger {
-  if (type === 'regex') return { type, pattern: '' };
-  return { type, value: '' };
+/** Switching to "all sites" drops the domain list; switching to "domains" starts with one empty entry. */
+export function setAllSites(scope: Scope, allSites: boolean): Scope {
+  if (allSites === scope.allSites) return scope;
+  return { ...scope, allSites, domains: allSites ? [] : [''] };
 }
 
 /**
@@ -73,22 +70,31 @@ export function deleteDomain(project: Project, domain: string): Project {
   return { ...project, siteMappings };
 }
 
-/** Drop unused optional sources so that "empty input" means "source not used". */
+/** Trim the scope and drop unused optional sources so that "empty input" means "not used". */
 export function normalize(config: Config): Config {
   return {
     ...config,
-    projects: config.projects.map((p) => ({
-      ...p,
-      fields: p.fields.map((f) => {
-        const sources: Field['sources'] = { ...f.sources };
-        if (sources.schemaOrgPath !== undefined && sources.schemaOrgPath.trim() === '') delete sources.schemaOrgPath;
-        if (sources.metaTag && sources.metaTag.name.trim() === '') delete sources.metaTag;
-        if (sources.manual?.type === 'choice') {
-          sources.manual = { type: 'choice', values: sources.manual.values.map((v) => v.trim()).filter(Boolean) };
-        }
-        return { ...f, sources };
-      }),
-    })),
+    projects: config.projects.map((p) => {
+      const { pageType, ...scope } = p.scope;
+      const trimmed = pageType?.trim();
+      return {
+        ...p,
+        scope: {
+          ...scope,
+          domains: scope.domains.map((d) => d.trim()),
+          ...(trimmed ? { pageType: trimmed } : {}),
+        },
+        fields: p.fields.map((f) => {
+          const sources: Field['sources'] = { ...f.sources };
+          if (sources.schemaOrgPath !== undefined && sources.schemaOrgPath.trim() === '') delete sources.schemaOrgPath;
+          if (sources.metaTag && sources.metaTag.name.trim() === '') delete sources.metaTag;
+          if (sources.manual?.type === 'choice') {
+            sources.manual = { type: 'choice', values: sources.manual.values.map((v) => v.trim()).filter(Boolean) };
+          }
+          return { ...f, sources };
+        }),
+      };
+    }),
   };
 }
 
@@ -116,7 +122,7 @@ export const errorsAt = (issues: Issue[], path: string): string[] =>
   issues.filter((i) => i.path === path).map((i) => i.message);
 
 // Paths that an input of the project editor shows itself.
-const MAPPED = /^projects\[(\d+)\]\.(name|triggers\[\d+\]\.(value|pattern)|fields\[\d+\]\.(key|label|sources\.schemaOrgPath|sources\.metaTag\.name|sources\.manual\.values(\[\d+\])?)|siteMappings\..+)$/;
+const MAPPED = /^projects\[(\d+)\]\.(name|scope\.(pageType|domains\[\d+\]|domains)|fields\[\d+\]\.(key|label|sources\.schemaOrgPath|sources\.metaTag\.name|sources\.manual\.values(\[\d+\])?)|siteMappings\..+)$/;
 
 /** Issues that no visible input of the selected project shows. */
 export function unmappedIssues(issues: Issue[], selectedIndex: number): Issue[] {

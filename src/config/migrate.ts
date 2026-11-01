@@ -4,6 +4,19 @@ import { CURRENT_SCHEMA_VERSION } from './schema';
 type Obj = Record<string, unknown>;
 const isObj = (v: unknown): v is Obj => typeof v === 'object' && v !== null && !Array.isArray(v);
 
+/** Host names of the old URL prefixes, without "www."; unparseable prefixes are dropped (validation then reports an empty list). */
+function prefixDomains(prefixes: unknown): string[] {
+  if (!Array.isArray(prefixes)) return [];
+  const hosts = prefixes.flatMap((p) => {
+    try {
+      return typeof p === 'string' ? [new URL(p).hostname.toLowerCase().replace(/^www\./, '')] : [];
+    } catch {
+      return [];
+    }
+  });
+  return [...new Set(hosts)];
+}
+
 /**
  * v0 (pre-release shape): no schemaVersion; per project `urlPrefixes` (string[]) and
  * `selectors` (domain -> key -> selector); per field `schemaPath` instead of sources.
@@ -19,7 +32,7 @@ function v0ToV1(input: Obj): Obj {
           const { urlPrefixes, selectors, fields, ...rest } = p;
           return {
             ...rest,
-            triggers: Array.isArray(urlPrefixes) ? urlPrefixes.map((value) => ({ type: 'urlPrefix', value })) : [],
+            scope: { allSites: false, domains: prefixDomains(urlPrefixes) },
             siteMappings: selectors ?? {},
             fields: Array.isArray(fields)
               ? fields.map((f: unknown) => {

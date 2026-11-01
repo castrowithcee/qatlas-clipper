@@ -1,7 +1,7 @@
 import type { Project } from '../config';
 import { FieldEditor } from './FieldEditor';
 import { SiteMappings } from './SiteMappings';
-import { TriggerEditor } from './TriggerEditor';
+import { ScopeEditor } from './ScopeEditor';
 import { deleteDomain, deleteField, deleteMapping, errorsAt, renameFieldKey, type Issue } from './draft';
 import { TextInput } from './fields';
 
@@ -18,7 +18,7 @@ export function ProjectEditor({ project, index, issues, onChange }: Props) {
     <div>
       <h2>Project: {project.name}</h2>
       <TextInput label="Project name" value={project.name} errors={errorsAt(issues, `${base}.name`)} onChange={(name) => onChange({ ...project, name })} />
-      <TriggerEditor triggers={project.triggers} basePath={base} issues={issues} onChange={(triggers) => onChange({ ...project, triggers })} />
+      <ScopeEditor scope={project.scope} basePath={base} issues={issues} onChange={(scope) => onChange({ ...project, scope })} />
       <FieldEditor
         fields={project.fields}
         basePath={base}
