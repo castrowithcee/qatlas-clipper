@@ -49,7 +49,31 @@ const SOURCE_LABELS: Record<FieldSource, string> = {
   manual: 'Manual',
 };
 
-const defaultTab = async () => (await browser.tabs.query({ active: true, currentWindow: true }))[0];
+type TabRef = { id?: number; url?: string } | undefined;
+
+/**
+ * Playwright cannot open the real action popup bound to a page tab, so the e2e build accepts `?tabId=<n>`.
+ * When disabled the parameter is ignored and always uses the active tab.
+ */
+export async function resolveTab(
+  tabIdParam: boolean,
+  search: string,
+  api: { active: () => Promise<TabRef>; byId: (id: number) => Promise<TabRef> },
+): Promise<TabRef> {
+  if (tabIdParam) {
+    const raw = new URLSearchParams(search).get('tabId');
+    if (raw !== null && /^\d+$/.test(raw)) return api.byId(Number(raw));
+  }
+  return api.active();
+}
+
+const activeTab = async () => (await browser.tabs.query({ active: true, currentWindow: true }))[0];
+
+// The literal comparison lets the bundler drop resolveTab (and the tabId handling) from release builds.
+const defaultTab = () =>
+  import.meta.env.MODE === 'e2e'
+    ? resolveTab(true, window.location.search, { active: activeTab, byId: (id) => browser.tabs.get(id) })
+    : activeTab();
 
 type State =
   | { phase: 'loading' }
