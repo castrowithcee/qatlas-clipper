@@ -29,3 +29,12 @@ describe('manifest policy', () => {
     expect(await resolve({ mode: 'e2e' })).toEqual(buildManifest('e2e'));
   });
 });
+
+describe('manifest localization', () => {
+  it('uses message placeholders with English as default locale', () => {
+    const m = buildManifest('production') as Record<string, unknown>;
+    expect(m.default_locale).toBe('en');
+    expect(m.name).toBe('__MSG_extName__');
+    expect(m.description).toBe('__MSG_extDescription__');
+  });
+});
