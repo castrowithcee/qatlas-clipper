@@ -1,0 +1,81 @@
+name: Development build
+
+# Publishes the latest green main as the pre-release "dev" with a ZIP at a fixed URL.
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: dev-build
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push'
+    runs-on: ubuntu-latest
+    env:
+      SHA: ${{ github.event.workflow_run.head_sha }}
+      GH_TOKEN: ${{ github.token }}
+      REPO: ${{ github.repository }}
+      ASSET: qatlas-clipper-dev-chrome.zip
+    steps:
+      - name: Skip if main has moved on
+        id: current
+        run: |
+          set -euo pipefail
+          head=$(gh api "repos/$REPO/commits/main" -q .sha)
+          if [ "$head" = "$SHA" ]; then echo "publish=true" >> "$GITHUB_OUTPUT"; else echo "main is at $head; a later run publishes it."; fi
+      - uses: actions/checkout@v4
+        if: steps.current.outputs.publish == 'true'
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+      - uses: actions/setup-node@v4
+        if: steps.current.outputs.publish == 'true'
+        with:
+          node-version: 22
+          cache: npm
+      - if: steps.current.outputs.publish == 'true'
+        run: npm ci
+      - name: Build ZIP
+        if: steps.current.outputs.publish == 'true'
+        run: |
+          set -euo pipefail
+          version=$(node -p "require('./package.json').version")
+          VERSION_NAME="$version-dev+${SHA:0:7}" npm run zip
+          zips=(.output/*.zip)
+          if [ "${#zips[@]}" -ne 1 ] || [ ! -f "${zips[0]}" ]; then
+            echo "Expected exactly one ZIP in .output/, found: ${zips[*]}" >&2
+            exit 1
+          fi
+          mkdir -p dist
+          cp "${zips[0]}" "dist/$ASSET"
+          unzip -p "dist/$ASSET" manifest.json > "$RUNNER_TEMP/manifest.json"
+          node scripts/check-manifest.mjs "$RUNNER_TEMP/manifest.json"
+      - name: Move tag dev
+        if: steps.current.outputs.publish == 'true'
+        run: |
+          set -euo pipefail
+          if gh api "repos/$REPO/git/ref/tags/dev" > /dev/null 2>&1; then
+            gh api -X PATCH "repos/$REPO/git/refs/tags/dev" -f sha="$SHA" -F force=true > /dev/null
+          else
+            gh api -X POST "repos/$REPO/git/refs" -f ref=refs/tags/dev -f sha="$SHA" > /dev/null
+          fi
+      - name: Publish pre-release
+        if: steps.current.outputs.publish == 'true'
+        run: |
+          set -euo pipefail
+          notes="Development build of main at $SHA, built $(date -u +%Y-%m-%dT%H:%MZ). Not a release; replaced on every push to main.
+
+          Update: unzip into the same folder as before and click Reload in the browser's extensions page, so your settings stay."
+          if gh release view dev --repo "$REPO" > /dev/null 2>&1; then
+            gh release edit dev --repo "$REPO" --title "Development build" --notes "$notes" --prerelease
+            gh release upload dev "dist/$ASSET" --repo "$REPO" --clobber
+          else
+            gh release create dev "dist/$ASSET" --repo "$REPO" --verify-tag --prerelease --latest=false \
+              --title "Development build" --notes "$notes"
+          fi

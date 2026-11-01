@@ -18,6 +18,11 @@ describe('manifest policy', () => {
     expect(manifest.permissions).toEqual(['activeTab', 'scripting', 'storage']);
   });
 
+  it('sets version_name only when one is given', () => {
+    expect(buildManifest('production', '1.0.0-dev+abc1234')).toHaveProperty('version_name', '1.0.0-dev+abc1234');
+    expect(buildManifest('production', '')).not.toHaveProperty('version_name');
+  });
+
   it('resolves the WXT config per mode to the same manifests', async () => {
     const resolve = config.manifest as unknown as (env: { mode: string }) => unknown;
     expect(await resolve({ mode: 'production' })).toEqual(buildManifest('production'));

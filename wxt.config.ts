@@ -3,9 +3,11 @@ import { defineConfig } from 'wxt';
 /** Origins granted at install time in the e2e build only; activeTab cannot be granted by a click in Playwright. */
 export const E2E_HOST_PERMISSIONS = ['http://localhost/*', 'http://127.0.0.1/*'];
 
-export function buildManifest(mode: string) {
+export function buildManifest(mode: string, versionName = process.env.VERSION_NAME) {
   return {
     name: 'qatlas-clipper',
+    // Shown in chrome://extensions to tell development builds apart; Chrome's numeric version stays from package.json.
+    ...(versionName ? { version_name: versionName } : {}),
     description: 'Reads page content and sends it to your own webhooks.',
     permissions: ['activeTab', 'scripting', 'storage'],
     optional_host_permissions: ['https://*/*', 'http://*/*'],
