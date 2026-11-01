@@ -5,3 +5,4 @@ export { Field, type FieldProps } from './Field';
 export { Checkbox, Select, Switch, TextField, type SelectOption } from './Inputs';
 export { Dialog } from './Dialog';
 export { Disclosure, EmptyState, ErrorState, LoadingState, Toast, type ToastKind } from './Feedback';
+export { Chip } from './Chip';

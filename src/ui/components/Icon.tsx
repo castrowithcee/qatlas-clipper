@@ -20,6 +20,9 @@ const PATHS = {
   ),
   inbox: <path d="M4 13l2-7h12l2 7v5H4zM4 13h5l1 2h4l1-2h5" />,
   plus: <path d="M12 5v14M5 12h14" />,
+  'arrow-up': <path d="M12 19V5M6 11l6-6 6 6" />,
+  'arrow-down': <path d="M12 5v14M6 13l6 6 6-6" />,
+  trash: <path d="M4 7h16M10 7V4h4v3M6 7l1 13h10l1-13M10 11v6M14 11v6" />,
   settings: (
     <>
       <circle cx="12" cy="12" r="3.5" />

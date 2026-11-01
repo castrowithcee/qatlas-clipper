@@ -3,7 +3,8 @@ import { FieldEditor } from './FieldEditor';
 import { SiteMappings } from './SiteMappings';
 import { ScopeEditor } from './ScopeEditor';
 import { deleteDomain, deleteField, deleteMapping, errorsAt, renameFieldKey, type Issue } from './draft';
-import { TextInput } from './fields';
+import { useI18n } from '../settings';
+import { TextField } from '../ui/components';
 import { TargetEditor } from './TargetEditor';
 import type { PermissionStatus } from './permissions';
 
@@ -19,11 +20,13 @@ interface Props {
 }
 
 export function ProjectEditor({ project, index, issues, onChange, headerValues, onHeaderValues, permissionStatus, onRequestPermission }: Props) {
+  const { t } = useI18n();
   const base = `projects[${index}]`;
+  const nameError = project.name.trim() === '' ? t('options.project.nameMissing') : errorsAt(issues, `${base}.name`)[0];
   return (
-    <div>
-      <h2>Project: {project.name}</h2>
-      <TextInput label="Project name" value={project.name} errors={errorsAt(issues, `${base}.name`)} onChange={(name) => onChange({ ...project, name })} />
+    <div className="options-project-view">
+      <h2>{project.name || t('options.projects.unnamed')}</h2>
+      <TextField label={t('options.project.name')} value={project.name} error={nameError} onChange={(e) => onChange({ ...project, name: e.target.value })} />
       <ScopeEditor scope={project.scope} basePath={base} issues={issues} onChange={(scope) => onChange({ ...project, scope })} />
       <FieldEditor
         fields={project.fields}

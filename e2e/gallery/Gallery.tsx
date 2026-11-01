@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react';
 import { useI18n } from '../../src/settings';
 import {
-  Button, Checkbox, Dialog, Disclosure, EmptyState, ErrorState, ICON_NAMES, Icon, IconButton, LoadingState, Select, Switch, TextField, Toast, Tooltip,
+  Button, Checkbox, Chip, Dialog, Disclosure, EmptyState, ErrorState, ICON_NAMES, Icon, IconButton, LoadingState, Select, Switch, TextField, Toast, Tooltip,
 } from '../../src/ui/components';
 import '../../src/ui/components/components.css';
 
@@ -27,6 +27,7 @@ export function Gallery() {
         .gallery-section { padding: var(--space-4) 0 var(--space-5); border-bottom: 1px solid var(--color-border); }
         .gallery-row { display: flex; flex-wrap: wrap; gap: var(--space-3); align-items: flex-start; }
         .gallery-row > .q-field { flex: 1 1 14rem; }
+        .gallery-chips { display: flex; gap: var(--space-2); padding: 0; margin: 0; list-style: none; }
         .gallery-icons { display: flex; gap: var(--space-3); }
         .gallery-icons .q-icon { width: 1.5rem; height: 1.5rem; }
       `}</style>
@@ -91,6 +92,12 @@ export function Gallery() {
         >
           The project and its field mappings will be removed. This cannot be undone.
         </Dialog>
+      </Section>
+      <Section id="chips" title="Chips">
+        <ul className="gallery-chips">
+          <Chip label="example.com" removeLabel="Remove example.com" onRemove={() => {}} />
+          <Chip label="example.org" removeLabel="Remove example.org" onRemove={() => {}} />
+        </ul>
       </Section>
       <Section id="icons" title="Icons">
         <div className="gallery-icons">{ICON_NAMES.map((n) => <Icon key={n} name={n} />)}</div>

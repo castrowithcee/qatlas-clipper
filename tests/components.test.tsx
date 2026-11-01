@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import {
-  Button, Checkbox, Dialog, Disclosure, EmptyState, ErrorState, Icon, IconButton, LoadingState, Select, Switch, TextField, Toast, Tooltip, ICON_NAMES,
+  Button, Checkbox, Chip, Dialog, Disclosure, EmptyState, ErrorState, Icon, IconButton, LoadingState, Select, Switch, TextField, Toast, Tooltip, ICON_NAMES,
 } from '../src/ui/components';
 import { de, en } from '../src/i18n/catalog';
 
@@ -254,5 +254,15 @@ describe('component catalog keys', () => {
     for (const key of ['ui.close', 'ui.moreInfo', 'ui.advanced', 'ui.loading', 'ui.error', 'ui.retry', 'settings.help']) {
       expect(key in de && key in en, key).toBe(true);
     }
+  });
+});
+
+describe('Chip', () => {
+  it('shows the value and removes it through a named button', async () => {
+    const onRemove = vi.fn();
+    render(<ul><Chip label="example.com" removeLabel="Remove example.com" onRemove={onRemove} /></ul>);
+    expect(screen.getByRole('listitem').textContent).toBe('example.com');
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Remove example.com' }));
+    expect(onRemove).toHaveBeenCalledOnce();
   });
 });

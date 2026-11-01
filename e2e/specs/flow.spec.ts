@@ -44,12 +44,17 @@ test('configure, map by click, prefill on a second page, send, and show the resp
   await options.getByRole('button', { name: 'Confirm import' }).click();
   await expect(options.getByLabel('Target name')).toHaveValue('Test hook');
   await options.getByLabel('Header value 1').fill(HEADER_VALUE);
+  // A field added in the editor gets its key from the label and takes its value from a click on the page.
+  await options.getByLabel('Label of the new field').fill('Sub title');
+  await options.getByRole('button', { name: 'Add field' }).click();
+  await expect(options.getByRole('group', { name: 'Sub title' }).getByLabel('Where does the value come from?')).toHaveValue('click');
   await options.getByRole('button', { name: 'Save changes' }).click();
   await expect(options.getByRole('status').filter({ hasText: 'Saved.' })).toBeVisible();
 
   const stored = await serviceWorker.evaluate(() => chrome.storage.local.get(['config', 'headerValues']));
   expect(stored.headerValues).toEqual({ hook: { 'X-Token': HEADER_VALUE } });
   expect(JSON.stringify(stored.config)).toContain(webhook.url);
+  expect((stored.config as StoredConfig).projects[0]!.fields.map((f) => f.key)).toEqual(['price', 'headline', 'sub_title']);
   await options.close();
 
   // 2. Reading (structured sources) on the JSON-LD and meta pages.

@@ -5,7 +5,7 @@ import { join, resolve } from 'node:path';
 const OUT = resolve(process.env.SCREENS_DIR ?? 'test-results/screens');
 mkdirSync(OUT, { recursive: true });
 
-const SECTIONS = ['buttons', 'fields', 'toggles', 'tooltip', 'toasts', 'states', 'disclosure', 'icons'];
+const SECTIONS = ['buttons', 'fields', 'toggles', 'tooltip', 'toasts', 'states', 'disclosure', 'chips', 'icons'];
 
 async function open(page: Page, theme: string, lang = 'en') {
   await page.goto(`/?theme=${theme}&lang=${lang}`);

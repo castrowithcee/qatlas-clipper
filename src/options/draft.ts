@@ -11,25 +11,91 @@ export function moveItem<T>(items: T[], index: number, delta: -1 | 1): T[] {
   return next;
 }
 
-export function newProject(): Project {
-  return { id: newId(), name: 'New project', scope: { allSites: true, domains: [] }, fields: [], siteMappings: {}, targets: [] };
+export function newProject(name: string): Project {
+  return { id: newId(), name, scope: { allSites: true, domains: [] }, fields: [], siteMappings: {}, targets: [] };
 }
 
 export function newTarget(): Target {
   return { id: newId(), name: 'New target', url: 'https://', headers: [], purpose: '' };
 }
 
-export function newField(existing: Field[]): Field {
-  const keys = new Set(existing.map((f) => f.key));
-  let n = existing.length + 1;
-  while (keys.has(`field${n}`)) n++;
-  return { key: `field${n}`, label: 'New field', required: false, sources: {} };
+const TRANSLITERATION: Record<string, string> = { ä: 'ae', ö: 'oe', ü: 'ue', ß: 'ss', æ: 'ae', œ: 'oe', ø: 'o', đ: 'd', ł: 'l', þ: 'th' };
+
+/** Same rule as the `key` of the field schema. */
+export const isValidFieldKey = (key: string): boolean => /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/.test(key);
+
+/**
+ * Derives a field key from a label: lowercase ASCII with underscores (umlauts become ae, oe, ue, ss),
+ * made unique among `taken` with a numeric suffix. A label without any ASCII letter or digit gives "field".
+ */
+export function fieldKeyFromLabel(label: string, taken: readonly string[]): string {
+  const base =
+    label
+      .toLowerCase()
+      .replace(/[äöüßæœøđłþ]/g, (c) => TRANSLITERATION[c] ?? c)
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9]+/g, '_')
+      .replace(/^_+|_+$/g, '')
+      .slice(0, 56)
+      .replace(/_+$/, '') || 'field';
+  let key = base;
+  for (let n = 2; taken.includes(key); n++) key = `${base}_${n}`;
+  return key;
 }
 
-/** Switching to "all sites" drops the domain list; switching to "domains" starts with one empty entry. */
+/** The key is derived once, here; renaming the label later leaves it alone. */
+export function newField(existing: Field[], label: string): Field {
+  const trimmed = label.trim();
+  return { key: fieldKeyFromLabel(trimmed, existing.map((f) => f.key)), label: trimmed, required: false, sources: {} };
+}
+
+export type ValueWay = 'detect' | 'click' | 'manual';
+
+/** Where a field's value comes from; the technical sources (schema.org path, meta tag) work alongside any of them. */
+export function valueWay(field: Field): ValueWay {
+  return field.sources.detect ? 'detect' : field.sources.manual ? 'manual' : 'click';
+}
+
+export function setValueWay(field: Field, way: ValueWay): Field {
+  if (valueWay(field) === way) return field;
+  const { detect: _detect, manual, ...rest } = field.sources;
+  void _detect;
+  if (way === 'detect') return { ...field, sources: { ...rest, detect: 'title' } };
+  if (way === 'manual') return { ...field, sources: { ...rest, manual: manual ?? { type: 'text' } } };
+  return { ...field, sources: rest };
+}
+
+/** Switching to "all sites" drops the domain list; switching to specific sites starts with an empty list. */
 export function setAllSites(scope: Scope, allSites: boolean): Scope {
   if (allSites === scope.allSites) return scope;
-  return { ...scope, allSites, domains: allSites ? [] : [''] };
+  return { ...scope, allSites, domains: [] };
+}
+
+const HOSTNAME = /^(?=.{1,253}$)[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)+$/;
+
+/**
+ * Turns a typed host name or a pasted address into the domain stored in the scope:
+ * lowercase, without scheme, path, port and a leading "www.". Undefined if no valid host name remains.
+ */
+export function parseWebsite(input: string): string | undefined {
+  const text = input.trim();
+  if (text === '' || /\s/.test(text)) return undefined;
+  let host: string;
+  try {
+    host = new URL(/^[a-z][a-z0-9+.-]*:\/\//i.test(text) ? text : `https://${text}`).hostname;
+  } catch {
+    return undefined;
+  }
+  host = host.toLowerCase().replace(/^www\./, '');
+  return HOSTNAME.test(host) ? host : undefined;
+}
+
+/** `undefined` removes the key, since an absent page kind means "any page". */
+export function setPageKind(scope: Scope, kind: Scope['pageKind'] | undefined): Scope {
+  const { pageKind: _old, ...rest } = scope;
+  void _old;
+  return kind ? { ...rest, pageKind: kind } : rest;
 }
 
 /**
