@@ -4,6 +4,7 @@ import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { CONFIG_KEY, type StorageArea } from '../src/config';
 import type { ReadTabResult } from '../src/extract/inject';
+import { OPTIONS_FOCUS_KEY } from '../src/options/focus';
 import { PopupApp, type PopupDeps } from '../src/popup/PopupApp';
 import { LAST_PROJECT_KEY, MAX_DRAFTS, emptyDraft, loadDraft, saveDraft } from '../src/popup/draft';
 
@@ -60,7 +61,7 @@ const basePage = (): Page => ({
 
 function setup(over: Partial<PopupDeps> & { page?: () => Page; projects?: unknown[] } = {}) {
   const storage = (over.storage ?? fakeStorage(stored(...(over.projects ?? PROJECTS)))) as ReturnType<typeof fakeStorage>;
-  const draftStorage = over.draftStorage ?? fakeStorage();
+  const draftStorage = (over.draftStorage ?? fakeStorage()) as ReturnType<typeof fakeStorage>;
   const read = over.read ?? fakeRead(over.page ?? basePage);
   const deps: PopupDeps = {
     storage, draftStorage, read,
@@ -182,6 +183,30 @@ describe('popup', () => {
     expect(await screen.findByText('No projects yet')).toBeTruthy();
     await user.click(screen.getByRole('button', { name: 'Create project' }));
     expect(deps.openOptions).toHaveBeenCalled();
+  });
+
+  it('hands the selected project to the options page before opening it', async () => {
+    const { user, deps, draftStorage } = setup();
+    await user.selectOptions(await screen.findByLabelText('Project'), 'a');
+    await user.click(screen.getByRole('button', { name: 'Open settings' }));
+    await waitFor(() => expect(deps.openOptions).toHaveBeenCalledTimes(1));
+    expect(draftStorage.data[OPTIONS_FOCUS_KEY]).toMatchObject({ projectId: 'a' });
+  });
+
+  it('opens the options page without a request when writing it fails', async () => {
+    const draftStorage = { ...fakeStorage(), set: async () => { throw new Error('no session'); } };
+    const { user, deps } = setup({ draftStorage });
+    await screen.findByLabelText('Project');
+    await user.click(screen.getByRole('button', { name: 'Open settings' }));
+    await waitFor(() => expect(deps.openOptions).toHaveBeenCalledTimes(1));
+  });
+
+  it('opens the default view without projects', async () => {
+    const { user, deps, draftStorage } = setup({ projects: [] });
+    await screen.findByText('No projects yet');
+    await user.click(screen.getByRole('button', { name: 'Create project' }));
+    expect(deps.openOptions).toHaveBeenCalled();
+    expect(draftStorage.data).not.toHaveProperty(OPTIONS_FOCUS_KEY);
   });
 
   it('shows the read error message', async () => {

@@ -15,6 +15,7 @@ import { defaultPermissions, originPattern, originPatterns, type PermissionStatu
 import { ImportExport } from './ImportExport';
 import { ProjectEditor } from './ProjectEditor';
 import { Brand, Sidebar, type NavTarget } from './Sidebar';
+import { defaultFocusChannel, takeOptionsFocus, type FocusChannel } from './focus';
 import { navigate, parseHash, projectHash, useHash } from './route';
 import { moveItem, newProject, normalize, unmappedIssues, validate } from './draft';
 import { SettingsSection, useI18n } from '../settings';
@@ -28,9 +29,11 @@ interface Props {
   storage?: StorageArea;
   /** Defaults to browser.permissions. */
   permissions?: PermissionsApi;
+  /** Popup handoff; defaults to storage.session. */
+  focus?: FocusChannel;
 }
 
-export function OptionsApp({ storage, permissions = defaultPermissions }: Props) {
+export function OptionsApp({ storage, permissions = defaultPermissions, focus }: Props) {
   const { t } = useI18n();
   const [loaded, setLoaded] = useState<Load>({ state: 'loading' });
   const [attempt, setAttempt] = useState(0);
@@ -38,6 +41,14 @@ export function OptionsApp({ storage, permissions = defaultPermissions }: Props)
   useEffect(() => {
     document.title = t('options.title');
   }, [t]);
+
+  // An unknown id ends in the regular "not found" view; the draft is not touched by navigating.
+  useEffect(() => {
+    const channel = focus ?? defaultFocusChannel();
+    const take = () => void takeOptionsFocus(channel.storage).then((id) => id !== undefined && navigate(projectHash(id)), () => undefined);
+    take();
+    return channel.onChange(take);
+  }, [focus]);
 
   useEffect(() => {
     let cancelled = false;
@@ -162,6 +173,17 @@ function Editor({ initial, initialValues, storage, permissions, onReload }: Edit
     navigate(next ? projectHash(next.id) : '#/', true);
   };
 
+  const discard = () => {
+    setDraft(saved);
+    setValues(storedValues);
+    setStatus(undefined);
+    // A project added since the last save is gone now; do not stay on its address.
+    if (route.view === 'project' && !saved.projects.some((p) => p.id === route.id)) {
+      const first = saved.projects[0];
+      navigate(first ? projectHash(first.id) : '#/', true);
+    }
+  };
+
   const save = async () => {
     // The permission request must start before the first await of this handler (user gesture).
     // It is only worth asking for if the configuration can be saved at all.
@@ -222,7 +244,7 @@ function Editor({ initial, initialValues, storage, permissions, onReload }: Edit
             <Button variant="primary" onClick={save} disabled={busy}>
               {t('options.save')}
             </Button>
-            <Button onClick={() => { setDraft(saved); setValues(storedValues); setStatus(undefined); }} disabled={!dirty || busy}>
+            <Button onClick={discard} disabled={!dirty || busy}>
               {t('options.discard')}
             </Button>
             {status ? (

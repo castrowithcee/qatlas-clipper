@@ -6,6 +6,7 @@ import { CONFIG_KEY, HEADER_VALUES_KEY, loadConfig, type StorageArea } from '../
 import type { PermissionsApi } from '../src/options/permissions';
 import { OptionsApp } from '../src/options/OptionsApp';
 import { parseHash, projectHash } from '../src/options/route';
+import { OPTIONS_FOCUS_KEY, type FocusChannel } from '../src/options/focus';
 import { SettingsProvider, SETTINGS_KEY } from '../src/settings';
 import { de, en } from '../src/i18n/catalog';
 
@@ -372,7 +373,7 @@ describe('options page', () => {
 
     it('shows the label error at the field and the document title in the active language', async () => {
       const user = await mount(fakeStorage(stored(project('p1', 'A', { fields: [f('a', 'First')] }))));
-      expect(document.title).toBe('qatlas-clipper options');
+      expect(document.title).toBe('Qatlas Clipper');
       await user.clear(screen.getByLabelText('Label'));
       expect(screen.getByLabelText('Label').getAttribute('aria-invalid')).toBe('true');
       expect(screen.getByText('Please enter a label.')).toBeTruthy();
@@ -681,7 +682,7 @@ describe('options navigation', () => {
 
   it('lists the name block, every project and the areas, and marks the current entry', async () => {
     const user = await mount(two());
-    expect(screen.getByRole('heading', { name: 'qatlas-clipper options', level: 1 })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Qatlas Clipper', level: 1 })).toBeTruthy();
     expect(nav().getAllByRole('link').map((a) => a.textContent)).toEqual(['A', 'B', 'Settings', 'Import and export']);
     expect(nav().getByRole('button', { name: 'Add project' })).toBeTruthy();
     expect(current()).toEqual(['A']);
@@ -760,5 +761,68 @@ describe('options navigation', () => {
     await user.click(screen.getByRole('button', { name: 'Delete project' }));
     await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete project' }));
     expect(screen.getByText('No project yet')).toBeTruthy();
+  });
+  it('leaves an address that no longer exists after discarding a newly added project', async () => {
+    const user = await mount(two());
+    await user.click(nav().getByRole('button', { name: 'Add project' }));
+    expect(current()).toEqual(['New project']);
+    await user.click(screen.getByRole('button', { name: 'Discard changes' }));
+    expect(screen.queryByText('Project not found')).toBeNull();
+    expect(current()).toEqual(['A']);
+    expect(window.location.hash).toBe(projectHash('p1'));
+  });
+
+  describe('handoff from the popup', () => {
+    function channel(initial?: unknown) {
+      const area = fakeStorage(initial === undefined ? {} : { [OPTIONS_FOCUS_KEY]: initial });
+      const listeners = new Set<() => void>();
+      const ch: FocusChannel = { storage: area, onChange: (cb) => (listeners.add(cb), () => listeners.delete(cb)) };
+      const request = (projectId: string) => {
+        area.data[OPTIONS_FOCUS_KEY] = { projectId, at: Date.now() };
+        act(() => listeners.forEach((l) => l()));
+      };
+      return { ch, area, request };
+    }
+    const mountWith = async (ch: FocusChannel) => {
+      window.location.hash = '';
+      const user = userEvent.setup();
+      render(<OptionsApp storage={two()} permissions={fakePermissions()} focus={ch} />);
+      await screen.findByRole('navigation', { name: 'Options' });
+      return user;
+    };
+
+    it('shows the requested project at start and clears the request', async () => {
+      const { ch, area } = channel({ projectId: 'p2', at: Date.now() });
+      await mountWith(ch);
+      await waitFor(() => expect(current()).toEqual(['B']));
+      expect(area.data[OPTIONS_FOCUS_KEY]).toBeNull();
+    });
+
+    it('switches on a later request and keeps the unsaved draft', async () => {
+      const { ch, area, request } = channel();
+      const user = await mountWith(ch);
+      await user.clear(screen.getByLabelText('Project name'));
+      await user.type(screen.getByLabelText('Project name'), 'Renamed');
+      request('p2');
+      await waitFor(() => expect(current()).toEqual(['B']));
+      expect(area.data[OPTIONS_FOCUS_KEY]).toBeNull();
+      expect(nav().getAllByRole('link').map((a) => a.textContent)).toContain('Renamed');
+    });
+
+    it('ignores malformed and stale requests', async () => {
+      for (const bad of ['p2', { projectId: 5, at: Date.now() }, { projectId: 'p2', at: 1 }, { projectId: '', at: Date.now() }]) {
+        cleanup();
+        const { ch } = channel(bad);
+        await mountWith(ch);
+        await new Promise((r) => setTimeout(r, 0));
+        expect(current()).toEqual(['A']);
+      }
+    });
+
+    it('ends in the not-found view for an unknown id', async () => {
+      const { ch } = channel({ projectId: 'gone', at: Date.now() });
+      await mountWith(ch);
+      expect(await screen.findByText('Project not found')).toBeTruthy();
+    });
   });
 });

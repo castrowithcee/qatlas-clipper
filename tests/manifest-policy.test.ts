@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import config, { buildManifest, E2E_HOST_PERMISSIONS } from '../wxt.config';
 
@@ -36,5 +37,12 @@ describe('manifest localization', () => {
     expect(m.default_locale).toBe('en');
     expect(m.name).toBe('__MSG_extName__');
     expect(m.description).toBe('__MSG_extDescription__');
+  });
+
+  it('names the extension "Qatlas Clipper" in both locales', () => {
+    for (const l of ['de', 'en']) {
+      const m = JSON.parse(readFileSync(`public/_locales/${l}/messages.json`, 'utf8')) as { extName: { message: string } };
+      expect(m.extName.message).toBe('Qatlas Clipper');
+    }
   });
 });

@@ -22,6 +22,7 @@ import {
   saveDraft,
   type Draft,
 } from './draft';
+import { requestOptionsFocus } from '../options/focus';
 import { FieldForm } from './FieldForm';
 import { Header } from './Header';
 import { MissingHint, ResultView } from './Outcome';
@@ -162,7 +163,13 @@ export function PopupApp({
     return () => clearInterval(timer);
   }, [state.phase, anyInFlight, tabUrl, resultStorage, pollMs]);
 
-  const openOpts = () => void openOptions();
+  // The selected project is handed over through storage.session; failing to write must not block opening.
+  const readyProjectId = state.phase === 'ready' ? state.projectId : null;
+  const openOpts = () =>
+    void (async () => {
+      if (readyProjectId) await requestOptionsFocus(draftStorage, readyProjectId).catch(() => undefined);
+      await openOptions();
+    })();
   if (state.phase === 'loading') return <main className="popup"><LoadingView /></main>;
   if (state.phase === 'blocked') {
     return (

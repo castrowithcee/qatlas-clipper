@@ -1,4 +1,4 @@
 {
-  "extName": { "message": "qatlas-clipper" },
+  "extName": { "message": "Qatlas Clipper" },
   "extDescription": { "message": "Liest Seiteninhalte aus und sendet sie an deine eigenen Webhooks." }
 }
