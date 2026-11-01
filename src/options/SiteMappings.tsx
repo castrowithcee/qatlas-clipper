@@ -16,7 +16,10 @@ export function SiteMappings({ project, basePath, issues, onDeleteEntry, onDelet
   const { t } = useI18n();
   const id = useId();
   const sites = Object.entries(project.siteMappings);
-  const labelOf = (key: string) => project.fields.find((f) => f.key === key)?.label ?? t('options.mappings.unknownField');
+  const labelOf = (key: string) => {
+    const field = project.fields.find((f) => f.key === key);
+    return field ? field.label || t('options.fields.unnamed') : t('options.mappings.unknownField');
+  };
   return (
     <section aria-labelledby={`${id}-title`} className="options-section">
       <h3 id={`${id}-title`}>{t('options.mappings.title')}</h3>

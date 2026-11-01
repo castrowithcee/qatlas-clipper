@@ -35,6 +35,10 @@ export function OptionsApp({ storage, permissions = defaultPermissions }: Props)
   const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
+    document.title = t('options.title');
+  }, [t]);
+
+  useEffect(() => {
     let cancelled = false;
     Promise.all([loadConfig(storage), loadHeaderValues(storage)])
       .then(([saved, values]) => !cancelled && setLoaded({ state: 'ready', saved, values }))

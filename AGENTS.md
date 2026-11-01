@@ -7,7 +7,7 @@ Chromium browser extension (Manifest V3) that reads page content and fields acco
 - `npm ci` install; `npm run dev` dev build with reload; `npm run build` production build to `.output/chrome-mv3`; `npm run zip`
 - `npm run typecheck`, `npm run lint`, `npm test` (Vitest)
 - `npm run build:e2e` test build to `.output/chrome-mv3-e2e`; `npm run e2e` build:e2e + Playwright suite; `npm run check:manifest` checks the release manifest (run after `npm run build`)
-- `npm run screens` renders the component gallery and takes light and dark screenshots (output dir from `SCREENS_DIR`, default `test-results/screens`); `npm run screens:popup` builds the e2e extension and screenshots the popup states (default `test-results/popup-screens`)
+- `npm run screens` renders the component gallery and takes light and dark screenshots (output dir from `SCREENS_DIR`, default `test-results/screens`); `npm run screens:popup` and `npm run screens:options` build the e2e extension and screenshot the popup states and the options page (default `test-results/popup-screens`, `test-results/options-screens`)
 
 ## Structure
 
@@ -25,7 +25,7 @@ Chromium browser extension (Manifest V3) that reads page content and fields acco
 - `.github/workflows/`: `ci.yml` (checks and E2E), `release.yml` (tag `vX.Y.Z` release with ZIP; `workflow_dispatch` is a dry run), `dev-build.yml` (after green CI on `main`: moves tag `dev` and replaces the pre-release "Development build" with `qatlas-clipper-dev-chrome.zip`)
 - `public/icon/`: extension icons; `public/_locales/`: localized manifest name and description
 - `tests/`: Vitest tests
-- `e2e/`: Playwright flow tests (`specs/`, test pages in `pages/`, local page and webhook servers, extension fixtures); `gallery/` and `screens/` hold the standalone component gallery and its screenshot spec (`playwright.screens.config.ts`), never part of an extension build; `popup-screens/` holds the popup screenshot spec (`playwright.popup-screens.config.ts`)
+- `e2e/`: Playwright flow tests (`specs/`, test pages in `pages/`, local page and webhook servers, extension fixtures); `gallery/` and `screens/` hold the standalone component gallery and its screenshot spec (`playwright.screens.config.ts`), never part of an extension build; `popup-screens/` and `options-screens/` hold the popup and options screenshot specs (`playwright.popup-screens.config.ts`, `playwright.options-screens.config.ts`)
 - `scripts/`: build and release checks (`check-manifest.mjs`, `check-version.mjs`)
 - `wxt.config.ts`: WXT and manifest config
 

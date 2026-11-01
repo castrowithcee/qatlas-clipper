@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { act, cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { CONFIG_KEY, HEADER_VALUES_KEY, loadConfig, type StorageArea } from '../src/config';
 import type { PermissionsApi } from '../src/options/permissions';
@@ -47,6 +47,11 @@ async function mount(storage: StorageArea, permissions: PermissionsApi = fakePer
   return user;
 }
 
+const addField = async (user: ReturnType<typeof userEvent.setup>, label: string) => {
+  await user.type(screen.getByLabelText('Label of the new field'), label);
+  await user.click(screen.getByRole('button', { name: 'Add field' }));
+};
+
 const addSite = async (user: ReturnType<typeof userEvent.setup>, text: string) => {
   await user.type(screen.getByLabelText('Add website'), text);
   await user.click(screen.getByRole('button', { name: 'Add' }));
@@ -68,11 +73,13 @@ describe('options page', () => {
     await user.selectOptions(screen.getByLabelText('Only on pages of this kind'), 'article');
     await user.type(screen.getByLabelText('Custom page type'), 'Article');
     expect(screen.queryByLabelText('Regular expression')).toBeNull();
-    await user.click(screen.getByRole('button', { name: 'Add field' }));
-    const field = screen.getByRole('group', { name: 'Field 1' });
-    await user.type(within(field).getByLabelText('schema.org path'), 'Article.headline');
-    await user.selectOptions(within(field).getByLabelText('Manual input'), 'choice');
-    await user.type(within(field).getByLabelText('Choice values'), 'Draft{Enter}Final');
+    await addField(user, 'Status');
+    const field = screen.getByRole('group', { name: 'Status' });
+    await user.click(within(field).getByRole('button', { name: 'Advanced' }));
+    await user.type(within(field).getByLabelText('Custom schema.org path'), 'Article.headline');
+    await user.selectOptions(within(field).getByLabelText('Where does the value come from?'), 'manual');
+    await user.selectOptions(within(field).getByLabelText('Kind of input'), 'choice');
+    await user.type(within(field).getByLabelText('Add value'), 'Draft{Enter}Final{Enter}');
     await user.click(screen.getByRole('button', { name: 'Save changes' }));
     await screen.findByText('Saved.');
 
@@ -166,16 +173,19 @@ describe('options page', () => {
     expect((await loadConfig(storage)).projects[0]?.scope).toEqual({ allSites: true, domains: [] });
   });
 
-  it('rejects a duplicate field key', async () => {
-    const f = (key: string) => ({ key, label: key, required: false, sources: {} });
-    const storage = fakeStorage(stored(project('p1', 'A', { fields: [f('a'), f('b')] })));
+  it('rejects a duplicate field key, which is only editable under Advanced', async () => {
+    const f = (key: string, label: string) => ({ key, label, required: false, sources: {} });
+    const storage = fakeStorage(stored(project('p1', 'A', { fields: [f('a', 'First'), f('b', 'Second')] })));
     const user = await mount(storage);
-    const second = within(screen.getByRole('group', { name: 'Field 2' }));
-    await user.clear(second.getByLabelText('Key'));
-    await user.type(second.getByLabelText('Key'), 'a');
-    expect(within(screen.getByRole('group', { name: 'Field 2' })).getByText(/duplicate field key/)).toBeTruthy();
+    const second = within(screen.getByRole('group', { name: 'Second' }));
+    expect(second.getByLabelText('Field key').closest('[hidden]')).toBeTruthy();
+    await user.click(second.getByRole('button', { name: 'Advanced' }));
+    await user.clear(second.getByLabelText('Field key'));
+    await user.type(second.getByLabelText('Field key'), 'a');
+    expect(second.getByText('This key already belongs to another field.')).toBeTruthy();
     await user.click(screen.getByRole('button', { name: 'Save changes' }));
     await screen.findByText(/Not saved/);
+    expect(document.activeElement).toBe(second.getByLabelText('Field key'));
     const cfg = await loadConfig(storage);
     expect(cfg.projects[0]?.fields.map((x) => x.key)).toEqual(['a', 'b']);
   });
@@ -229,7 +239,9 @@ describe('options page', () => {
 
     await user.click(screen.getByRole('button', { name: 'Delete mapping Price for example.com' }));
     await user.click(screen.getByRole('button', { name: 'Delete all mappings for example.org' }));
-    const key = within(screen.getByRole('group', { name: 'Field 1' })).getByLabelText('Key');
+    const headline = within(screen.getByRole('group', { name: 'Headline' }));
+    await user.click(headline.getByRole('button', { name: 'Advanced' }));
+    const key = headline.getByLabelText('Field key');
     await user.clear(key);
     await user.type(key, 'headline');
     expect(within(screen.getByRole('region', { name: 'Click mappings for example.com' })).getByText('Headline')).toBeTruthy();
@@ -242,11 +254,116 @@ describe('options page', () => {
     const f = { key: 'title', label: 'Title', required: false, sources: {} };
     const storage = fakeStorage(stored(project('p1', 'A', { fields: [f], siteMappings: { 'example.com': { title: 'h1' } } })));
     const user = await mount(storage);
-    await user.click(screen.getByRole('button', { name: 'Delete field title' }));
+    await user.click(screen.getByRole('button', { name: 'Delete field Title' }));
     expect(screen.getByText('No click mappings yet.')).toBeTruthy();
     await user.click(screen.getByRole('button', { name: 'Save changes' }));
     await screen.findByText('Saved.');
     expect((await loadConfig(storage)).projects[0]?.siteMappings).toEqual({});
+  });
+
+  describe('fields', () => {
+    const f = (key: string, label: string, sources: Record<string, unknown> = {}) => ({ key, label, required: false, sources });
+
+    it('detects a value automatically, derives the key from the label and keeps it when the label changes', async () => {
+      const storage = fakeStorage(stored(project('p1', 'A')));
+      const user = await mount(storage);
+      await addField(user, 'Größe der Straße');
+      const field = within(screen.getByRole('group', { name: 'Größe der Straße' }));
+      await user.selectOptions(field.getByLabelText('Where does the value come from?'), 'detect');
+      await user.selectOptions(field.getByLabelText('What should be detected?'), 'title');
+      await user.click(field.getByLabelText('Required'));
+      const label = field.getByLabelText('Label');
+      await user.clear(label);
+      await user.type(label, 'Headline');
+      await user.click(screen.getByRole('button', { name: 'Save changes' }));
+      await screen.findByText('Saved.');
+      expect((await loadConfig(storage)).projects[0]?.fields).toEqual([
+        { key: 'groesse_der_strasse', label: 'Headline', required: true, sources: { detect: 'title' } },
+      ]);
+    });
+
+    it('makes keys unique per project and falls back to "field" for labels without ASCII letters', async () => {
+      const user = await mount(fakeStorage(stored(project('p1', 'A'))));
+      await addField(user, 'Price');
+      await addField(user, 'Price');
+      await addField(user, 'Über uns');
+      await addField(user, '価格');
+      const keys = ['Price', 'Price', 'Über uns', '価格'].map((n, i) => {
+        const g = within(screen.getAllByRole('group', { name: n })[i === 1 ? 1 : 0]!);
+        return g.getByLabelText('Field key', { selector: 'input' }) as HTMLInputElement;
+      });
+      expect(keys.map((k) => k.value)).toEqual(['price', 'price_2', 'ueber_uns', 'field']);
+    });
+
+    it('takes the click way without any source and removes the detect value and the manual input', async () => {
+      const storage = fakeStorage(stored(project('p1', 'A', { fields: [f('title', 'Headline', { detect: 'title', schemaOrgPath: 'Article.headline' })] })));
+      const user = await mount(storage);
+      const field = within(screen.getByRole('group', { name: 'Headline' }));
+      expect((field.getByLabelText('Where does the value come from?') as HTMLSelectElement).value).toBe('detect');
+      await user.selectOptions(field.getByLabelText('Where does the value come from?'), 'click');
+      expect(field.queryByLabelText('What should be detected?')).toBeNull();
+      await user.click(screen.getByRole('button', { name: 'Save changes' }));
+      await screen.findByText('Saved.');
+      expect((await loadConfig(storage)).projects[0]?.fields[0]?.sources).toEqual({ schemaOrgPath: 'Article.headline' });
+    });
+
+    it('saves a choice list with its chip values, rejects duplicates and needs at least one value', async () => {
+      const storage = fakeStorage(stored(project('p1', 'A')));
+      const user = await mount(storage);
+      await addField(user, 'Status');
+      const field = within(screen.getByRole('group', { name: 'Status' }));
+      await user.selectOptions(field.getByLabelText('Where does the value come from?'), 'manual');
+      await user.selectOptions(field.getByLabelText('Kind of input'), 'choice');
+      expect(field.getByText('Add at least one value.')).toBeTruthy();
+      await user.type(field.getByLabelText('Add value'), 'Draft{Enter}');
+      await user.type(field.getByLabelText('Add value'), 'Final');
+      await user.click(field.getByRole('button', { name: 'Add' }));
+      await user.type(field.getByLabelText('Add value'), 'Draft{Enter}');
+      expect(field.getByText('This value is already in the list.')).toBeTruthy();
+      await user.clear(field.getByLabelText('Add value'));
+      await user.type(field.getByLabelText('Add value'), 'Old{Enter}');
+      await user.click(field.getByRole('button', { name: 'Remove value Old' }));
+      await user.click(screen.getByRole('button', { name: 'Save changes' }));
+      await screen.findByText('Saved.');
+      expect((await loadConfig(storage)).projects[0]?.fields[0]?.sources).toEqual({ manual: { type: 'choice', values: ['Draft', 'Final'] } });
+    });
+
+    it('keeps the technical sources under Advanced and saves them', async () => {
+      const storage = fakeStorage(stored(project('p1', 'A')));
+      const user = await mount(storage);
+      await addField(user, 'Summary');
+      const field = within(screen.getByRole('group', { name: 'Summary' }));
+      await user.click(field.getByRole('button', { name: 'Advanced' }));
+      await user.selectOptions(field.getByLabelText('Meta tag: attribute'), 'property');
+      await user.type(field.getByLabelText('Meta tag: name'), 'og:description');
+      await user.click(screen.getByRole('button', { name: 'Save changes' }));
+      await screen.findByText('Saved.');
+      expect((await loadConfig(storage)).projects[0]?.fields[0]?.sources).toEqual({ metaTag: { attribute: 'property', name: 'og:description' } });
+    });
+
+    it('reorders and deletes fields with keyboard-reachable buttons and shows the way explanation on focus', async () => {
+      const storage = fakeStorage(stored(project('p1', 'A', { fields: [f('a', 'First'), f('b', 'Second')] })));
+      const user = await mount(storage);
+      await user.click(screen.getByRole('button', { name: 'Move up field Second' }));
+      expect(screen.getAllByRole('group').map((g) => g.querySelector('h4')?.textContent)).toEqual(['Second', 'First']);
+      const first = within(screen.getByRole('group', { name: 'First' }));
+      const help = first.getByRole('button', { name: 'More information' });
+      act(() => help.focus());
+      expect(document.getElementById(help.getAttribute('aria-describedby')!)?.hidden).toBe(false);
+      expect(document.getElementById(help.getAttribute('aria-describedby')!)?.textContent).toMatch(/click the value on the page/);
+      await user.click(screen.getByRole('button', { name: 'Delete field Second' }));
+      await user.click(screen.getByRole('button', { name: 'Save changes' }));
+      await screen.findByText('Saved.');
+      expect((await loadConfig(storage)).projects[0]?.fields.map((x) => x.key)).toEqual(['a']);
+    });
+
+    it('shows the label error at the field and the document title in the active language', async () => {
+      const user = await mount(fakeStorage(stored(project('p1', 'A', { fields: [f('a', 'First')] }))));
+      expect(document.title).toBe('qatlas-clipper options');
+      await user.clear(screen.getByLabelText('Label'));
+      expect(screen.getByLabelText('Label').getAttribute('aria-invalid')).toBe('true');
+      expect(screen.getByText('Please enter a label.')).toBeTruthy();
+    });
   });
 
   it('shows an error for an invalid stored config and keeps it untouched', async () => {
@@ -449,7 +566,7 @@ describe('import and export', () => {
 
 describe('options page language', () => {
   it('switches the redesigned areas without reload and never shows catalog keys', async () => {
-    const f = { key: 'title', label: 'Headline', required: false, sources: {} };
+    const f = { key: 'title', label: 'Headline', required: false, sources: { detect: 'price' } };
     const storage = fakeStorage({
       ...stored(project('p1', 'A', { scope: { allSites: false, domains: ['example.com'] }, fields: [f], siteMappings: { 'example.com': { title: 'h1' } } }), project('p2', 'B')),
       [SETTINGS_KEY]: { language: 'en', appearance: 'light' },
@@ -468,6 +585,64 @@ describe('options page language', () => {
       expect(screen.getAllByText(de[key]).length, key).toBeGreaterThan(0);
     }
     expect(screen.getByRole('button', { name: de['options.projects.moveUp'].replace('{name}', 'B') })).toBeTruthy();
+    for (const key of ['options.fields.title', 'options.fields.way.label', 'options.fields.add.button', 'options.fields.required'] as const) {
+      expect(screen.getAllByText(de[key]).length, key).toBeGreaterThan(0);
+    }
+    const detect = screen.getByLabelText(de['options.fields.detect.label']) as HTMLSelectElement;
+    expect([...detect.options].find((o) => o.value === 'price')?.text).toBe(de['popup.detect.price']);
+    expect(document.title).toBe(de['options.title']);
+    expect(document.documentElement.dataset.theme).toBe('light');
+    await user.selectOptions(screen.getByLabelText(de['settings.appearance.label']), 'dark');
+    expect(document.documentElement.dataset.theme).toBe('dark');
+    await user.selectOptions(screen.getByLabelText(de['settings.language.label']), 'en');
+    await screen.findByRole('heading', { name: en['options.fields.title'] });
     expect(document.body.textContent).not.toMatch(/\boptions\.[a-z]+\.[A-Za-z.]+/);
+  });
+});
+
+
+/** Text a person can read: skips collapsed panels, hidden tooltips and the given out-of-scope sections. */
+function visibleText(root: HTMLElement, skip: (el: Element) => boolean): string {
+  const out: string[] = [];
+  const walk = (node: Node) => {
+    if (node.nodeType === Node.TEXT_NODE) out.push(node.textContent ?? '');
+    else if (node instanceof HTMLElement && !node.hidden && !skip(node)) node.childNodes.forEach(walk);
+  };
+  walk(root);
+  return out.join(' ');
+}
+
+describe('options page vocabulary', () => {
+  const f = (key: string, label: string, sources: Record<string, unknown> = {}) => ({ key, label, required: false, sources });
+  const FORBIDDEN = /schema\.org|\bmeta\b|\bmeta-tag|selektor|selector|\bheader|\bkey\b|schlüssel/i;
+  // Targets and import/export are placeholders until the follow-up task; the settings section is not part of the project view.
+  const outOfScope = (el: Element) =>
+    el.classList.contains('import-export') || (el.tagName === 'SECTION' && Boolean(el.querySelector(':scope > h3')?.textContent?.match(/^(Targets?|Ziele?)$/)));
+
+  it.each([['en'], ['de']] as const)('keeps technical words out of the normal view in %s', async (language) => {
+    const storage = fakeStorage({
+      ...stored(
+        project('p1', 'Articles', {
+          scope: { allSites: false, domains: ['example.com'], pageKind: 'article' },
+          fields: [
+            f('title', 'Headline', { detect: 'title', schemaOrgPath: 'Article.headline' }),
+            f('status', 'Status', { manual: { type: 'choice', values: ['Draft'] } }),
+            f('price', 'Price'),
+          ],
+          siteMappings: { 'example.com': { price: '.price' } },
+        }),
+      ),
+      [SETTINGS_KEY]: { language, appearance: 'light' },
+    });
+    render(
+      <SettingsProvider storage={storage} subscribe={() => () => {}} media={{ matches: false, addEventListener() {}, removeEventListener() {} }} browserLanguage="en-US">
+        <OptionsApp storage={storage} permissions={fakePermissions()} />
+      </SettingsProvider>,
+    );
+    await screen.findByRole('heading', { name: (language === 'en' ? en : de)['options.title'] });
+    const text = visibleText(document.body, outOfScope);
+    expect(text.length).toBeGreaterThan(200);
+    expect(text).not.toMatch(FORBIDDEN);
+    expect(text).toContain((language === 'en' ? en : de)['options.fields.way.label']);
   });
 });

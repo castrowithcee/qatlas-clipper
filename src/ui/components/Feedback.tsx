@@ -75,16 +75,19 @@ interface DisclosureProps {
   /** Defaults to the localized "Advanced". */
   title?: string;
   defaultOpen?: boolean;
+  /** Keeps the panel open, e.g. while it holds an input with an error that must stay reachable. */
+  forceOpen?: boolean;
   children: ReactNode;
 }
 
-export function Disclosure({ title, defaultOpen = false, children }: DisclosureProps) {
+export function Disclosure({ title, defaultOpen = false, forceOpen = false, children }: DisclosureProps) {
   const i18n = useI18n();
-  const [open, setOpen] = useState(defaultOpen);
+  const [openState, setOpen] = useState(defaultOpen);
+  const open = openState || forceOpen;
   const id = useId();
   return (
     <div className="q-disclosure">
-      <button type="button" className="q-disclosure-toggle" aria-expanded={open} aria-controls={`${id}-panel`} onClick={() => setOpen(!open)}>
+      <button type="button" className="q-disclosure-toggle" aria-expanded={open} aria-controls={`${id}-panel`} onClick={() => setOpen(!openState)}>
         <Icon name="chevron-down" className="q-disclosure-chevron" />
         {title ?? i18n.t('ui.advanced')}
       </button>

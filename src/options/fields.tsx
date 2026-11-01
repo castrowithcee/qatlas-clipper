@@ -42,39 +42,6 @@ export function TextInput({ label, value, onChange, errors = [], multiline, hint
   );
 }
 
-interface SelectInputProps {
-  label: string;
-  value: string;
-  options: [value: string, text: string][];
-  onChange: (value: string) => void;
-}
-
-export function SelectInput({ label, value, options, onChange }: SelectInputProps) {
-  const id = useId();
-  return (
-    <div className="row">
-      <label htmlFor={id}>{label}</label>
-      <select id={id} value={value} onChange={(e) => onChange(e.target.value)}>
-        {options.map(([v, text]) => (
-          <option key={v} value={v}>
-            {text}
-          </option>
-        ))}
-      </select>
-    </div>
-  );
-}
-
-export function CheckboxInput({ label, checked, onChange }: { label: string; checked: boolean; onChange: (v: boolean) => void }) {
-  const id = useId();
-  return (
-    <div className="row inline">
-      <input id={id} type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} />
-      <label htmlFor={id}>{label}</label>
-    </div>
-  );
-}
-
 interface ItemButtonsProps {
   noun: string;
   name: string;

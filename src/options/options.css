@@ -38,6 +38,13 @@ h4 { font-size: 1em; margin: 0; }
 .options-add { display: flex; flex-wrap: wrap; gap: var(--space-3); align-items: flex-start; }
 .options-add .q-button { margin-top: 1.75rem; }
 
+/* Fields */
+.options-field { border: 1px solid var(--color-border); border-radius: var(--radius-md); background: var(--color-surface); padding: var(--space-3) var(--space-4); margin-bottom: var(--space-3); }
+.options-field-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); margin-bottom: var(--space-3); }
+.options-field-head h4 { overflow-wrap: anywhere; }
+.options-field-actions { display: inline-flex; flex: none; }
+.options-values { margin-bottom: var(--space-3); }
+
 /* Click mappings */
 .options-site { margin-top: var(--space-4); }
 .options-site-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-3); }
@@ -46,9 +53,8 @@ h4 { font-size: 1em; margin: 0; }
 .options-mapping-label { margin-right: var(--space-2); }
 .q-tooltip { overflow-wrap: anywhere; font-family: var(--font-mono); }
 
-/* Parts that are not redesigned yet (fields, targets, import and export) */
+/* Parts that are not redesigned yet (targets, import and export) */
 .row { display: flex; flex-direction: column; margin-bottom: var(--space-2); }
-.row.inline { flex-direction: row; gap: var(--space-2); align-items: center; }
 .buttons { display: inline-flex; gap: var(--space-1); flex-wrap: wrap; }
 fieldset { margin-bottom: var(--space-4); border: 1px solid var(--color-border); border-radius: var(--radius-md); }
 .hint { color: var(--color-text-muted); font-size: var(--font-size-small); margin: var(--space-1) 0; }
