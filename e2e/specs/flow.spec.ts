@@ -88,11 +88,12 @@ test('configure, map by click, prefill on a second page, send, and show the resp
   await popup.getByRole('button', { name: 'Map Price' }).click();
   await popup.waitForEvent('close');
 
-  await expect(page1.getByText('Pick an element for "Price"')).toBeVisible();
+  await expect(page1.getByText('Choose element for "Price"')).toBeVisible();
   await page1.locator('#price').click();
-  await expect(page1.getByText('Preview: 10.00')).toBeVisible();
-  await page1.getByRole('button', { name: 'Confirm' }).click();
-  await expect(page1.getByText('Pick an element for')).toHaveCount(0);
+  await expect(page1.locator('.preview-text')).toHaveText('10.00');
+  await page1.getByRole('button', { name: 'Apply' }).click();
+  await expect(page1.getByText('Mapping saved')).toBeVisible();
+  await expect(page1.getByText('Choose element for')).toHaveCount(0);
 
   const mappings = await serviceWorker.evaluate(
     async () => ((await chrome.storage.local.get('config')) as { config: StoredConfig }).config.projects[0]!.siteMappings,
