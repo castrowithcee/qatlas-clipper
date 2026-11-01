@@ -11,6 +11,8 @@ Chromium browser extension (Manifest V3) that reads page content and fields acco
 
 - `entrypoints/`: WXT entry points (`background.ts`, `popup/`, `options/`)
 - `src/config/`: configuration model, validation, storage, migration, import and export
+- `src/extract/`: trigger matching and field sources (JSON-LD, meta tags, selectors) as pure functions over a `Document`
+- `src/picker/`: CSS selector generation for click mapping
 - `public/icon/`: extension icons
 - `tests/`: Vitest tests
 - `wxt.config.ts`: WXT and manifest config
