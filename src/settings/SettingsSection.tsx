@@ -1,6 +1,7 @@
 import { useId, useState } from 'react';
 import type { LanguageChoice } from '../i18n';
 import type { Appearance } from '../ui';
+import { IconButton, Select, Tooltip } from '../ui/components';
 import { useSettings } from './SettingsProvider';
 
 const LANGUAGES: LanguageChoice[] = ['auto', 'de', 'en'];
@@ -18,24 +19,25 @@ export function SettingsSection() {
 
   return (
     <section aria-labelledby={`${id}-title`} className="settings">
-      <h2 id={`${id}-title`}>{i18n.t('settings.title')}</h2>
+      <h2 id={`${id}-title`}>
+        {i18n.t('settings.title')}{' '}
+        <Tooltip content={i18n.t('settings.help')}>
+          {(props) => <IconButton icon="info" label={i18n.t('ui.moreInfo')} className="q-help" {...props} />}
+        </Tooltip>
+      </h2>
       <p className="hint">{i18n.t('settings.hint')}</p>
-      <div className="row inline">
-        <label htmlFor={`${id}-language`}>{i18n.t('settings.language.label')}</label>
-        <select id={`${id}-language`} value={settings.language} onChange={(e) => change({ language: e.target.value as LanguageChoice })}>
-          {LANGUAGES.map((l) => (
-            <option key={l} value={l}>{i18n.t(`settings.language.${l}`)}</option>
-          ))}
-        </select>
-      </div>
-      <div className="row inline">
-        <label htmlFor={`${id}-appearance`}>{i18n.t('settings.appearance.label')}</label>
-        <select id={`${id}-appearance`} value={settings.appearance} onChange={(e) => change({ appearance: e.target.value as Appearance })}>
-          {APPEARANCES.map((a) => (
-            <option key={a} value={a}>{i18n.t(`settings.appearance.${a}`)}</option>
-          ))}
-        </select>
-      </div>
+      <Select
+        label={i18n.t('settings.language.label')}
+        value={settings.language}
+        onChange={(e) => change({ language: e.target.value as LanguageChoice })}
+        options={LANGUAGES.map((l) => ({ value: l, label: i18n.t(`settings.language.${l}`) }))}
+      />
+      <Select
+        label={i18n.t('settings.appearance.label')}
+        value={settings.appearance}
+        onChange={(e) => change({ appearance: e.target.value as Appearance })}
+        options={APPEARANCES.map((a) => ({ value: a, label: i18n.t(`settings.appearance.${a}`) }))}
+      />
       {error && <p role="alert" className="error">{error}</p>}
     </section>
   );
