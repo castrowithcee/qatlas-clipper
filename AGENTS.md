@@ -9,9 +9,9 @@ Chromium browser extension (Manifest V3) that reads page content and fields acco
 
 ## Structure
 
-- `entrypoints/`: WXT entry points (`background.ts`, `popup/`, `options/`, `picker.ts` unlisted picker script)
+- `entrypoints/`: WXT entry points (`background.ts`, `popup/`, `options/`, `picker.ts` and `reader.ts` unlisted injected scripts)
 - `src/config/`: configuration model, validation, storage, migration, import and export
-- `src/extract/`: project scope matching and field sources (JSON-LD, meta tags, selectors) as pure functions over a `Document`
+- `src/extract/`: project scope matching, field sources (JSON-LD, meta tags, selectors) and Defuddle page reading as pure functions over a `Document`; `inject.ts` runs the reader in a tab
 - `src/picker/`: CSS selector generation, click-mapping overlay (Shadow DOM), mapping persistence and picker start
 - `src/options/`: options page components (projects, scope, fields, site mappings)
 - `public/icon/`: extension icons
