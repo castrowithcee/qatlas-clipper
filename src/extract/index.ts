@@ -1,10 +1,16 @@
 import type { Field, Project } from '../config/schema';
+import { detectValue } from './detect';
+import { readMeta } from './meta';
+import { PAGE_TYPES } from './pageTypes';
 import { collectJsonLdScripts, nodeTypes, normalizeSchemaType, parseJsonLd, resolveSchemaOrgPath, type JsonLdNode } from './jsonld';
 
+export { DETECT_VALUES, type DetectValue } from './detect';
+export { readMeta } from './meta';
+export { PAGE_KINDS, PAGE_TYPES, type PageKind } from './pageTypes';
 export { collectJsonLdScripts, nodeTypes, normalizeSchemaType, parseJsonLd, resolveSchemaOrgPath } from './jsonld';
 export type { JsonLdNode } from './jsonld';
 
-export type FieldSource = 'schemaOrg' | 'meta' | 'selector' | 'manual';
+export type FieldSource = 'detect' | 'schemaOrg' | 'meta' | 'selector' | 'manual';
 export type FieldResult = { value: string; source: FieldSource };
 
 /** A page as seen by the extractor; JSON-LD is parsed once. */
@@ -35,20 +41,17 @@ function hostMatches(url: string, domains: string[]): boolean {
 export function matchProjects(projects: Project[], page: PageData): Project[] {
   return projects.filter(({ scope }) => {
     if (!scope.allSites && !hostMatches(page.url, scope.domains)) return false;
-    if (scope.pageType === undefined) return true;
-    const wanted = normalizeSchemaType(scope.pageType);
-    return page.nodes.some((n) => nodeTypes(n).includes(wanted));
+    // Both restrictions apply when both are set.
+    if (scope.pageKind !== undefined) {
+      const wanted: readonly string[] = PAGE_TYPES[scope.pageKind];
+      if (!page.nodes.some((n) => nodeTypes(n).some((t) => wanted.includes(t)))) return false;
+    }
+    if (scope.pageType !== undefined) {
+      const wanted = normalizeSchemaType(scope.pageType);
+      if (!page.nodes.some((n) => nodeTypes(n).includes(wanted))) return false;
+    }
+    return true;
   });
-}
-
-/** Content of the first meta element with the given attribute value and a non-empty `content`. */
-export function readMeta(doc: Document, attribute: 'name' | 'property', name: string): string {
-  for (const el of doc.querySelectorAll('meta')) {
-    if (el.getAttribute(attribute) !== name) continue;
-    const content = (el.getAttribute('content') ?? '').trim();
-    if (content) return content;
-  }
-  return '';
 }
 
 /**
@@ -80,9 +83,22 @@ export function readSelector(doc: Document, selector: string): string {
   }
 }
 
-/** Fixed order: schema.org path, meta tag, site-mapping selector, manual input. First non-empty value wins. */
+/**
+ * Fixed order: site-mapping selector, detect value, own schema.org path, own meta tag, manual input.
+ * The selector comes first because a user who clicked an element is correcting the automatic detection.
+ * First non-empty value wins.
+ */
 export function resolveField(field: Field, project: Pick<Project, 'siteMappings'>, page: PageData): FieldResult {
-  const { schemaOrgPath, metaTag } = field.sources;
+  const { detect, schemaOrgPath, metaTag } = field.sources;
+  const selector = findSelector(project.siteMappings, page.url, field.key);
+  if (selector) {
+    const value = readSelector(page.doc, selector);
+    if (value) return { value, source: 'selector' };
+  }
+  if (detect) {
+    const value = detectValue(detect, page);
+    if (value) return { value, source: 'detect' };
+  }
   if (schemaOrgPath) {
     const value = resolveSchemaOrgPath(page.nodes, schemaOrgPath);
     if (value) return { value, source: 'schemaOrg' };
@@ -90,11 +106,6 @@ export function resolveField(field: Field, project: Pick<Project, 'siteMappings'
   if (metaTag) {
     const value = readMeta(page.doc, metaTag.attribute, metaTag.name);
     if (value) return { value, source: 'meta' };
-  }
-  const selector = findSelector(project.siteMappings, page.url, field.key);
-  if (selector) {
-    const value = readSelector(page.doc, selector);
-    if (value) return { value, source: 'selector' };
   }
   return { value: '', source: 'manual' };
 }

@@ -7,7 +7,7 @@ export function normalizeSchemaType(type: string): string {
   return type.trim().replace(SCHEMA_ORG_PREFIX, '');
 }
 
-function isObject(v: unknown): v is JsonLdNode {
+export function isObject(v: unknown): v is JsonLdNode {
   return typeof v === 'object' && v !== null && !Array.isArray(v);
 }
 
@@ -50,31 +50,38 @@ export function nodeTypes(node: JsonLdNode): string[] {
   return list.filter((x): x is string => typeof x === 'string').map(normalizeSchemaType);
 }
 
-function toText(v: unknown): string {
+export function toText(v: unknown): string {
   if (typeof v === 'string') return v.trim();
   if (typeof v === 'number' && Number.isFinite(v)) return String(v);
   return '';
 }
 
-function walk(value: unknown, props: string[]): string {
+/**
+ * Text at a property path. A final object yields its first non-empty `leaf` property (default `name`);
+ * an array takes its first non-empty entry; deeper objects are not descended further.
+ */
+export function readProperty(value: unknown, props: string[], leaf: string[] = ['name']): string {
   const [head, ...rest] = props;
   if (Array.isArray(value)) {
     for (const item of value) {
-      const r = walk(item, props);
+      const r = readProperty(item, props, leaf);
       if (r) return r;
     }
     return '';
   }
   if (head === undefined) {
     if (isObject(value)) {
-      const name = Object.hasOwn(value, 'name') ? value.name : undefined;
-      // An array-valued name takes its first non-empty entry; objects are not descended further.
-      return Array.isArray(name) ? (name.map(toText).find(Boolean) ?? '') : toText(name);
+      for (const key of leaf) {
+        const v = Object.hasOwn(value, key) ? value[key] : undefined;
+        const text = Array.isArray(v) ? (v.map(toText).find(Boolean) ?? '') : toText(v);
+        if (text) return text;
+      }
+      return '';
     }
     return toText(value);
   }
   if (!isObject(value) || !Object.hasOwn(value, head)) return '';
-  return walk(value[head], rest);
+  return readProperty(value[head], rest, leaf);
 }
 
 /** Resolve `Type.property.property` against nodes. The first node of that type yielding a value wins. */
@@ -84,7 +91,7 @@ export function resolveSchemaOrgPath(nodes: JsonLdNode[], path: string): string 
   const wanted = normalizeSchemaType(type);
   for (const node of nodes) {
     if (!nodeTypes(node).includes(wanted)) continue;
-    const r = walk(node, props);
+    const r = readProperty(node, props);
     if (r) return r;
   }
   return '';

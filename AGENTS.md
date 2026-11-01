@@ -16,7 +16,7 @@ Chromium browser extension (Manifest V3) that reads page content and fields acco
 - `src/i18n/`: translation catalogs (`de` reference, `en`), translator with placeholders, plurals and `Intl` formats, language resolution
 - `src/settings/`: device settings (language, appearance) with storage, provider and the options section
 - `src/config/`: configuration model, validation, storage, migration, import and export
-- `src/extract/`: project scope matching, field sources (JSON-LD, meta tags, selectors) and Defuddle page reading as pure functions over a `Document`; `inject.ts` runs the reader in a tab
+- `src/extract/`: project scope matching with page kinds (`pageTypes.ts`, schema.org types including subtypes), field sources (click mapping, detect values resolved over several candidates in `detect.ts`, JSON-LD, meta tags) and Defuddle page reading as pure functions over a `Document`; `inject.ts` runs the reader in a tab
 - `src/picker/`: CSS selector generation, click-mapping overlay (Shadow DOM), mapping persistence and picker start
 - `src/options/`: options page components (projects, scope, fields, site mappings, targets with header values and host permissions, import and export)
 - `src/popup/`: popup components (project choice, field form, picker start) and the per-URL draft cache of user edits (`storage.session`)
