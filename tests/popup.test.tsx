@@ -21,7 +21,7 @@ function fakeStorage(initial: Record<string, unknown> = {}): StorageArea & { dat
 }
 
 const project = (id: string, name: string, fields: unknown[] = [], extra: Record<string, unknown> = {}) => ({
-  id, name, scope: { allSites: true, domains: [] }, fields, siteMappings: {}, targets: [], ...extra,
+  id, name, scope: { allSites: true, domains: [] }, fields, siteMappings: {}, targets: [{ id: `t-${id}`, name: 'Hook', url: 'https://hooks.example.com/in', headers: [], purpose: '' }], ...extra,
 });
 const field = (key: string, label: string, extra: Record<string, unknown> = {}) => ({
   key, label, required: false, sources: {}, ...extra,
@@ -80,13 +80,13 @@ describe('popup', () => {
     const { user } = setup();
     const input = await screen.findByLabelText('Price');
     expect(input).toHaveProperty('value', '12');
-    expect(screen.getByText('Source: Meta tag')).toBeTruthy();
+    expect(screen.getByRole('img', { name: 'Detected automatically' })).toBeTruthy();
     await user.clear(input);
     await user.type(input, '15');
     expect(input).toHaveProperty('value', '15');
-    expect(screen.getByText('Source: Manual')).toBeTruthy();
+    expect(screen.getByRole('img', { name: 'Enter it yourself' })).toBeTruthy();
     expect(screen.getByText('Article')).toBeTruthy();
-    expect(screen.getByText('https://example.com/a')).toBeTruthy();
+    expect(screen.getByText('example.com')).toBeTruthy();
   });
 
   it('orders matching projects first, preselects the first match, all selectable', async () => {
@@ -95,11 +95,11 @@ describe('popup', () => {
     expect([...select.options].map((o) => o.textContent)).toEqual(['Beta', 'Gamma', 'Alpha (no match)']);
     expect(select.value).toBe('b');
     await user.selectOptions(select, 'a');
-    expect(await screen.findByLabelText('Headline *')).toBeTruthy();
+    expect(await screen.findByLabelText('Headline (required)')).toBeTruthy();
     expect(read).toHaveBeenLastCalledWith(7, expect.anything(), 'a');
     // Non-matching project: fields empty, source manual; required marked.
-    expect((screen.getByLabelText('Headline *') as HTMLInputElement).required).toBe(true);
-    expect((screen.getByLabelText('Headline *') as HTMLInputElement).value).toBe('');
+    expect((screen.getByLabelText('Headline (required)') as HTMLInputElement).required).toBe(true);
+    expect((screen.getByLabelText('Headline (required)') as HTMLInputElement).value).toBe('');
     expect(screen.getByLabelText('Kind').tagName).toBe('SELECT');
   });
 
@@ -165,29 +165,29 @@ describe('popup', () => {
   it('Map starts the picker and closes the popup; shows an error if it fails', async () => {
     const { user, deps } = setup();
     await screen.findByLabelText('Price');
-    await user.click(screen.getByRole('button', { name: 'Map Price' }));
+    await user.click(screen.getByRole('button', { name: 'Click Price on the page' }));
     await waitFor(() => expect(deps.close).toHaveBeenCalledTimes(1));
     expect(deps.pick).toHaveBeenCalledWith(7, 'b', 'price');
     cleanup();
 
     const failing = setup({ pick: vi.fn(async () => { throw new Error('boom'); }) });
     await screen.findByLabelText('Price');
-    await failing.user.click(screen.getByRole('button', { name: 'Map Price' }));
+    await failing.user.click(screen.getByRole('button', { name: 'Click Price on the page' }));
     expect((await screen.findByRole('alert')).textContent).toBe('Starting the picker failed.');
     expect(failing.deps.close).not.toHaveBeenCalled();
   });
 
   it('shows a hint with options link without projects', async () => {
     const { user, deps } = setup({ projects: [] });
-    expect(await screen.findByText('No projects configured yet.')).toBeTruthy();
-    await user.click(screen.getByRole('button', { name: 'Open options' }));
+    expect(await screen.findByText('No projects yet')).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Create project' }));
     expect(deps.openOptions).toHaveBeenCalled();
   });
 
   it('shows the read error message', async () => {
     const read = vi.fn(async (): Promise<ReadTabResult> => ({ ok: false, kind: 'unsupported', message: 'This page cannot be read.' }));
     setup({ read });
-    expect((await screen.findByRole('alert')).textContent).toBe('This page cannot be read.');
+    expect((await screen.findByRole('alert')).textContent).toContain('This page cannot be read');
   });
 
   it('bounds the draft cache', async () => {

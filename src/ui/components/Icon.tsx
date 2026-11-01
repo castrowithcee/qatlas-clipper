@@ -20,6 +20,15 @@ const PATHS = {
   ),
   inbox: <path d="M4 13l2-7h12l2 7v5H4zM4 13h5l1 2h4l1-2h5" />,
   plus: <path d="M12 5v14M5 12h14" />,
+  settings: (
+    <>
+      <circle cx="12" cy="12" r="3.5" />
+      <path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1" />
+    </>
+  ),
+  pointer: <path d="M5 3l14 7-6 2-2 6z" />,
+  edit: <path d="M4 20l1-4L16 5l3 3L8 19zM14 7l3 3" />,
+  auto: <path d="M12 3l2 5 5 2-5 2-2 5-2-5-5-2 5-2z" />,
 } satisfies Record<string, ReactNode>;
 
 export type IconName = keyof typeof PATHS;

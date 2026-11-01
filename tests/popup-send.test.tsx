@@ -75,7 +75,7 @@ const sendButton = () => screen.findByRole('button', { name: 'Send to Hook' });
 describe('popup send', () => {
   it('shows a hint without targets', async () => {
     setup({ targets: [] });
-    expect(await screen.findByText(/no targets/)).toBeTruthy();
+    expect(await screen.findByText('This project has no target yet')).toBeTruthy();
     expect(screen.queryByRole('button', { name: /^Send to/ })).toBeNull();
   });
 
@@ -97,7 +97,7 @@ describe('popup send', () => {
   it('blocks without host permission and offers the options page', async () => {
     const { user, deps } = setup({ permissions: { contains: vi.fn(async () => false) } });
     await user.click(await sendButton());
-    const open = await screen.findByRole('button', { name: /Open options/ });
+    const open = await screen.findByRole('button', { name: /Grant permission/ });
     expect(deps.send).not.toHaveBeenCalled();
     await user.click(open);
     expect(deps.openOptions).toHaveBeenCalledTimes(1);
@@ -107,7 +107,7 @@ describe('popup send', () => {
     setup({
       results: { [RESULTS_KEY]: [{ url: URL_A, targets: { t1: { outcome: { kind: 'no-permission', message: 'x' }, at: '2026-01-01T00:00:00.000Z' } } }] },
     });
-    expect(await screen.findByRole('button', { name: /Open options/ })).toBeTruthy();
+    expect(await screen.findByRole('button', { name: /Grant permission/ })).toBeTruthy();
   });
 
   it('sends the built payload and shows status, message text and link', async () => {
