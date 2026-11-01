@@ -16,6 +16,7 @@ import { ImportExport } from './ImportExport';
 import { ProjectEditor } from './ProjectEditor';
 import { ItemButtons } from './fields';
 import { moveItem, newProject, normalize, unmappedIssues, validate } from './draft';
+import { SettingsSection } from '../settings/SettingsSection';
 import './options.css';
 
 type Load = { state: 'loading' } | { state: 'error'; message: string } | { state: 'ready'; saved: Config; values: HeaderValues };
@@ -195,6 +196,7 @@ function Editor({ initial, initialValues, storage, permissions, onReload }: Edit
           </ul>
         </div>
       )}
+      <SettingsSection />
       <ImportExport storage={storage} permissions={permissions} dirty={dirty} onImported={onReload} />
       <div className="layout">
         <nav aria-label="Projects">

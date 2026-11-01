@@ -1,4 +1,4 @@
-body { font-family: system-ui, sans-serif; margin: 0; }
+body { font-family: var(--font-sans); background: var(--color-bg); color: var(--color-text); margin: 0; }
 main { width: 24rem; padding: 0.75rem; box-sizing: border-box; }
 .row { display: flex; flex-direction: column; margin-bottom: 0.5rem; }
 .input-line { display: flex; gap: 0.25rem; }
@@ -6,8 +6,8 @@ main { width: 24rem; padding: 0.75rem; box-sizing: border-box; }
 .page { margin: 0 0 0.75rem; }
 .page dt { font-weight: bold; }
 .page dd { margin: 0 0 0.25rem; overflow-wrap: anywhere; }
-.hint { color: #555; font-size: 0.85em; margin: 0.2rem 0; }
-.error { color: #b00020; }
-button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 3px solid #1a5fb4; outline-offset: 2px; }
+.hint { color: var(--color-text-muted); font-size: 0.85em; margin: 0.2rem 0; }
+.error { color: var(--color-danger); }
+button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 3px solid var(--color-focus); outline-offset: 2px; }
 .target { margin-bottom: 0.5rem; }
 .result p { margin: 0.2rem 0; overflow-wrap: anywhere; }

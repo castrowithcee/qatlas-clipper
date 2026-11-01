@@ -15,7 +15,8 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "postinstall": "wxt prepare",
-    "e2e": "npm run build:e2e && playwright test"
+    "e2e": "npm run build:e2e && playwright test",
+    "screens": "playwright test -c playwright.screens.config.ts"
   },
   "engines": {
     "node": ">=22"

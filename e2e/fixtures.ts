@@ -33,7 +33,9 @@ export const test = base.extend<Fixtures>({
     const context = await chromium.launchPersistentContext(userDataDir, {
       channel: 'chromium',
       headless: true,
-      args: [`--disable-extensions-except=${EXTENSION_DIR}`, `--load-extension=${EXTENSION_DIR}`],
+      // Fixed language so the specs do not depend on the host browser language.
+      locale: 'en-US',
+      args: ['--lang=en-US', `--disable-extensions-except=${EXTENSION_DIR}`, `--load-extension=${EXTENSION_DIR}`],
     });
     await use(context);
     await context.close();

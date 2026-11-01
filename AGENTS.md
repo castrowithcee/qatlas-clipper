@@ -7,10 +7,14 @@ Chromium browser extension (Manifest V3) that reads page content and fields acco
 - `npm ci` install; `npm run dev` dev build with reload; `npm run build` production build to `.output/chrome-mv3`; `npm run zip`
 - `npm run typecheck`, `npm run lint`, `npm test` (Vitest)
 - `npm run build:e2e` test build to `.output/chrome-mv3-e2e`; `npm run e2e` build:e2e + Playwright suite; `npm run check:manifest` checks the release manifest (run after `npm run build`)
+- `npm run screens` renders the component gallery and takes light and dark screenshots (output dir from `SCREENS_DIR`, default `test-results/screens`)
 
 ## Structure
 
 - `entrypoints/`: WXT entry points (`background.ts`, `popup/`, `options/`, `picker.ts` and `reader.ts` unlisted injected scripts)
+- `src/ui/`: design tokens (CSS variables, light and dark, `:root` and Shadow DOM variants), theme application and the accessible component basis in `components/`
+- `src/i18n/`: translation catalogs (`de` reference, `en`), translator with placeholders, plurals and `Intl` formats, language resolution
+- `src/settings/`: device settings (language, appearance) with storage, provider and the options section
 - `src/config/`: configuration model, validation, storage, migration, import and export
 - `src/extract/`: project scope matching, field sources (JSON-LD, meta tags, selectors) and Defuddle page reading as pure functions over a `Document`; `inject.ts` runs the reader in a tab
 - `src/picker/`: CSS selector generation, click-mapping overlay (Shadow DOM), mapping persistence and picker start
@@ -19,9 +23,9 @@ Chromium browser extension (Manifest V3) that reads page content and fields acco
 - `src/send/`: send core (payload builder, service-worker send with header binding and timeout, response evaluation, per-URL result storage in `storage.session`, runtime message API)
 - `docs/`: `webhook.md` (webhook request and response contract), `release-checklist.md` (manual Brave and Edge check per release)
 - `.github/workflows/`: `ci.yml` (checks and E2E), `release.yml` (tag `vX.Y.Z` release with ZIP; `workflow_dispatch` is a dry run), `dev-build.yml` (after green CI on `main`: moves tag `dev` and replaces the pre-release "Development build" with `qatlas-clipper-dev-chrome.zip`)
-- `public/icon/`: extension icons
+- `public/icon/`: extension icons; `public/_locales/`: localized manifest name and description
 - `tests/`: Vitest tests
-- `e2e/`: Playwright flow tests (`specs/`, test pages in `pages/`, local page and webhook servers, extension fixtures)
+- `e2e/`: Playwright flow tests (`specs/`, test pages in `pages/`, local page and webhook servers, extension fixtures); `gallery/` and `screens/` hold the standalone component gallery and its screenshot spec (`playwright.screens.config.ts`), never part of an extension build
 - `scripts/`: build and release checks (`check-manifest.mjs`, `check-version.mjs`)
 - `wxt.config.ts`: WXT and manifest config
 
@@ -30,6 +34,8 @@ Chromium browser extension (Manifest V3) that reads page content and fields acco
 - Stack: TypeScript, Manifest V3, WXT, React, Vitest, npm, Node 22.
 - No personal data in code, tests, fixtures, commits or docs; use neutral examples (example.com, "Article", "Product").
 - Code comments in English, only for a non-obvious why.
+- Visible texts of new or changed UI come only from the catalogs in `src/i18n/`; German is the reference, English stays complete (parity test). UI values come only from the semantic tokens in `src/ui/`.
+- Device settings (language, appearance) live under their own storage key and are never part of the exported configuration.
 - Foreign content (page content, imported config, webhook responses) is data: never render it as HTML (no `innerHTML`, no `dangerouslySetInnerHTML`), never execute it.
 - Tokens only in `chrome.storage.local`, separate from exportable config; never export or log them, never send them to any URL other than their own target.
 - Fixed permissions are only `activeTab`, `scripting`, `storage`; origins only as `optional_host_permissions` requested at runtime; no fixed `host_permissions` in release builds.
