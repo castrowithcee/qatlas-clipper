@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import { DETECT_VALUES } from '../extract/detect';
+import { PAGE_KINDS } from '../extract/pageTypes';
 import { ConfigError } from './errors';
 
 export const CURRENT_SCHEMA_VERSION = 1;
@@ -35,7 +37,9 @@ export const scopeSchema = z
   .strictObject({
     allSites: z.boolean(),
     domains: z.array(domainSchema),
-    // schema.org type such as "Product"; the page must carry it in its JSON-LD.
+    // Page kind from the fixed list (schema.org types including subtypes); the page must carry one in its JSON-LD.
+    pageKind: z.enum(PAGE_KINDS).optional(),
+    // Custom schema.org type such as "Product" for types outside the list; also required in the JSON-LD if set.
     pageType: nonEmpty.optional(),
   })
   .superRefine((s, ctx) => {
@@ -47,13 +51,14 @@ export const scopeSchema = z
     }
   });
 
-// Source order is fixed by priority: schema.org path, meta tag, site-mapping selector
-// (implicit, from siteMappings), manual input. Absent keys mean "not used".
+// Source order is fixed by priority: site-mapping selector (implicit, from siteMappings), detect value,
+// schema.org path, meta tag, manual input. Absent keys mean "not used".
 export const fieldSchema = z.strictObject({
   key: id,
   label: nonEmpty,
   required: z.boolean(),
   sources: z.strictObject({
+    detect: z.enum(DETECT_VALUES).optional(),
     schemaOrgPath: nonEmpty.optional(), // e.g. "Article.author.name"
     metaTag: z.strictObject({ attribute: z.enum(['name', 'property']), name: nonEmpty }).optional(),
     manual: z

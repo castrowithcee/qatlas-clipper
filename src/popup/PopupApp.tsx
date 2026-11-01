@@ -43,6 +43,7 @@ export interface PopupDeps {
 }
 
 const SOURCE_LABELS: Record<FieldSource, string> = {
+  detect: 'Detected',
   schemaOrg: 'JSON-LD',
   meta: 'Meta tag',
   selector: 'Mapped selector',

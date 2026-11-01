@@ -131,13 +131,16 @@ describe('field resolution', () => {
   const body = '<h1>  Selector \n Title </h1>';
   const json = ld('{"@type":"Article","headline":"LD Title"}');
 
-  it('schema.org beats meta, selector and manual', () => {
-    expect(resolveField(full, proj, page(html(body + json, meta)))).toEqual({ value: 'LD Title', source: 'schemaOrg' });
+  it('selector beats schema.org path, meta and manual', () => {
+    expect(resolveField(full, proj, page(html(body + json, meta)))).toEqual({ value: 'Selector Title', source: 'selector' });
   });
-  it('meta beats selector', () => {
-    expect(resolveField(full, proj, page(html(body, meta)))).toEqual({ value: 'Meta Title', source: 'meta' });
+  it('schema.org path beats meta', () => {
+    expect(resolveField(full, proj, page(html(json, meta)))).toEqual({ value: 'LD Title', source: 'schemaOrg' });
   });
-  it('selector beats manual, normalizing whitespace', () => {
+  it('meta beats manual', () => {
+    expect(resolveField(full, proj, page(html('', meta)))).toEqual({ value: 'Meta Title', source: 'meta' });
+  });
+  it('selector normalizes whitespace', () => {
     expect(resolveField(full, proj, page(html(body)))).toEqual({ value: 'Selector Title', source: 'selector' });
   });
   it('falls through empty values to manual', () => {
