@@ -6,3 +6,6 @@ node_modules
 .DS_Store
 stats.html
 web-ext.config.ts
+test-results
+playwright-report
+blob-report
