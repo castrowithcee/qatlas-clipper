@@ -32,6 +32,8 @@ Load the unpacked extension in Chromium: open `chrome://extensions`, enable Deve
 
 A project is chosen by its triggers: URL prefix, regular expression or schema.org type (from JSON-LD). The first matching project in list order wins.
 
+Configure projects on the options page (Extensions page, "Details", "Extension options"). Add a project, then add triggers and fields; move projects up or down to change their precedence. A field has a unique key, a label, a required flag and optional sources (schema.org path, meta tag, manual text or choice list); empty sources are skipped. Site mappings are listed per domain and can be deleted there; renaming a field key carries its mappings along, deleting a field removes them. Changes are kept in the page until "Save changes" validates and stores them; problems are shown at the affected input.
+
 Each field is resolved from these sources in fixed order; the first non-empty value wins:
 
 1. schema.org path

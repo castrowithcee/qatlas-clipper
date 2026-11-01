@@ -1,3 +1,1 @@
-export function App() {
-  return <main>qatlas-clipper options</main>;
-}
+export { OptionsApp as App } from '../../src/options/OptionsApp';
