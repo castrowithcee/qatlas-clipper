@@ -27,3 +27,16 @@ Commands:
 - `npm run lint`: ESLint
 
 Load the unpacked extension in Chromium: open `chrome://extensions`, enable Developer mode, choose "Load unpacked" and select `.output/chrome-mv3`.
+
+## Configuration
+
+A project is chosen by its triggers: URL prefix, regular expression or schema.org type (from JSON-LD). The first matching project in list order wins.
+
+Each field is resolved from these sources in fixed order; the first non-empty value wins:
+
+1. schema.org path
+2. meta tag (`name` or `property`)
+3. site-mapping selector (CSS selector per domain)
+4. manual input
+
+A schema.org path has the form `Type.property.property`, for example `Article.author.name`. For arrays the first non-empty value is used; an object that ends the path yields its `name`.
