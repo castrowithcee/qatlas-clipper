@@ -1,14 +1,18 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { act, cleanup, render, screen, within } from '@testing-library/react';
+import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { CONFIG_KEY, HEADER_VALUES_KEY, loadConfig, type StorageArea } from '../src/config';
 import type { PermissionsApi } from '../src/options/permissions';
 import { OptionsApp } from '../src/options/OptionsApp';
+import { parseHash, projectHash } from '../src/options/route';
 import { SettingsProvider, SETTINGS_KEY } from '../src/settings';
 import { de, en } from '../src/i18n/catalog';
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  window.location.hash = '';
+});
 
 function fakeStorage(initial: Record<string, unknown> = {}): StorageArea & { data: Record<string, unknown> } {
   const data = { ...initial };
@@ -40,12 +44,16 @@ function fakePermissions(grant = true) {
   return Object.assign(api, { granted });
 }
 
-async function mount(storage: StorageArea, permissions: PermissionsApi = fakePermissions()) {
+async function mount(storage: StorageArea, permissions: PermissionsApi = fakePermissions(), hash = '') {
   const user = userEvent.setup();
+  window.location.hash = hash;
   render(<OptionsApp storage={storage} permissions={permissions} />);
-  await screen.findByRole('heading', { name: 'qatlas-clipper options' });
+  await screen.findByRole('navigation', { name: 'Options' });
   return user;
 }
+
+const IMPORT_EXPORT = '#/import-export';
+const addButton = () => within(screen.getByRole('main')).getByRole('button', { name: 'Add project' });
 
 const addField = async (user: ReturnType<typeof userEvent.setup>, label: string) => {
   await user.type(screen.getByLabelText('Label of the new field'), label);
@@ -62,7 +70,7 @@ describe('options page', () => {
     const storage = fakeStorage();
     const user = await mount(storage);
     expect(screen.getByText('No project yet')).toBeTruthy();
-    await user.click(screen.getByRole('button', { name: 'Add project' }));
+    await user.click(addButton());
     const name = screen.getByLabelText('Project name');
     await user.clear(name);
     await user.type(name, 'Articles');
@@ -101,7 +109,7 @@ describe('options page', () => {
     await user.clear(name);
     expect(screen.getByText('Please enter a name.')).toBeTruthy();
     await user.type(name, 'Renamed');
-    expect(screen.getByRole('button', { name: 'Renamed' })).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Renamed' })).toBeTruthy();
     await user.click(screen.getByRole('button', { name: 'Save changes' }));
     await screen.findByText('Saved.');
     expect((await loadConfig(storage)).projects[0]?.name).toBe('Renamed');
@@ -193,14 +201,18 @@ describe('options page', () => {
   it('deletes a project only after confirmation', async () => {
     const storage = fakeStorage(stored(project('p1', 'A'), project('p2', 'B')));
     const user = await mount(storage);
-    await user.click(screen.getByRole('button', { name: 'Delete project A' }));
-    expect(screen.getByRole('dialog', { name: 'Delete project?' })).toBeTruthy();
-    await user.click(screen.getByRole('button', { name: 'Cancel' }));
-    expect(screen.queryByRole('dialog')).toBeNull();
-    expect(screen.getByRole('button', { name: 'A' })).toBeTruthy();
-    await user.click(screen.getByRole('button', { name: 'Delete project A' }));
     await user.click(screen.getByRole('button', { name: 'Delete project' }));
-    expect(screen.queryByRole('button', { name: 'A' })).toBeNull();
+    const dialog = screen.getByRole('dialog', { name: 'Delete project?' });
+    expect(dialog.textContent).toContain('"A"');
+    await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(screen.getByRole('link', { name: 'A' })).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Delete project' }));
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete project' }));
+    expect(screen.queryByRole('link', { name: 'A' })).toBeNull();
+    // The view moves on to the next project.
+    expect(screen.getByRole('heading', { name: 'B', level: 2 })).toBeTruthy();
+    expect(window.location.hash).toBe('#/projects/p2');
     await user.click(screen.getByRole('button', { name: 'Save changes' }));
     await screen.findByText('Saved.');
     expect((await loadConfig(storage)).projects.map((p) => p.id)).toEqual(['p2']);
@@ -209,8 +221,9 @@ describe('options page', () => {
   it('reorders projects and explains the order in a tooltip', async () => {
     const storage = fakeStorage(stored(project('p1', 'A'), project('p2', 'B')));
     const user = await mount(storage);
-    const up = screen.getByRole('button', { name: 'Move up project B' });
     expect(screen.getByRole('button', { name: 'Move up project A' })).toHaveProperty('disabled', true);
+    await user.click(screen.getByRole('link', { name: 'B' }));
+    const up = screen.getByRole('button', { name: 'Move up project B' });
     expect(document.getElementById(up.getAttribute('aria-describedby')!)?.textContent).toMatch(/preselected first in the popup/);
     await user.click(up);
     await user.click(screen.getByRole('button', { name: 'Save changes' }));
@@ -475,7 +488,7 @@ describe('import and export', () => {
     URL.createObjectURL = vi.fn((b: Blob) => ((blob = b), 'blob:x'));
     URL.revokeObjectURL = vi.fn();
     const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
-    const user = await mount(storage);
+    const user = await mount(storage, fakePermissions(), IMPORT_EXPORT);
     expect(screen.getByText(/Header values are not included/)).toBeTruthy();
     await user.click(screen.getByRole('button', { name: 'Export configuration' }));
     await screen.findByText('Exported the saved configuration.');
@@ -490,26 +503,26 @@ describe('import and export', () => {
   it('replaces the configuration from a file only after confirmation', async () => {
     const storage = withHeader();
     const before = structuredClone(storage.data);
-    const user = await mount(storage);
+    const user = await mount(storage, fakePermissions(), IMPORT_EXPORT);
     const file = new File([imported], 'c.json', { type: 'application/json' });
     await user.upload(screen.getByLabelText('Import from file'), file);
     const dialog = await screen.findByRole('alertdialog', { name: 'Confirm import' });
     expect(dialog.textContent).toContain('2 projects');
     expect(storage.data).toEqual(before);
-    await user.click(screen.getByRole('button', { name: 'Cancel' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
     expect(screen.queryByRole('alertdialog', { name: 'Confirm import' })).toBeNull();
     expect(storage.data).toEqual(before);
 
     await user.upload(screen.getByLabelText('Import from file'), file);
     await user.click(await screen.findByRole('button', { name: 'Confirm import' }));
-    expect(await screen.findByRole('button', { name: 'Imported 1' })).toBeTruthy();
+    expect(await screen.findByRole('link', { name: 'Imported 1' })).toBeTruthy();
     expect((await loadConfig(storage)).projects.map((p) => p.name)).toEqual(['Imported 1', 'Imported 2']);
   });
 
   it('shows an error for invalid files without storing and without echoing content', async () => {
     const storage = withHeader();
     const before = structuredClone(storage.data);
-    const user = await mount(storage);
+    const user = await mount(storage, fakePermissions(), IMPORT_EXPORT);
     await user.upload(screen.getByLabelText('Import from file'), new File(['{"secret-marker":'], 'c.json'));
     const alert = await screen.findByText(/Import failed/);
     expect(alert.textContent).not.toContain('secret-marker');
@@ -519,6 +532,7 @@ describe('import and export', () => {
   it('mentions discarded unsaved changes in the confirmation', async () => {
     const user = await mount(withHeader());
     await user.click(screen.getByRole('button', { name: 'Add project' }));
+    await user.click(screen.getByRole('link', { name: 'Import and export' }));
     expect(screen.getByText(/Unsaved changes are not exported/)).toBeTruthy();
     await user.upload(screen.getByLabelText('Import from file'), new File([imported], 'c.json'));
     expect((await screen.findByRole('alertdialog', { name: 'Confirm import' })).textContent).toContain('unsaved changes will be discarded');
@@ -529,7 +543,7 @@ describe('import and export', () => {
     const permissions = fakePermissions();
     const fetchMock = vi.fn(async () => new Response(imported));
     vi.stubGlobal('fetch', fetchMock);
-    const user = await mount(storage, permissions);
+    const user = await mount(storage, permissions, IMPORT_EXPORT);
     await user.type(screen.getByLabelText('Import from URL'), 'https://example.org/c.json');
     await user.click(screen.getByRole('button', { name: 'Fetch from URL' }));
     const dialog = await screen.findByRole('alertdialog', { name: 'Confirm import' });
@@ -538,7 +552,7 @@ describe('import and export', () => {
     expect(dialog.textContent).toContain('2 projects');
     expect((await loadConfig(storage)).projects.map((p) => p.name)).toEqual(['Old']);
     await user.click(screen.getByRole('button', { name: 'Confirm import' }));
-    await screen.findByRole('button', { name: 'Imported 2' });
+    await screen.findByRole('link', { name: 'Imported 2' });
     expect((await loadConfig(storage)).projects).toHaveLength(2);
   });
 
@@ -546,7 +560,7 @@ describe('import and export', () => {
     const storage = withHeader();
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
-    const user = await mount(storage, fakePermissions(false));
+    const user = await mount(storage, fakePermissions(false), IMPORT_EXPORT);
     await user.type(screen.getByLabelText('Import from URL'), 'https://example.org/c.json');
     await user.click(screen.getByRole('button', { name: 'Fetch from URL' }));
     await screen.findByText(/permission for the URL origin was not granted/);
@@ -556,7 +570,7 @@ describe('import and export', () => {
 
   it('rejects plain http URLs except localhost without asking for permission', async () => {
     const permissions = fakePermissions();
-    const user = await mount(withHeader(), permissions);
+    const user = await mount(withHeader(), permissions, IMPORT_EXPORT);
     await user.type(screen.getByLabelText('Import from URL'), 'http://example.org/c.json');
     await user.click(screen.getByRole('button', { name: 'Fetch from URL' }));
     await screen.findByText(/only allowed for localhost/);
@@ -577,14 +591,16 @@ describe('options page language', () => {
         <OptionsApp storage={storage} permissions={fakePermissions()} />
       </SettingsProvider>,
     );
-    await screen.findByRole('heading', { name: en['options.title'] });
+    await screen.findByRole('navigation', { name: en['options.nav.label'] });
     expect(screen.getByRole('heading', { name: en['options.scope.title'] })).toBeTruthy();
+    await user.click(screen.getByRole('link', { name: 'Settings' }));
     await user.selectOptions(screen.getByLabelText('Language'), 'de');
-    await screen.findByRole('heading', { name: de['options.title'] });
+    await screen.findByRole('navigation', { name: de['options.nav.label'] });
+    await user.click(screen.getByRole('link', { name: 'A' }));
     for (const key of ['options.scope.title', 'options.mappings.title', 'options.projects.title', 'options.save', 'options.scope.kind.label'] as const) {
       expect(screen.getAllByText(de[key]).length, key).toBeGreaterThan(0);
     }
-    expect(screen.getByRole('button', { name: de['options.projects.moveUp'].replace('{name}', 'B') })).toBeTruthy();
+    expect(screen.getByRole('button', { name: de['options.projects.moveDown'].replace('{name}', 'A') })).toBeTruthy();
     for (const key of ['options.fields.title', 'options.fields.way.label', 'options.fields.add.button', 'options.fields.required'] as const) {
       expect(screen.getAllByText(de[key]).length, key).toBeGreaterThan(0);
     }
@@ -592,9 +608,11 @@ describe('options page language', () => {
     expect([...detect.options].find((o) => o.value === 'price')?.text).toBe(de['popup.detect.price']);
     expect(document.title).toBe(de['options.title']);
     expect(document.documentElement.dataset.theme).toBe('light');
+    await user.click(screen.getByRole('link', { name: de['options.nav.settings'] }));
     await user.selectOptions(screen.getByLabelText(de['settings.appearance.label']), 'dark');
     expect(document.documentElement.dataset.theme).toBe('dark');
     await user.selectOptions(screen.getByLabelText(de['settings.language.label']), 'en');
+    await user.click(screen.getByRole('link', { name: 'A' }));
     await screen.findByRole('heading', { name: en['options.fields.title'] });
     expect(document.body.textContent).not.toMatch(/\boptions\.[a-z]+\.[A-Za-z.]+/);
   });
@@ -639,10 +657,108 @@ describe('options page vocabulary', () => {
         <OptionsApp storage={storage} permissions={fakePermissions()} />
       </SettingsProvider>,
     );
-    await screen.findByRole('heading', { name: (language === 'en' ? en : de)['options.title'] });
+    await screen.findByRole('navigation', { name: (language === 'en' ? en : de)['options.nav.label'] });
     const text = visibleText(document.body, outOfScope);
     expect(text.length).toBeGreaterThan(200);
     expect(text).not.toMatch(FORBIDDEN);
     expect(text).toContain((language === 'en' ? en : de)['options.fields.way.label']);
+  });
+});
+
+describe('options navigation', () => {
+  const two = () => fakeStorage(stored(project('p1', 'A'), project('p2', 'B')));
+  const nav = () => within(screen.getByRole('navigation', { name: 'Options' }));
+  const current = () => nav().getAllByRole('link').filter((a) => a.getAttribute('aria-current') === 'page').map((a) => a.textContent);
+
+  it('parses and formats addresses, treating malformed ones as the default', () => {
+    expect(parseHash('')).toEqual({ view: 'home' });
+    expect(parseHash('#/settings')).toEqual({ view: 'settings' });
+    expect(parseHash('#/import-export')).toEqual({ view: 'import-export' });
+    expect(parseHash(projectHash('a/b c'))).toEqual({ view: 'project', id: 'a/b c' });
+    expect(parseHash('#/projects/%E0%A4%A')).toEqual({ view: 'home' });
+    expect(parseHash('#/nonsense')).toEqual({ view: 'home' });
+  });
+
+  it('lists the name block, every project and the areas, and marks the current entry', async () => {
+    const user = await mount(two());
+    expect(screen.getByRole('heading', { name: 'qatlas-clipper options', level: 1 })).toBeTruthy();
+    expect(nav().getAllByRole('link').map((a) => a.textContent)).toEqual(['A', 'B', 'Settings', 'Import and export']);
+    expect(nav().getByRole('button', { name: 'Add project' })).toBeTruthy();
+    expect(current()).toEqual(['A']);
+    expect(screen.getByRole('heading', { name: 'A', level: 2 })).toBeTruthy();
+    await user.click(nav().getByRole('link', { name: 'B' }));
+    expect(current()).toEqual(['B']);
+    expect(screen.getByRole('heading', { name: 'B', level: 2 })).toBeTruthy();
+    await user.click(nav().getByRole('link', { name: 'Settings' }));
+    expect(current()).toEqual(['Settings']);
+    expect(screen.getByRole('heading', { name: 'Settings', level: 2 })).toBeTruthy();
+    await user.click(nav().getByRole('link', { name: 'Import and export' }));
+    expect(current()).toEqual(['Import and export']);
+    expect(screen.getByLabelText('Import from file')).toBeTruthy();
+  });
+
+  it('opens the view of the address and follows browser back and forward', async () => {
+    const user = await mount(two(), undefined, '#/projects/p2');
+    expect(current()).toEqual(['B']);
+    await user.click(nav().getByRole('link', { name: 'Settings' }));
+    expect(screen.getByRole('heading', { name: 'Settings', level: 2 })).toBeTruthy();
+    act(() => window.history.back());
+    await waitFor(() => expect(current()).toEqual(['B']));
+    act(() => window.history.forward());
+    await waitFor(() => expect(current()).toEqual(['Settings']));
+  });
+
+  it('keeps unsaved changes across views and back, shows them in the sidebar and saves them', async () => {
+    const storage = two();
+    const user = await mount(storage);
+    expect(within(screen.getByRole('complementary')).queryByText('Unsaved')).toBeNull();
+    const name = screen.getByLabelText('Project name');
+    await user.clear(name);
+    await user.type(name, 'Renamed');
+    expect(within(screen.getByRole('complementary')).getByText('Unsaved')).toBeTruthy();
+    await user.click(nav().getByRole('link', { name: 'Settings' }));
+    await user.click(nav().getByRole('link', { name: 'Import and export' }));
+    act(() => window.history.go(-2));
+    await waitFor(() => expect(current()).toEqual(['Renamed']));
+    expect(screen.getByLabelText('Project name')).toHaveProperty('value', 'Renamed');
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+    await screen.findByText('Saved.');
+    expect(within(screen.getByRole('complementary')).queryByText('Unsaved')).toBeNull();
+    expect((await loadConfig(storage)).projects.map((p) => p.name)).toEqual(['Renamed', 'B']);
+  });
+
+  it('tells an unknown project address from having no project', async () => {
+    await mount(two(), undefined, '#/projects/missing');
+    expect(screen.getByText('Project not found')).toBeTruthy();
+    expect(screen.queryByText('No project yet')).toBeNull();
+    expect(current()).toEqual([]);
+    expect(within(screen.getByRole('main')).getByRole('link', { name: 'Go to the first project' }).getAttribute('href')).toBe('#/projects/p1');
+    cleanup();
+    await mount(fakeStorage(stored()), undefined, '#/projects/missing');
+    expect(screen.getByText('Project not found')).toBeTruthy();
+    cleanup();
+    await mount(fakeStorage(stored()));
+    expect(screen.getByText('No project yet')).toBeTruthy();
+    expect(screen.queryByText('Project not found')).toBeNull();
+  });
+
+  it('falls back to the first project for unknown or malformed addresses', async () => {
+    await mount(two(), undefined, '#/projects/%E0%A4%A');
+    expect(current()).toEqual(['A']);
+  });
+
+  it('opens a new project and moves on after deleting the last one in the list', async () => {
+    const user = await mount(two());
+    await user.click(nav().getByRole('button', { name: 'Add project' }));
+    expect(current()).toEqual(['New project']);
+    expect(window.location.hash).toMatch(/^#\/projects\/.+/);
+    await user.click(screen.getByRole('button', { name: 'Delete project' }));
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete project' }));
+    expect(current()).toEqual(['B']);
+    await user.click(screen.getByRole('button', { name: 'Delete project' }));
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete project' }));
+    await user.click(screen.getByRole('button', { name: 'Delete project' }));
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete project' }));
+    expect(screen.getByText('No project yet')).toBeTruthy();
   });
 });

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
   ConfigError,
   loadConfig,
@@ -14,7 +14,8 @@ import {
 import { defaultPermissions, originPattern, originPatterns, type PermissionStatus, type PermissionsApi } from './permissions';
 import { ImportExport } from './ImportExport';
 import { ProjectEditor } from './ProjectEditor';
-import { ProjectList } from './ProjectList';
+import { Brand, Sidebar, type NavTarget } from './Sidebar';
+import { navigate, parseHash, projectHash, useHash } from './route';
 import { moveItem, newProject, normalize, unmappedIssues, validate } from './draft';
 import { SettingsSection, useI18n } from '../settings';
 import { Button, Disclosure, EmptyState, ErrorState, LoadingState, Toast } from '../ui/components';
@@ -53,20 +54,28 @@ export function OptionsApp({ storage, permissions = defaultPermissions }: Props)
     setAttempt((n) => n + 1);
   };
 
-  if (loaded.state === 'loading') return <main><LoadingState /></main>;
+  if (loaded.state === 'loading') return <Shell sidebar={<aside className="options-sidebar"><Brand /></aside>}><LoadingState /></Shell>;
   if (loaded.state === 'error') {
     // The stored config is left untouched; nothing can be saved from this state.
     return (
-      <main>
-        <h1>{t('options.title')}</h1>
+      <Shell sidebar={<aside className="options-sidebar"><Brand /></aside>}>
         <ErrorState title={t('options.loadError.title')} message={t('options.loadError.text')} onRetry={reload} />
         <Disclosure title={t('options.loadError.details')}>
           <pre className="options-details">{loaded.message}</pre>
         </Disclosure>
-      </main>
+      </Shell>
     );
   }
   return <Editor key={attempt} initial={loaded.saved} initialValues={loaded.values} storage={storage} permissions={permissions} onReload={reload} />;
+}
+
+function Shell({ sidebar, children }: { sidebar: ReactNode; children: ReactNode }) {
+  return (
+    <div className="options-shell">
+      {sidebar}
+      <main className="options-main">{children}</main>
+    </div>
+  );
 }
 
 // Empty per-target maps carry no value, so they must not count as changes.
@@ -87,7 +96,6 @@ function Editor({ initial, initialValues, storage, permissions, onReload }: Edit
   const { t, tn } = useI18n();
   const [saved, setSaved] = useState(initial);
   const [draft, setDraft] = useState(initial);
-  const [selectedId, setSelectedId] = useState<string | undefined>(initial.projects[0]?.id);
   const [status, setStatus] = useState<{ kind: 'ok' | 'error'; text: string }>();
   const [busy, setBusy] = useState(false);
   // Header values are edited apart from the config draft and stored under their own key.
@@ -128,8 +136,14 @@ function Editor({ initial, initialValues, storage, permissions, onReload }: Edit
     () => JSON.stringify(draft) !== JSON.stringify(saved) || compact(values) !== compact(storedValues),
     [draft, saved, values, storedValues],
   );
-  const selectedIndex = Math.max(0, draft.projects.findIndex((p) => p.id === selectedId));
+  const route = parseHash(useHash());
+  // The draft lives here, above the views, so it survives switching views and browser back.
+  const byId = route.view === 'project' ? route.id : draft.projects[0]?.id;
+  const selectedIndex = draft.projects.findIndex((p) => p.id === byId);
   const selected = draft.projects[selectedIndex];
+  const notFound = route.view === 'project' && !selected;
+  const projectView = route.view === 'project' || route.view === 'home';
+  const current: NavTarget | undefined = route.view === 'settings' || route.view === 'import-export' ? route : selected ? { view: 'project', id: selected.id } : undefined;
 
   const edit = (projects: Project[]) => {
     setDraft({ ...draft, projects });
@@ -139,7 +153,13 @@ function Editor({ initial, initialValues, storage, permissions, onReload }: Edit
   const addProject = () => {
     const p = newProject(t('options.projects.newName'));
     edit([...draft.projects, p]);
-    setSelectedId(p.id);
+    navigate(projectHash(p.id));
+  };
+
+  const deleteSelected = () => {
+    const next = draft.projects[selectedIndex + 1] ?? draft.projects[selectedIndex - 1];
+    edit(draft.projects.filter((_, i) => i !== selectedIndex));
+    navigate(next ? projectHash(next.id) : '#/', true);
   };
 
   const save = async () => {
@@ -195,69 +215,72 @@ function Editor({ initial, initialValues, storage, permissions, onReload }: Edit
   const projectName = (i: number) => draft.projects[i]?.name || t('options.projects.fallbackName', { n: i + 1 });
 
   return (
-    <main>
-      <h1>{t('options.title')}</h1>
-      <div className="options-bar">
-        <Button variant="primary" onClick={save} disabled={busy}>
-          {t('options.save')}
-        </Button>
-        <Button onClick={() => { setDraft(saved); setValues(storedValues); setStatus(undefined); }} disabled={!dirty || busy}>
-          {t('options.discard')}
-        </Button>
-        {status ? (
-          <Toast kind={status.kind === 'ok' ? 'success' : 'error'} onDismiss={() => setStatus(undefined)}>
-            {status.text}
-          </Toast>
-        ) : (
-          <p role="status" className="q-hint">{dirty ? t('options.status.dirty') : ''}</p>
-        )}
-      </div>
-      {summary.length > 0 && (
-        <div role="alert" className="options-problems">
-          <p>{t('options.problems.title')}</p>
-          <ul>
-            {summary.map((i, n) => {
-              const m = /^projects\[(\d+)\]\.(.*)$/.exec(i.path);
-              return <li key={n}>{m ? `${projectName(Number(m[1]))}: ${m[2]}` : i.path}: {i.message}</li>;
-            })}
-          </ul>
-        </div>
-      )}
-      {draft.projects.length === 0 ? (
-        <EmptyState
-          title={t('options.empty.title')}
-          description={t('options.empty.text')}
-          action={<Button variant="primary" icon="plus" onClick={addProject}>{t('options.projects.add')}</Button>}
-        />
-      ) : (
-        <div className="options-layout">
-          <ProjectList
-            projects={draft.projects}
-            selectedIndex={selectedIndex}
-            onSelect={setSelectedId}
-            onAdd={addProject}
-            onMove={(i, d) => edit(moveItem(draft.projects, i, d))}
-            onDelete={(id) => edit(draft.projects.filter((p) => p.id !== id))}
-          />
-          <div>
-            {selected && (
-              <ProjectEditor
-                key={selected.id}
-                project={selected}
-                index={selectedIndex}
-                issues={issues}
-                headerValues={values}
-                onHeaderValues={(v) => { setValues(v); setStatus(undefined); }}
-                permissionStatus={permissionStatus}
-                onRequestPermission={requestOne}
-                onChange={(p) => edit(draft.projects.map((x, i) => (i === selectedIndex ? p : x)))}
-              />
+    <Shell sidebar={<Sidebar projects={draft.projects} current={current} dirty={dirty} onAdd={addProject} />}>
+      {projectView && (
+        <>
+          <div className="options-bar">
+            <Button variant="primary" onClick={save} disabled={busy}>
+              {t('options.save')}
+            </Button>
+            <Button onClick={() => { setDraft(saved); setValues(storedValues); setStatus(undefined); }} disabled={!dirty || busy}>
+              {t('options.discard')}
+            </Button>
+            {status ? (
+              <Toast kind={status.kind === 'ok' ? 'success' : 'error'} onDismiss={() => setStatus(undefined)}>
+                {status.text}
+              </Toast>
+            ) : (
+              <p role="status" className="q-hint">{dirty ? t('options.status.dirty') : ''}</p>
             )}
           </div>
-        </div>
+          {summary.length > 0 && (
+            <div role="alert" className="options-problems">
+              <p>{t('options.problems.title')}</p>
+              <ul>
+                {summary.map((i, n) => {
+                  const m = /^projects\[(\d+)\]\.(.*)$/.exec(i.path);
+                  return <li key={n}>{m ? `${projectName(Number(m[1]))}: ${m[2]}` : i.path}: {i.message}</li>;
+                })}
+              </ul>
+            </div>
+          )}
+          {notFound ? (
+            <EmptyState
+              title={t('options.notFound.title')}
+              description={t('options.notFound.text')}
+              action={
+                <div className="options-state-actions">
+                  {draft.projects[0] && <a className="q-button q-button--secondary" href={projectHash(draft.projects[0].id)}>{t('options.notFound.first')}</a>}
+                  <Button variant="primary" icon="plus" onClick={addProject}>{t('options.projects.add')}</Button>
+                </div>
+              }
+            />
+          ) : !selected ? (
+            <EmptyState
+              title={t('options.empty.title')}
+              description={t('options.empty.text')}
+              action={<Button variant="primary" icon="plus" onClick={addProject}>{t('options.projects.add')}</Button>}
+            />
+          ) : (
+            <ProjectEditor
+              key={selected.id}
+              project={selected}
+              index={selectedIndex}
+              count={draft.projects.length}
+              onMove={(d) => edit(moveItem(draft.projects, selectedIndex, d))}
+              onDelete={deleteSelected}
+              issues={issues}
+              headerValues={values}
+              onHeaderValues={(v) => { setValues(v); setStatus(undefined); }}
+              permissionStatus={permissionStatus}
+              onRequestPermission={requestOne}
+              onChange={(p) => edit(draft.projects.map((x, i) => (i === selectedIndex ? p : x)))}
+            />
+          )}
+        </>
       )}
-      <SettingsSection />
-      <ImportExport storage={storage} permissions={permissions} dirty={dirty} onImported={onReload} />
-    </main>
+      {route.view === 'settings' && <SettingsSection />}
+      {route.view === 'import-export' && <ImportExport storage={storage} permissions={permissions} dirty={dirty} onImported={onReload} />}
+    </Shell>
   );
 }

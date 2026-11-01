@@ -34,7 +34,7 @@ test('configure, map by click, prefill on a second page, send, and show the resp
 }) => {
   // 1. Configuration through the options UI: file import, then a header value in the target editor.
   const options = await context.newPage();
-  await options.goto(`chrome-extension://${extensionId}/options.html`);
+  await options.goto(`chrome-extension://${extensionId}/options.html#/import-export`);
   await options.locator('input[type=file]').setInputFiles({
     name: 'config.json',
     mimeType: 'application/json',
@@ -42,6 +42,7 @@ test('configure, map by click, prefill on a second page, send, and show the resp
   });
   await expect(options.getByRole('alertdialog', { name: 'Confirm import' })).toBeVisible();
   await options.getByRole('button', { name: 'Confirm import' }).click();
+  await options.getByRole('navigation', { name: 'Options' }).getByRole('link').first().click();
   await expect(options.getByLabel('Target name')).toHaveValue('Test hook');
   await options.getByLabel('Header value 1').fill(HEADER_VALUE);
   // A field added in the editor gets its key from the label and takes its value from a click on the page.

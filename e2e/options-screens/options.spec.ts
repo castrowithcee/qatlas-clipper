@@ -49,10 +49,34 @@ for (const lang of ['de', 'en'] as const) {
       await expect(field('Headline').getByLabel(t('Eigener schema.org-Pfad', 'Custom schema.org path'))).toBeVisible();
 
       await shot(page, 'project', tag);
-      await shot(page.getByRole('navigation'), 'list', tag);
+      await shot(page.getByRole('complementary'), 'sidebar', tag);
       await shot(sections.nth(0), 'scope', tag);
       await shot(sections.nth(1), 'fields', tag);
       await shot(sections.nth(2), 'mappings', tag);
+
+      // Settings, import and export, and a project address that does not exist.
+      const nav = page.getByRole('navigation', { name: t('Optionen', 'Options') });
+      await nav.getByRole('link', { name: t('Einstellungen', 'Settings') }).click();
+      await expect(nav.getByRole('link', { name: t('Einstellungen', 'Settings') })).toHaveAttribute('aria-current', 'page');
+      await shot(page, 'settings', tag);
+      await nav.getByRole('link', { name: t('Import und Export', 'Import and export') }).click();
+      await expect(page.getByLabel('Import from file')).toBeVisible();
+      await shot(page, 'import-export', tag);
+      await page.goto(`chrome-extension://${extensionId}/options.html#/projects/missing`);
+      await expect(page.getByText(t('Projekt nicht gefunden', 'Project not found'))).toBeVisible();
+      await shot(page, 'not-found', tag);
+      await nav.getByRole('link', { name: 'Articles' }).click();
+      await expect(page.getByLabel(t('Projektname', 'Project name'))).toBeVisible();
+
+      // Narrow window: the sidebar stacks above the content, every entry stays reachable, the page does not scroll sideways.
+      await page.setViewportSize({ width: 360, height: 800 });
+      for (const name of ['Articles', 'Products', t('Projekt anlegen', 'Add project'), t('Einstellungen', 'Settings'), t('Import und Export', 'Import and export')]) {
+        await nav.getByText(name, { exact: true }).scrollIntoViewIfNeeded();
+        await expect(nav.getByText(name, { exact: true })).toBeVisible();
+      }
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+      await shot(page, 'project-360', tag);
+      await page.setViewportSize({ width: 1100, height: 900 });
 
       // Error feedback: an empty label and an empty project name block saving.
       await field('Price').getByLabel(t('Bezeichnung', 'Label'), { exact: true }).fill('');
@@ -64,6 +88,7 @@ for (const lang of ['de', 'en'] as const) {
       // Empty state.
       await page.getByRole('button', { name: t('Änderungen verwerfen', 'Discard changes') }).click();
       await setConfig(serviceWorker, { schemaVersion: 1, projects: [] });
+      await page.goto(`chrome-extension://${extensionId}/options.html#/`);
       await page.reload();
       await expect(page.getByText(t('Noch kein Projekt', 'No project yet'))).toBeVisible();
       await shot(page, 'empty', tag);
