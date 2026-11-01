@@ -22,20 +22,29 @@ const httpUrl = z
     }
   }, 'must be an absolute http: or https: URL');
 
-const regexSource = z.string().refine((v) => {
-  try {
-    new RegExp(v);
-    return true;
-  } catch {
-    return false;
-  }
-}, 'is not a valid regular expression');
+// Lowercase ASCII hostname with at least two labels; no scheme, path, port, spaces or wildcards.
+const HOSTNAME = /^(?=.{1,253}$)[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)+$/;
 
-export const triggerSchema = z.discriminatedUnion('type', [
-  z.strictObject({ type: z.literal('urlPrefix'), value: nonEmpty }),
-  z.strictObject({ type: z.literal('regex'), pattern: regexSource }),
-  z.strictObject({ type: z.literal('schemaOrgType'), value: nonEmpty }),
-]);
+export const domainSchema = z
+  .string()
+  .refine((v) => HOSTNAME.test(v), 'must be a lowercase host name such as "example.com" (no scheme, path, port or spaces)')
+  .refine((v) => !v.startsWith('www.') || !HOSTNAME.test(v), 'must not start with "www."; subdomains are covered automatically');
+
+export const scopeSchema = z
+  .strictObject({
+    allSites: z.boolean(),
+    domains: z.array(domainSchema),
+    // schema.org type such as "Product"; the page must carry it in its JSON-LD.
+    pageType: nonEmpty.optional(),
+  })
+  .superRefine((s, ctx) => {
+    if (s.allSites && s.domains.length > 0) {
+      ctx.addIssue({ code: 'custom', path: ['domains'], message: 'must be empty when the project applies to all sites' });
+    }
+    if (!s.allSites && s.domains.length === 0) {
+      ctx.addIssue({ code: 'custom', path: ['domains'], message: 'needs at least one domain unless the project applies to all sites' });
+    }
+  });
 
 // Source order is fixed by priority: schema.org path, meta tag, site-mapping selector
 // (implicit, from siteMappings), manual input. Absent keys mean "not used".
@@ -67,7 +76,7 @@ export const targetSchema = z.strictObject({
 export const projectSchema = z.strictObject({
   id,
   name: nonEmpty,
-  triggers: z.array(triggerSchema),
+  scope: scopeSchema,
   fields: z.array(fieldSchema),
   // domain -> field key -> CSS selector
   siteMappings: z.record(nonEmpty, z.record(nonEmpty, nonEmpty)),
@@ -77,7 +86,7 @@ export const projectSchema = z.strictObject({
 export const configSchema = z
   .strictObject({
     schemaVersion: z.literal(CURRENT_SCHEMA_VERSION),
-    // Order is meaningful: later used as trigger precedence.
+    // Order is meaningful: project order decides the order and preselection of matching projects.
     projects: z.array(projectSchema),
   })
   .superRefine((cfg, ctx) => {
@@ -112,7 +121,7 @@ export const configSchema = z
     });
   });
 
-export type Trigger = z.infer<typeof triggerSchema>;
+export type Scope = z.infer<typeof scopeSchema>;
 export type Field = z.infer<typeof fieldSchema>;
 export type Target = z.infer<typeof targetSchema>;
 export type Project = z.infer<typeof projectSchema>;
@@ -134,7 +143,14 @@ export function parseConfig(input: unknown, what = 'Invalid configuration'): Con
   throw new ConfigError(
     what,
     result.error.issues.map((i) => {
-      const msg = i.code === 'unrecognized_keys' ? `unknown key(s): ${i.keys.join(', ')}` : i.message;
+      const msg =
+        i.code === 'unrecognized_keys'
+          ? i.keys.includes('triggers')
+            ? 'triggers are no longer supported; use "scope" with allSites, domains and an optional pageType'
+            : `unknown key(s): ${i.keys.join(', ')}`
+          : i.code === 'invalid_type' && i.path[i.path.length - 1] === 'scope'
+            ? 'is required: set allSites or list domains'
+            : i.message;
       return `${formatPath(i.path)}: ${msg}`;
     }),
   );

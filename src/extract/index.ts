@@ -1,4 +1,4 @@
-import type { Field, Project, Trigger } from '../config/schema';
+import type { Field, Project } from '../config/schema';
 import { collectJsonLdScripts, nodeTypes, normalizeSchemaType, parseJsonLd, resolveSchemaOrgPath, type JsonLdNode } from './jsonld';
 
 export { collectJsonLdScripts, nodeTypes, normalizeSchemaType, parseJsonLd, resolveSchemaOrgPath } from './jsonld';
@@ -18,26 +18,27 @@ export function readPage(url: string, doc: Document): PageData {
   return { url, doc, nodes: parseJsonLd(collectJsonLdScripts(doc)) };
 }
 
-export function matchesTrigger(trigger: Trigger, page: PageData): boolean {
-  switch (trigger.type) {
-    case 'urlPrefix':
-      return page.url.startsWith(trigger.value);
-    case 'regex':
-      try {
-        return new RegExp(trigger.pattern).test(page.url);
-      } catch {
-        return false;
-      }
-    case 'schemaOrgType': {
-      const wanted = normalizeSchemaType(trigger.value);
-      return page.nodes.some((n) => nodeTypes(n).includes(wanted));
-    }
+function hostMatches(url: string, domains: string[]): boolean {
+  let host: string;
+  try {
+    host = new URL(url).hostname.toLowerCase();
+  } catch {
+    return false;
   }
+  return domains.some((d) => {
+    const domain = d.toLowerCase();
+    return host === domain || host.endsWith(`.${domain}`);
+  });
 }
 
-/** First project in array order with at least one matching trigger. A project without triggers never matches. */
-export function selectProject(projects: Project[], page: PageData): Project | undefined {
-  return projects.find((p) => p.triggers.some((t) => matchesTrigger(t, page)));
+/** All projects whose scope fits the page, in project order. */
+export function matchProjects(projects: Project[], page: PageData): Project[] {
+  return projects.filter(({ scope }) => {
+    if (!scope.allSites && !hostMatches(page.url, scope.domains)) return false;
+    if (scope.pageType === undefined) return true;
+    const wanted = normalizeSchemaType(scope.pageType);
+    return page.nodes.some((n) => nodeTypes(n).includes(wanted));
+  });
 }
 
 /** Content of the first meta element with the given attribute value and a non-empty `content`. */

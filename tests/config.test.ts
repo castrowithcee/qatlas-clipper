@@ -31,11 +31,7 @@ const validConfig = () => ({
     {
       id: 'articles',
       name: 'Articles',
-      triggers: [
-        { type: 'urlPrefix', value: 'https://example.com/blog/' },
-        { type: 'regex', pattern: '^https://example\\.com/p/\\d+$' },
-        { type: 'schemaOrgType', value: 'Article' },
-      ],
+      scope: { allSites: false, domains: ['example.com'], pageType: 'Article' },
       fields: [
         {
           key: 'author',
@@ -86,9 +82,9 @@ describe('validation', () => {
 
   it('rejects invalid stored config on load instead of half-loading', async () => {
     const bad = validConfig();
-    bad.projects[0]!.triggers.push({ type: 'regex', pattern: '(' });
+    bad.projects[0]!.scope.domains.push('example.com/path');
     storage = fakeStorage({ [CONFIG_KEY]: bad });
-    await expect(loadConfig(storage)).rejects.toThrow(/projects\[0\]\.triggers\[3\]\.pattern: is not a valid regular expression/);
+    await expect(loadConfig(storage)).rejects.toThrow(/projects\[0\]\.scope\.domains\[1\]: must be a lowercase host name/);
   });
 
   it('rejects duplicates and unknown mapping keys', async () => {
@@ -114,6 +110,44 @@ describe('validation', () => {
     expect(err2.message).not.toContain(HEADER_VALUE);
   });
 
+  it('rejects invalid domains with a clear message', async () => {
+    for (const d of ['https://example.com', 'example.com/blog', 'example.com:8080', 'exa mple.com', 'Example.com', 'www.example.com', 'localhost', '*.example.com', '']) {
+      const bad = validConfig();
+      bad.projects[0]!.scope.domains = [d];
+      const err = await importFromText(JSON.stringify(bad), storage).catch((e) => e);
+      expect(err).toBeInstanceOf(ConfigError);
+      expect(err.message).toContain('projects[0].scope.domains[0]');
+      if (d) expect(err.message).not.toContain(d);
+    }
+  });
+
+  it('enforces domains against allSites', async () => {
+    const both = validConfig();
+    both.projects[0]!.scope.allSites = true;
+    await expect(importFromText(JSON.stringify(both), storage)).rejects.toThrow(/scope\.domains: must be empty/);
+    const none = validConfig();
+    none.projects[0]!.scope.domains = [];
+    await expect(importFromText(JSON.stringify(none), storage)).rejects.toThrow(/scope\.domains: needs at least one domain/);
+    const ok = validConfig();
+    ok.projects[0]!.scope = { allSites: true, domains: [] } as never;
+    await expect(importFromText(JSON.stringify(ok), storage)).resolves.toBeTruthy();
+  });
+
+  it('rejects a project without scope', async () => {
+    const bad = validConfig();
+    delete (bad.projects[0] as Partial<{ scope: unknown }>).scope;
+    await expect(importFromText(JSON.stringify(bad), storage)).rejects.toThrow(/projects\[0\]\.scope: is required/);
+  });
+
+  it('rejects the old triggers field without echoing values', async () => {
+    const bad = { ...validConfig() } as { projects: Record<string, unknown>[] };
+    bad.projects[0]!.triggers = [{ type: 'urlPrefix', value: 'https://secret.example/' }];
+    const err = await importFromText(JSON.stringify(bad), storage).catch((e) => e);
+    expect(err).toBeInstanceOf(ConfigError);
+    expect(err.message).toContain('triggers are no longer supported');
+    expect(err.message).not.toContain('secret.example');
+  });
+
   it('returns an empty config when nothing is stored', async () => {
     expect(await loadConfig(storage)).toEqual({ schemaVersion: 1, projects: [] });
   });
@@ -126,7 +160,7 @@ describe('migration', () => {
     storage = fakeStorage({ [CONFIG_KEY]: v0State() });
     const cfg = await loadConfig(storage);
     expect(cfg.projects[0]).toMatchObject({
-      triggers: [{ type: 'urlPrefix', value: 'https://example.com/blog/' }],
+      scope: { allSites: false, domains: ['example.com'] },
       siteMappings: { 'example.com': { author: '.byline' } },
       fields: [{ sources: { schemaOrgPath: 'Article.author.name' } }],
     });

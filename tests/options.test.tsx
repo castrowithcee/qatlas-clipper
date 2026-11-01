@@ -17,7 +17,7 @@ function fakeStorage(initial: Record<string, unknown> = {}): StorageArea & { dat
 }
 
 const project = (id: string, name: string, extra: Record<string, unknown> = {}) => ({
-  id, name, triggers: [], fields: [], siteMappings: {}, targets: [], ...extra,
+  id, name, scope: { allSites: true, domains: [] }, fields: [], siteMappings: {}, targets: [], ...extra,
 });
 const stored = (...projects: unknown[]) => ({ [CONFIG_KEY]: { schemaVersion: 1, projects } });
 
@@ -29,15 +29,20 @@ async function mount(storage: StorageArea) {
 }
 
 describe('options page', () => {
-  it('creates a project with trigger and field and persists it across re-mount', async () => {
+  it('creates a project with scope and field and persists it across re-mount', async () => {
     const storage = fakeStorage();
     const user = await mount(storage);
     await user.click(screen.getByRole('button', { name: 'Add project' }));
     const name = screen.getByLabelText('Project name');
     await user.clear(name);
     await user.type(name, 'Articles');
-    await user.click(screen.getByRole('button', { name: 'Add trigger' }));
-    await user.type(screen.getByLabelText('URL prefix'), 'https://example.com/blog/');
+    await user.selectOptions(screen.getByLabelText('Applies to'), 'domains');
+    await user.type(screen.getByLabelText('Domain 1'), 'example.com');
+    await user.click(screen.getByRole('button', { name: 'Add domain' }));
+    await user.type(screen.getByLabelText('Domain 2'), 'example.org');
+    await user.click(screen.getByRole('button', { name: 'Remove domain 2' }));
+    await user.type(screen.getByLabelText('Page type'), 'Article');
+    expect(screen.queryByLabelText('Regular expression')).toBeNull();
     await user.click(screen.getByRole('button', { name: 'Add field' }));
     const field = screen.getByRole('group', { name: 'Field 1' });
     await user.type(within(field).getByLabelText('schema.org path'), 'Article.headline');
@@ -49,26 +54,38 @@ describe('options page', () => {
     cleanup();
     await mount(storage);
     await user.click(screen.getByRole('button', { name: 'Articles' }));
-    expect(screen.getByLabelText('URL prefix')).toHaveProperty('value', 'https://example.com/blog/');
+    expect(screen.getByLabelText('Domain 1')).toHaveProperty('value', 'example.com');
     const saved = await loadConfig(storage);
+    expect(saved.projects[0]?.scope).toEqual({ allSites: false, domains: ['example.com'], pageType: 'Article' });
     expect(saved.projects[0]?.fields[0]?.sources).toEqual({
       schemaOrgPath: 'Article.headline',
       manual: { type: 'choice', values: ['Draft', 'Final'] },
     });
   });
 
-  it('rejects an invalid regex at the input and does not save', async () => {
-    const storage = fakeStorage(stored(project('p1', 'A', { triggers: [{ type: 'regex', pattern: 'ok' }] })));
+  it('rejects an invalid domain at the input and does not save', async () => {
+    const storage = fakeStorage(stored(project('p1', 'A', { scope: { allSites: false, domains: ['example.com'] } })));
     const user = await mount(storage);
-    const input = screen.getByLabelText('Regular expression');
+    const input = screen.getByLabelText('Domain 1');
     await user.clear(input);
-    await user.type(input, '(unclosed');
+    await user.type(input, 'https://example.com/x');
     expect(input.getAttribute('aria-invalid')).toBe('true');
-    expect(screen.getAllByText(/not a valid regular expression/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/must be a lowercase host name/).length).toBeGreaterThan(0);
     await user.click(screen.getByRole('button', { name: 'Save changes' }));
     await screen.findByText(/Not saved/);
-    expect((storage.data[CONFIG_KEY] as { projects: { triggers: { pattern: string }[] }[] }).projects[0]?.triggers[0]?.pattern).toBe('ok');
-    expect(input).toHaveProperty('value', '(unclosed');
+    expect((storage.data[CONFIG_KEY] as { projects: { scope: { domains: string[] } }[] }).projects[0]?.scope.domains).toEqual(['example.com']);
+    expect(input).toHaveProperty('value', 'https://example.com/x');
+  });
+
+  it('changes scope back to all sites, dropping domains, and clears the page type', async () => {
+    const storage = fakeStorage(stored(project('p1', 'A', { scope: { allSites: false, domains: ['example.com'], pageType: 'Product' } })));
+    const user = await mount(storage);
+    await user.selectOptions(screen.getByLabelText('Applies to'), 'all');
+    expect(screen.queryByLabelText('Domain 1')).toBeNull();
+    await user.clear(screen.getByLabelText('Page type'));
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+    await screen.findByText('Saved.');
+    expect((await loadConfig(storage)).projects[0]?.scope).toEqual({ allSites: true, domains: [] });
   });
 
   it('rejects a duplicate field key', async () => {
@@ -102,7 +119,7 @@ describe('options page', () => {
   it('reorders projects', async () => {
     const storage = fakeStorage(stored(project('p1', 'A'), project('p2', 'B')));
     const user = await mount(storage);
-    expect(screen.getByText(/first matching project wins/)).toBeTruthy();
+    expect(screen.getByText(/first one is preselected/)).toBeTruthy();
     await user.click(screen.getByRole('button', { name: 'Move up project B' }));
     await user.click(screen.getByRole('button', { name: 'Save changes' }));
     await screen.findByText('Saved.');
