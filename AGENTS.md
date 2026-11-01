@@ -14,6 +14,7 @@ Chromium browser extension (Manifest V3) that reads page content and fields acco
 - `src/extract/`: project scope matching, field sources (JSON-LD, meta tags, selectors) and Defuddle page reading as pure functions over a `Document`; `inject.ts` runs the reader in a tab
 - `src/picker/`: CSS selector generation, click-mapping overlay (Shadow DOM), mapping persistence and picker start
 - `src/options/`: options page components (projects, scope, fields, site mappings, targets with header values and host permissions, import and export)
+- `src/popup/`: popup components (project choice, field form, picker start) and the per-URL draft cache of user edits (`storage.session`)
 - `public/icon/`: extension icons
 - `tests/`: Vitest tests
 - `wxt.config.ts`: WXT and manifest config
