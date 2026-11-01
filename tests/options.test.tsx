@@ -1,8 +1,9 @@
 // @vitest-environment happy-dom
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { CONFIG_KEY, loadConfig, type StorageArea } from '../src/config';
+import { CONFIG_KEY, HEADER_VALUES_KEY, loadConfig, type StorageArea } from '../src/config';
+import type { PermissionsApi } from '../src/options/permissions';
 import { OptionsApp } from '../src/options/OptionsApp';
 
 afterEach(cleanup);
@@ -21,9 +22,25 @@ const project = (id: string, name: string, extra: Record<string, unknown> = {}) 
 });
 const stored = (...projects: unknown[]) => ({ [CONFIG_KEY]: { schemaVersion: 1, projects } });
 
-async function mount(storage: StorageArea) {
+function fakePermissions(grant = true) {
+  const granted = new Set<string>();
+  const api = {
+    contains: vi.fn(async (o: string[]) => o.every((x) => granted.has(x))),
+    request: vi.fn(async (o: string[]) => {
+      if (grant) o.forEach((x) => granted.add(x));
+      return grant;
+    }),
+    remove: vi.fn(async (o: string[]) => {
+      o.forEach((x) => granted.delete(x));
+      return true;
+    }),
+  } satisfies PermissionsApi;
+  return Object.assign(api, { granted });
+}
+
+async function mount(storage: StorageArea, permissions: PermissionsApi = fakePermissions()) {
   const user = userEvent.setup();
-  render(<OptionsApp storage={storage} />);
+  render(<OptionsApp storage={storage} permissions={permissions} />);
   await screen.findByRole('heading', { name: 'qatlas-clipper options' });
   return user;
 }
@@ -164,5 +181,90 @@ describe('options page', () => {
     await screen.findByText(/could not be loaded/);
     expect(screen.queryByRole('button', { name: 'Save changes' })).toBeNull();
     expect(storage.data[CONFIG_KEY]).toEqual(bad);
+  });
+
+  describe('targets', () => {
+    const target = (id: string, url: string, extra: Record<string, unknown> = {}) => ({ id, name: id, url, headers: [], purpose: '', ...extra });
+
+    async function addTarget(user: ReturnType<typeof userEvent.setup>, url: string) {
+      await user.click(screen.getByRole('button', { name: 'Add target' }));
+      const url_ = screen.getByLabelText('Target URL');
+      await user.clear(url_);
+      await user.type(url_, url);
+    }
+
+    it('requests the host permission on save, shows the status, keeps header values apart', async () => {
+      const storage = fakeStorage(stored(project('p1', 'A')));
+      const permissions = fakePermissions();
+      const user = await mount(storage, permissions);
+      await addTarget(user, 'https://example.com/hook');
+      await user.click(screen.getByRole('button', { name: 'Add header to target 1' }));
+      await user.type(screen.getByLabelText('Header name 1'), 'Authorization');
+      const value = screen.getByLabelText('Header value 1');
+      expect(value.getAttribute('type')).toBe('password');
+      await user.type(value, 'secret-token');
+      expect(screen.getByTestId('permission-0').textContent).toMatch(/not requested/);
+      await user.click(screen.getByRole('button', { name: 'Save changes' }));
+      await screen.findByText('Saved.');
+      await screen.findByText(/Permission for this address: granted/);
+      expect(permissions.request).toHaveBeenCalledWith(['https://example.com/*']);
+      const cfg = await loadConfig(storage);
+      expect(cfg.projects[0]?.targets[0]).toMatchObject({ url: 'https://example.com/hook', headers: ['Authorization'] });
+      expect(JSON.stringify(storage.data[CONFIG_KEY])).not.toContain('secret-token');
+      expect(storage.data[HEADER_VALUES_KEY]).toEqual({ [cfg.projects[0]!.targets[0]!.id]: { Authorization: 'secret-token' } });
+    });
+
+    it('marks a denied permission and allows asking again; saving does not depend on it', async () => {
+      const storage = fakeStorage(stored(project('p1', 'A')));
+      const permissions = fakePermissions(false);
+      const user = await mount(storage, permissions);
+      await addTarget(user, 'https://example.com/hook');
+      await user.click(screen.getByRole('button', { name: 'Save changes' }));
+      await screen.findByText('Saved.');
+      await screen.findByText(/Permission for this address: denied/);
+      expect((await loadConfig(storage)).projects[0]?.targets).toHaveLength(1);
+      permissions.request.mockImplementationOnce(async (o: string[]) => {
+        o.forEach((x) => permissions.granted.add(x));
+        return true;
+      });
+      await user.click(screen.getByRole('button', { name: 'Request permission for target New target' }));
+      await screen.findByText(/Permission for this address: granted/);
+      expect(permissions.request).toHaveBeenCalledTimes(2);
+    });
+
+    it('revokes the permission of a deleted target only if no other target shares the origin', async () => {
+      const storage = fakeStorage(
+        stored(
+          project('p1', 'A', { targets: [target('t1', 'https://example.com/a'), target('t2', 'https://other.example.org/b')] }),
+          project('p2', 'B', { targets: [target('t3', 'https://example.com/c')] }),
+        ),
+      );
+      const permissions = fakePermissions();
+      const user = await mount(storage, permissions);
+      await user.click(screen.getByRole('button', { name: 'Delete target t1' }));
+      await user.click(screen.getByRole('button', { name: 'Delete target t2' }));
+      await user.click(screen.getByRole('button', { name: 'Save changes' }));
+      await screen.findByText('Saved.');
+      expect(permissions.remove).toHaveBeenCalledTimes(1);
+      expect(permissions.remove).toHaveBeenCalledWith(['https://other.example.org/*']);
+    });
+
+    it('accepts https and http://localhost, rejects other http hosts without echoing the value', async () => {
+      const storage = fakeStorage(stored(project('p1', 'A')));
+      const user = await mount(storage);
+      await addTarget(user, 'http://example.com/hook');
+      expect(screen.getAllByText(/only allowed for localhost/).length).toBeGreaterThan(0);
+      expect(screen.getByLabelText('Target URL').getAttribute('aria-invalid')).toBe('true');
+      await user.click(screen.getByRole('button', { name: 'Save changes' }));
+      await screen.findByText(/Not saved/);
+      expect((storage.data[CONFIG_KEY] as { projects: { targets: unknown[] }[] }).projects[0]?.targets).toEqual([]);
+      const url = screen.getByLabelText('Target URL');
+      await user.clear(url);
+      await user.type(url, 'http://localhost:8080/hook');
+      expect(screen.queryByText(/only allowed for localhost/, { selector: 'p.error' })).toBeNull();
+      await user.click(screen.getByRole('button', { name: 'Save changes' }));
+      await screen.findByText('Saved.');
+      expect((await loadConfig(storage)).projects[0]?.targets[0]?.url).toBe('http://localhost:8080/hook');
+    });
   });
 });

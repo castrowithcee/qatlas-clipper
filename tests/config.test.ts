@@ -9,6 +9,7 @@ import {
   loadConfig,
   loadHeaderValues,
   migrateConfig,
+  parseConfig,
   saveConfig,
   setHeaderValue,
   type StorageArea,
@@ -75,7 +76,7 @@ describe('validation', () => {
     delete (bad.projects[0]!.fields[0] as Partial<{ label: string }>).label;
     const err = await importFromText(JSON.stringify(bad), storage).catch((e) => e);
     expect(err).toBeInstanceOf(ConfigError);
-    expect(err.message).toContain('projects[0].targets[0].url: must be an absolute http: or https: URL');
+    expect(err.message).toContain('projects[0].targets[0].url: must be an absolute https: URL (http: is only allowed for localhost)');
     expect(err.message).toContain('projects[0].fields[0].label');
     expect(storage.data[CONFIG_KEY]).toBeUndefined();
   });
@@ -241,5 +242,30 @@ describe('URL import', () => {
     });
     expect(fetchMock).toHaveBeenCalledOnce();
     expect((await loadConfig(storage)).projects).toHaveLength(1);
+  });
+});
+
+describe('target URL rule', () => {
+  const withUrl = (url: string) => {
+    const c = validConfig();
+    c.projects[0]!.targets[0]!.url = url;
+    return c;
+  };
+  it('accepts https and http only for localhost', () => {
+    for (const u of ['https://example.com/hook', 'http://localhost:8080/hook', 'http://localhost/x']) {
+      expect(() => parseConfig(withUrl(u))).not.toThrow();
+    }
+  });
+  it('rejects other http hosts and schemes without echoing the value', () => {
+    for (const u of ['http://example.com/hook', 'http://127.0.0.1/x', 'ftp://example.com', 'javascript:alert(1)', 'not a url']) {
+      let message = '';
+      try {
+        parseConfig(withUrl(u));
+      } catch (e) {
+        message = (e as Error).message;
+      }
+      expect(message).toContain('projects[0].targets[0].url: must be an absolute https: URL');
+      expect(message).not.toContain(u);
+    }
   });
 });

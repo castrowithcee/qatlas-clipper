@@ -1,4 +1,4 @@
-import { ConfigError, parseConfig, type Config, type Field, type Project, type Scope } from '../config';
+import { ConfigError, parseConfig, type Config, type Field, type Project, type Scope, type Target } from '../config';
 
 export const newId = (): string => crypto.randomUUID();
 
@@ -13,6 +13,10 @@ export function moveItem<T>(items: T[], index: number, delta: -1 | 1): T[] {
 
 export function newProject(): Project {
   return { id: newId(), name: 'New project', scope: { allSites: true, domains: [] }, fields: [], siteMappings: {}, targets: [] };
+}
+
+export function newTarget(): Target {
+  return { id: newId(), name: 'New target', url: 'https://', headers: [], purpose: '' };
 }
 
 export function newField(existing: Field[]): Field {
@@ -84,6 +88,7 @@ export function normalize(config: Config): Config {
           domains: scope.domains.map((d) => d.trim()),
           ...(trimmed ? { pageType: trimmed } : {}),
         },
+        targets: p.targets.map((t) => ({ ...t, url: t.url.trim(), headers: t.headers.map((h) => h.trim()) })),
         fields: p.fields.map((f) => {
           const sources: Field['sources'] = { ...f.sources };
           if (sources.schemaOrgPath !== undefined && sources.schemaOrgPath.trim() === '') delete sources.schemaOrgPath;
@@ -122,7 +127,7 @@ export const errorsAt = (issues: Issue[], path: string): string[] =>
   issues.filter((i) => i.path === path).map((i) => i.message);
 
 // Paths that an input of the project editor shows itself.
-const MAPPED = /^projects\[(\d+)\]\.(name|scope\.(pageType|domains\[\d+\]|domains)|fields\[\d+\]\.(key|label|sources\.schemaOrgPath|sources\.metaTag\.name|sources\.manual\.values(\[\d+\])?)|siteMappings\..+)$/;
+const MAPPED = /^projects\[(\d+)\]\.(name|scope\.(pageType|domains\[\d+\]|domains)|fields\[\d+\]\.(key|label|sources\.schemaOrgPath|sources\.metaTag\.name|sources\.manual\.values(\[\d+\])?)|siteMappings\..+|targets\[\d+\]\.(name|url|purpose|headers\[\d+\]))$/;
 
 /** Issues that no visible input of the selected project shows. */
 export function unmappedIssues(issues: Issue[], selectedIndex: number): Issue[] {

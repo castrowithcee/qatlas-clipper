@@ -11,16 +11,17 @@ const id = z
 // RFC 9110 token: header names are data from imports, so keep them strictly syntactic.
 const headerName = z.string().regex(/^[A-Za-z0-9!#$%&'*+.^_`|~-]+$/, 'is not a valid HTTP header name');
 
-const httpUrl = z
+// Plain http: is only accepted for localhost, so header values never travel unencrypted over a network.
+const targetUrl = z
   .string()
   .refine((v) => {
     try {
-      const p = new URL(v).protocol;
-      return p === 'http:' || p === 'https:';
+      const u = new URL(v);
+      return u.protocol === 'https:' || (u.protocol === 'http:' && u.hostname === 'localhost');
     } catch {
       return false;
     }
-  }, 'must be an absolute http: or https: URL');
+  }, 'must be an absolute https: URL (http: is only allowed for localhost)');
 
 // Lowercase ASCII hostname with at least two labels; no scheme, path, port, spaces or wildcards.
 const HOSTNAME = /^(?=.{1,253}$)[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)+$/;
@@ -67,7 +68,7 @@ export const fieldSchema = z.strictObject({
 export const targetSchema = z.strictObject({
   id,
   name: nonEmpty,
-  url: httpUrl,
+  url: targetUrl,
   // Names only. Values live in a separate storage key and are never exported.
   headers: z.array(headerName),
   purpose: z.string(),

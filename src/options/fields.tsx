@@ -7,9 +7,11 @@ interface TextInputProps {
   errors?: string[];
   multiline?: boolean;
   hint?: string;
+  /** Use "password" for secrets so they are masked. */
+  type?: 'text' | 'password';
 }
 
-export function TextInput({ label, value, onChange, errors = [], multiline, hint }: TextInputProps) {
+export function TextInput({ label, value, onChange, errors = [], multiline, hint, type = 'text' }: TextInputProps) {
   const id = useId();
   const describedBy = [errors.length > 0 ? `${id}-err` : '', hint ? `${id}-hint` : ''].filter(Boolean).join(' ') || undefined;
   const common = {
@@ -24,7 +26,7 @@ export function TextInput({ label, value, onChange, errors = [], multiline, hint
       {multiline ? (
         <textarea {...common} rows={4} onChange={(e) => onChange(e.target.value)} />
       ) : (
-        <input {...common} type="text" onChange={(e) => onChange(e.target.value)} />
+        <input {...common} type={type} autoComplete={type === 'password' ? 'off' : undefined} onChange={(e) => onChange(e.target.value)} />
       )}
       {hint && (
         <p id={`${id}-hint`} className="hint">
