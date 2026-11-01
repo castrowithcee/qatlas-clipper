@@ -24,6 +24,7 @@ import {
 } from './draft';
 import { FieldForm } from './FieldForm';
 import { Header } from './Header';
+import { MissingHint, ResultView } from './Outcome';
 import { BlockedView, LoadingView, NoPermissionView, NoProjectsView, NoTargetView, type BlockReason } from './States';
 import './popup.css';
 
@@ -298,8 +299,7 @@ export function PopupApp({
         onNote={(note) => persist({ ...current, projectId, note })}
         onPick={(field) => void map(field)}
       />
-      {/* Sending and the outcome display are redesigned separately; behavior stays as before. */}
-      <section aria-label={t('popup.send.section')}>
+      <section aria-label={t('popup.send.section')} className="popup-send">
         {project.targets.map((target) => {
           const busy = sendingIds.includes(target.id) || sendState.inFlight.includes(target.id);
           const result = sendState.results[target.id];
@@ -307,61 +307,24 @@ export function PopupApp({
           const noPermission = h?.kind === 'permission' || result?.outcome.kind === 'no-permission';
           return (
             <div className="popup-target" key={target.id}>
-              <Button variant="primary" disabled={busy} onClick={() => void sendTo(target)}>
-                {t('popup.send.to', { name: target.name })}
+              <Button variant="primary" className="popup-send-button" disabled={busy} aria-busy={busy} onClick={() => void sendTo(target)}>
+                {busy ? (
+                  <>
+                    <span className="q-spinner popup-spinner" aria-hidden="true" />
+                    {t('popup.send.busy')}
+                  </>
+                ) : (
+                  t('popup.send.to', { name: target.name })
+                )}
               </Button>
-              {busy && <p role="status" className="q-hint">{t('popup.send.busy')}</p>}
-              {h?.kind === 'missing' && (
-                <p role="alert" className="popup-error">
-                  {t('popup.send.missing', { fields: h.keys.map((k) => project.fields.find((f) => f.key === k)?.label ?? k).join(', ') })}
-                </p>
-              )}
+              {busy && <span role="status" className="popup-sr">{t('popup.send.busyTo', { name: target.name })}</span>}
+              {h?.kind === 'missing' && <MissingHint />}
               {noPermission && <NoPermissionView onOpenOptions={openOpts} />}
-              {result && !busy && <ResultView outcome={result.outcome} />}
+              {result && !busy && <ResultView outcome={result.outcome} at={result.at} onRetry={() => void sendTo(target)} />}
             </div>
           );
         })}
       </section>
     </main>
   );
-}
-
-/** Only http(s) URLs become links; webhook data is otherwise plain text. */
-function linkOf(value: string): string | undefined {
-  try {
-    const u = new URL(value);
-    return u.protocol === 'http:' || u.protocol === 'https:' ? u.href : undefined;
-  } catch {
-    return undefined;
-  }
-}
-
-function ResultView({ outcome }: { outcome: SendOutcome }) {
-  const { t, number } = useI18n();
-  if (outcome.kind === 'success') {
-    const href = outcome.url === undefined ? undefined : linkOf(outcome.url);
-    return (
-      <div role="status" className="popup-result">
-        <p>{t('popup.send.ok', { status: number(outcome.status, { useGrouping: false }) })}</p>
-        {outcome.message && <p>{outcome.message}</p>}
-        {outcome.url !== undefined &&
-          (href ? (
-            <p><a href={href} target="_blank" rel="noopener noreferrer">{href}</a></p>
-          ) : (
-            <p>{outcome.url}</p>
-          ))}
-      </div>
-    );
-  }
-  if (outcome.kind === 'http-error') {
-    return (
-      <p role="alert" className="popup-error">
-        {outcome.text
-          ? t('popup.send.errorText', { status: number(outcome.status, { useGrouping: false }), text: outcome.text })
-          : t('popup.send.error', { status: number(outcome.status, { useGrouping: false }) })}
-      </p>
-    );
-  }
-  if (outcome.kind === 'no-permission') return null;
-  return <p role="alert" className="popup-error">{outcome.message}</p>;
 }

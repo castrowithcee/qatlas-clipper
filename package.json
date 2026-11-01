@@ -16,7 +16,8 @@
     "lint": "eslint .",
     "postinstall": "wxt prepare",
     "e2e": "npm run build:e2e && playwright test",
-    "screens": "playwright test -c playwright.screens.config.ts"
+    "screens": "playwright test -c playwright.screens.config.ts",
+    "screens:popup": "npm run build:e2e && playwright test -c playwright.popup-screens.config.ts"
   },
   "engines": {
     "node": ">=22"

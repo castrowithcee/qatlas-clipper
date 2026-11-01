@@ -210,3 +210,32 @@ describe('catalog', () => {
     }
   });
 });
+
+describe.each(['de', 'en'] as const)('popup send texts (%s)', (lang) => {
+  const de_ = lang === 'de';
+  const FIXED = [
+    'The target could not be reached.', 'The target did not respond in time.', 'The target is not configured for this project.',
+    'The extension has no permission for this target address.', 'The send request was invalid.', 'A send to this target is already running.',
+    'Sending failed internally.',
+  ];
+  const kinds = ['network-error', 'timeout', 'unknown-target', 'invalid-request', 'internal-error'] as const;
+
+  it.each(kinds)('shows %s without technical terms and without the fixed English message', async (kind) => {
+    const send = vi.fn(async () => ({ kind, message: FIXED[0]! }) as never);
+    const { user, view } = setup(lang, { send });
+    await user.click(await screen.findByRole('button', { name: de_ ? 'An Hook senden' : 'Send to Hook' }));
+    await screen.findByRole('alert');
+    const visible = view.container.textContent ?? '';
+    for (const fixed of FIXED) expect(visible).not.toContain(fixed);
+    if (de_) for (const term of [/webhook/i, /timeout/i, /\bhttp/i, /status/i, /payload/i, /request/i]) expect(visible).not.toMatch(term);
+  });
+
+  it('shows a success with a link only for http(s) and in the active language', async () => {
+    const send = vi.fn(async () => ({ kind: 'success', status: 200, message: '<b>x</b>', url: 'javascript:alert(1)' }) as never);
+    const { user } = setup(lang, { send });
+    await user.click(await screen.findByRole('button', { name: de_? 'An Hook senden' : 'Send to Hook' }));
+    expect(await screen.findByText(de_ ? /^Gesendet um / : /^Sent at /)).toBeTruthy();
+    expect(screen.queryByRole('link')).toBeNull();
+    expect(screen.getByText('<b>x</b>')).toBeTruthy();
+  });
+});

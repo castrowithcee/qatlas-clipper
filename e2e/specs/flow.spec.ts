@@ -138,7 +138,7 @@ test('configure, map by click, prefill on a second page, send, and show the resp
   await page2.close();
 });
 
-test('an error response shows status and text in the popup', async ({ context, serviceWorker, extensionId, pages, webhook }) => {
+test('an error response shows a short message, the response text and a retry in the popup', async ({ context, serviceWorker, extensionId, pages, webhook }) => {
   await serviceWorker.evaluate(
     ([config]) => chrome.storage.local.set({ config }),
     [JSON.parse(projectJson(webhook.errorUrl))],
@@ -149,6 +149,8 @@ test('an error response shows status and text in the popup', async ({ context, s
   await popup.getByRole('textbox', { name: 'Price' }).fill('1.00');
   await popup.getByRole('button', { name: 'Send to Test hook' }).click();
 
-  await expect(popup.getByRole('alert').filter({ hasText: `Error 500: ${WEBHOOK_ERROR_TEXT}` })).toBeVisible();
+  const alert = popup.getByRole('alert').filter({ hasText: 'The target answered with error 500.' });
+  await expect(alert).toBeVisible();
+  await expect(alert.getByText(WEBHOOK_ERROR_TEXT, { exact: true })).toBeVisible();
   expect(webhook.requests).toHaveLength(1);
 });

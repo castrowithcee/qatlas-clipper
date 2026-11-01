@@ -1,6 +1,7 @@
 import { Button, EmptyState, ErrorState, LoadingState } from '../ui/components';
 import { useI18n } from '../settings';
 import type { MessageKey } from '../i18n';
+import { Notice } from './Outcome';
 
 /** Why the popup cannot show the form. `unsupported`, `no-access` and `failed` come from reading the tab. */
 export type BlockReason = 'unsupported' | 'no-access' | 'failed' | 'no-tab' | 'load-failed';
@@ -60,10 +61,9 @@ export function NoTargetView({ onOpenOptions }: { onOpenOptions: () => void }) {
 export function NoPermissionView({ onOpenOptions }: { onOpenOptions: () => void }) {
   const { t } = useI18n();
   return (
-    <div role="alert" className="popup-permission">
-      <p className="popup-permission-title">{t('popup.noPermission.title')}</p>
-      <p className="q-hint">{t('popup.noPermission.text')}</p>
-      <Button onClick={onOpenOptions}>{t('popup.noPermission.action')}</Button>
-    </div>
+    <Notice kind="warning" title={t('popup.noPermission.title')}>
+      <p className="popup-outcome-text">{t('popup.noPermission.text')}</p>
+      <Button className="popup-retry" onClick={onOpenOptions}>{t('popup.noPermission.action')}</Button>
+    </Notice>
   );
 }

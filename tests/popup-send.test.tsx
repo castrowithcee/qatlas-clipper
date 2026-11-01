@@ -70,6 +70,7 @@ function setup(over: Partial<PopupDeps> & { targets?: unknown[]; fields?: Record
   return { user, deps, resultStorage: resultStorage as ReturnType<typeof fakeStorage> };
 }
 
+const SENT = /^Sent at /;
 const sendButton = () => screen.findByRole('button', { name: 'Send to Hook' });
 
 describe('popup send', () => {
@@ -82,7 +83,7 @@ describe('popup send', () => {
   it('blocks an empty required field and marks it invalid', async () => {
     const { user, deps } = setup({ fields: {} });
     await user.click(await sendButton());
-    expect((await screen.findByRole('alert')).textContent).toContain('Headline');
+    expect((await screen.findByRole('alert')).textContent).toBe('Please fill in the marked required fields.');
     expect(deps.send).not.toHaveBeenCalled();
     expect(screen.getByLabelText(/^Headline/).getAttribute('aria-invalid')).toBe('true');
     // Whitespace only counts as empty; fixing the field clears the hint.
@@ -117,7 +118,7 @@ describe('popup send', () => {
     await user.type(title, 'Edited');
     await user.type(screen.getByLabelText('Note'), 'my note');
     await user.click(screen.getByRole('button', { name: 'Send to Hook' }));
-    expect(await screen.findByText('Sent (201)')).toBeTruthy();
+    expect(await screen.findByText(SENT)).toBeTruthy();
     expect(deps.send).toHaveBeenCalledTimes(1);
     const req = (deps.send as ReturnType<typeof vi.fn>).mock.calls[0]![0];
     expect(req).toMatchObject({ tabUrl: URL_A, projectId: 'p', targetId: 't1' });
@@ -151,7 +152,7 @@ describe('popup send', () => {
     await waitFor(() => expect(button.disabled).toBe(true));
     expect(deps.send).toHaveBeenCalledTimes(1);
     resolve(success);
-    await screen.findByText('Sent (201)');
+    await screen.findByText(SENT);
     expect(button.disabled).toBe(false);
   });
 
@@ -159,34 +160,69 @@ describe('popup send', () => {
     const { resultStorage } = setup({
       results: { [IN_FLIGHT_KEY]: [{ url: URL_A, targetId: 't1', startedAt: Date.now() }] },
     });
-    const button = (await sendButton()) as HTMLButtonElement;
+    const button = (await screen.findByRole('button', { name: /Sending/ })) as HTMLButtonElement;
     expect(button.disabled).toBe(true);
     resultStorage.data[IN_FLIGHT_KEY] = [];
     resultStorage.data[RESULTS_KEY] = [{ url: URL_A, targets: { t1: { outcome: success, at: '2026-01-01T00:00:00.000Z' } } }];
-    await screen.findByText('Sent (201)');
+    await screen.findByText(SENT);
     expect(button.disabled).toBe(false);
   });
 
-  it('shows http errors and fixed-message failures as text', async () => {
-    const first = setup({ send: vi.fn(async (): Promise<SendOutcome> => ({ kind: 'http-error', status: 422, text: '<i>bad</i> input' })) });
-    await first.user.click(await sendButton());
-    expect((await screen.findByRole('alert')).textContent).toBe('Error 422: <i>bad</i> input');
-    cleanup();
+  it('shows http errors with a catalog title, the response text as text, and retries to the same target', async () => {
+    const send = vi.fn(async (): Promise<SendOutcome> => ({ kind: 'http-error', status: 422, text: '<i>bad</i> input' }));
+    const { user } = setup({ send });
+    await user.click(await sendButton());
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent).toContain('The target answered with error 422.');
+    expect(screen.getByText('<i>bad</i> input')).toBeTruthy();
+    expect(alert.querySelector('i')).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Try again' }));
+    await waitFor(() => expect(send).toHaveBeenCalledTimes(2));
+    expect((send.mock.calls[1] as unknown[])[0]).toMatchObject({ projectId: 'p', targetId: 't1' });
+  });
 
-    const second = setup({ send: vi.fn(async (): Promise<SendOutcome> => ({ kind: 'timeout', message: 'The target did not respond in time.' })) });
-    await second.user.click(await sendButton());
-    expect((await screen.findByRole('alert')).textContent).toBe('The target did not respond in time.');
+  it.each([
+    ['network-error', 'The target cannot be reached.'],
+    ['timeout', 'The target did not answer in time.'],
+    ['unknown-target', 'This target no longer belongs to the project.'],
+    ['invalid-request', 'The request was invalid.'],
+    ['internal-error', 'Sending failed.'],
+  ] as const)('shows the catalog text for %s, not the fixed message, and offers a retry', async (kind, expected) => {
+    const send = vi.fn(async (): Promise<SendOutcome> => ({ kind, message: 'Fixed English message from the core.' }));
+    const { user } = setup({ send });
+    await user.click(await sendButton());
+    expect((await screen.findByRole('alert')).textContent).toContain(expected);
+    expect(screen.queryByText(/Fixed English message/)).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Try again' }));
+    await waitFor(() => expect(send).toHaveBeenCalledTimes(2));
+  });
+
+  it('shows the sending state with text and a locked button', async () => {
+    const send = vi.fn(() => new Promise<SendOutcome>(() => undefined));
+    const { user } = setup({ send });
+    await user.click(await sendButton());
+    const button = await screen.findByRole('button', { name: /Sending/ });
+    expect((button as HTMLButtonElement).disabled).toBe(true);
+    expect(button.querySelector('.q-spinner')).toBeTruthy();
+  });
+
+  it('keeps html in the success message as text and shows the time', async () => {
+    const { user } = setup();
+    await user.click(await sendButton());
+    expect(await screen.findByText('Saved <b>ok</b>')).toBeTruthy();
+    expect(document.querySelector('.popup-outcome b')).toBeNull();
+    expect(screen.queryByText(/201/)).toBeNull();
   });
 
   it('shows a stored outcome after remount', async () => {
     const first = setup();
     await first.user.click(await sendButton());
-    await screen.findByText('Sent (201)');
+    await screen.findByText(SENT);
     // The real send core stores the outcome; the fake send does not, so emulate it.
     first.resultStorage.data[RESULTS_KEY] = [{ url: URL_A, targets: { t1: { outcome: success, at: '2026-01-01T00:00:00.000Z' } } }];
     cleanup();
     setup({ resultStorage: first.resultStorage });
-    expect(await screen.findByText('Sent (201)')).toBeTruthy();
+    expect(await screen.findByText(SENT)).toBeTruthy();
     expect(screen.getByRole('link').getAttribute('href')).toBe('https://example.com/item/1');
   });
 });

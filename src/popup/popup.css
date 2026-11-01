@@ -19,9 +19,27 @@ body { font-family: var(--font-sans); font-size: var(--font-size-base); line-hei
 .popup-source:focus-visible { outline: 3px solid var(--color-focus); outline-offset: 2px; }
 
 .popup-error { color: var(--color-danger); margin: var(--space-1) 0; }
+.popup-send { margin-top: var(--space-3); }
 .popup-target { margin-bottom: var(--space-2); }
-.popup-result p { margin: var(--space-1) 0; overflow-wrap: anywhere; }
+.popup-send-button { width: 100%; }
+.popup-spinner { width: 1rem; height: 1rem; border-width: 2px; }
+.popup-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .popup-actions { display: flex; justify-content: center; margin-top: var(--space-2); }
-.popup-permission { margin-top: var(--space-2); padding: var(--space-2); border: 1px solid var(--color-warning); border-radius: var(--radius-md); background: var(--color-surface); }
-.popup-permission p { margin: 0 0 var(--space-2); }
-.popup-permission-title { font-weight: 600; }
+
+.popup-outcome {
+  display: flex; gap: var(--space-2); margin-top: var(--space-2); padding: var(--space-2) var(--space-3);
+  background: var(--color-surface); border: 1px solid var(--color-border); border-left-width: 4px; border-radius: var(--radius-md);
+}
+.popup-outcome > .q-icon { margin-top: 0.2em; }
+.popup-outcome-body { flex: 1; min-width: 0; }
+.popup-outcome p { margin: 0; overflow-wrap: anywhere; }
+.popup-outcome-title { font-weight: 600; }
+.popup-outcome-text { margin-top: var(--space-1) !important; color: var(--color-text-muted); font-size: var(--font-size-small); }
+.popup-outcome-text a { color: var(--color-accent); }
+.popup-retry { margin-top: var(--space-2); min-height: 2rem; padding-block: var(--space-1); }
+.popup-outcome--success { border-left-color: var(--color-success); }
+.popup-outcome--success > .q-icon { color: var(--color-success); }
+.popup-outcome--warning { border-left-color: var(--color-warning); }
+.popup-outcome--warning > .q-icon { color: var(--color-warning); }
+.popup-outcome--error { border-left-color: var(--color-danger); }
+.popup-outcome--error > .q-icon { color: var(--color-danger); }
