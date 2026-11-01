@@ -1,0 +1,141 @@
+import { z } from 'zod';
+import { ConfigError } from './errors';
+
+export const CURRENT_SCHEMA_VERSION = 1;
+
+const nonEmpty = z.string().trim().min(1, 'must not be empty');
+const id = z
+  .string()
+  .regex(/^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/, 'must be 1-64 characters of letters, digits, "-" or "_"');
+
+// RFC 9110 token: header names are data from imports, so keep them strictly syntactic.
+const headerName = z.string().regex(/^[A-Za-z0-9!#$%&'*+.^_`|~-]+$/, 'is not a valid HTTP header name');
+
+const httpUrl = z
+  .string()
+  .refine((v) => {
+    try {
+      const p = new URL(v).protocol;
+      return p === 'http:' || p === 'https:';
+    } catch {
+      return false;
+    }
+  }, 'must be an absolute http: or https: URL');
+
+const regexSource = z.string().refine((v) => {
+  try {
+    new RegExp(v);
+    return true;
+  } catch {
+    return false;
+  }
+}, 'is not a valid regular expression');
+
+export const triggerSchema = z.discriminatedUnion('type', [
+  z.strictObject({ type: z.literal('urlPrefix'), value: nonEmpty }),
+  z.strictObject({ type: z.literal('regex'), pattern: regexSource }),
+  z.strictObject({ type: z.literal('schemaOrgType'), value: nonEmpty }),
+]);
+
+// Source order is fixed by priority: schema.org path, meta tag, site-mapping selector
+// (implicit, from siteMappings), manual input. Absent keys mean "not used".
+export const fieldSchema = z.strictObject({
+  key: id,
+  label: nonEmpty,
+  required: z.boolean(),
+  sources: z.strictObject({
+    schemaOrgPath: nonEmpty.optional(), // e.g. "Article.author.name"
+    metaTag: z.strictObject({ attribute: z.enum(['name', 'property']), name: nonEmpty }).optional(),
+    manual: z
+      .discriminatedUnion('type', [
+        z.strictObject({ type: z.literal('text') }),
+        z.strictObject({ type: z.literal('choice'), values: z.array(nonEmpty).min(1) }),
+      ])
+      .optional(),
+  }),
+});
+
+export const targetSchema = z.strictObject({
+  id,
+  name: nonEmpty,
+  url: httpUrl,
+  // Names only. Values live in a separate storage key and are never exported.
+  headers: z.array(headerName),
+  purpose: z.string(),
+});
+
+export const projectSchema = z.strictObject({
+  id,
+  name: nonEmpty,
+  triggers: z.array(triggerSchema),
+  fields: z.array(fieldSchema),
+  // domain -> field key -> CSS selector
+  siteMappings: z.record(nonEmpty, z.record(nonEmpty, nonEmpty)),
+  targets: z.array(targetSchema),
+});
+
+export const configSchema = z
+  .strictObject({
+    schemaVersion: z.literal(CURRENT_SCHEMA_VERSION),
+    // Order is meaningful: later used as trigger precedence.
+    projects: z.array(projectSchema),
+  })
+  .superRefine((cfg, ctx) => {
+    const dup = (path: (string | number)[], message: string) => ctx.addIssue({ code: 'custom', path, message });
+    const projectIds = new Set<string>();
+    const targetIds = new Set<string>();
+    cfg.projects.forEach((p, pi) => {
+      if (projectIds.has(p.id)) dup(['projects', pi, 'id'], `duplicate project id "${p.id}"`);
+      projectIds.add(p.id);
+      const keys = new Set<string>();
+      p.fields.forEach((f, fi) => {
+        if (keys.has(f.key)) dup(['projects', pi, 'fields', fi, 'key'], `duplicate field key "${f.key}"`);
+        keys.add(f.key);
+      });
+      for (const [domain, map] of Object.entries(p.siteMappings)) {
+        for (const key of Object.keys(map)) {
+          if (!keys.has(key)) {
+            dup(['projects', pi, 'siteMappings', domain, key], `unknown field key "${key}"`);
+          }
+        }
+      }
+      p.targets.forEach((t, ti) => {
+        // Target IDs are global because header values are linked by target ID.
+        if (targetIds.has(t.id)) dup(['projects', pi, 'targets', ti, 'id'], `duplicate target id "${t.id}"`);
+        targetIds.add(t.id);
+        const names = new Set<string>();
+        t.headers.forEach((h, hi) => {
+          if (names.has(h.toLowerCase())) dup(['projects', pi, 'targets', ti, 'headers', hi], `duplicate header name "${h}"`);
+          names.add(h.toLowerCase());
+        });
+      });
+    });
+  });
+
+export type Trigger = z.infer<typeof triggerSchema>;
+export type Field = z.infer<typeof fieldSchema>;
+export type Target = z.infer<typeof targetSchema>;
+export type Project = z.infer<typeof projectSchema>;
+export type Config = z.infer<typeof configSchema>;
+/** targetId -> header name -> value. Never exported. */
+export type HeaderValues = Record<string, Record<string, string>>;
+
+export const headerValuesSchema = z.record(z.string(), z.record(z.string(), z.string()));
+
+export function formatPath(path: PropertyKey[]): string {
+  return path.reduce<string>((acc, seg) => (typeof seg === 'number' ? `${acc}[${seg}]` : acc ? `${acc}.${String(seg)}` : String(seg)), '') || '(root)';
+}
+
+/** Validate and return typed config, or throw ConfigError listing every problem with its path. */
+export function parseConfig(input: unknown, what = 'Invalid configuration'): Config {
+  const result = configSchema.safeParse(input);
+  if (result.success) return result.data;
+  // Messages come from the schema, not from echoing input values, so secrets cannot leak.
+  throw new ConfigError(
+    what,
+    result.error.issues.map((i) => {
+      const msg = i.code === 'unrecognized_keys' ? `unknown key(s): ${i.keys.join(', ')}` : i.message;
+      return `${formatPath(i.path)}: ${msg}`;
+    }),
+  );
+}

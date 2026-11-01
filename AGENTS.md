@@ -10,6 +10,7 @@ Chromium browser extension (Manifest V3) that reads page content and fields acco
 ## Structure
 
 - `entrypoints/`: WXT entry points (`background.ts`, `popup/`, `options/`)
+- `src/config/`: configuration model, validation, storage, migration, import and export
 - `public/icon/`: extension icons
 - `tests/`: Vitest tests
 - `wxt.config.ts`: WXT and manifest config
