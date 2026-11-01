@@ -9,10 +9,10 @@ Chromium browser extension (Manifest V3) that reads page content and fields acco
 
 ## Structure
 
-- `entrypoints/`: WXT entry points (`background.ts`, `popup/`, `options/`)
+- `entrypoints/`: WXT entry points (`background.ts`, `popup/`, `options/`, `picker.ts` unlisted picker script)
 - `src/config/`: configuration model, validation, storage, migration, import and export
 - `src/extract/`: project scope matching and field sources (JSON-LD, meta tags, selectors) as pure functions over a `Document`
-- `src/picker/`: CSS selector generation for click mapping
+- `src/picker/`: CSS selector generation, click-mapping overlay (Shadow DOM), mapping persistence and picker start
 - `src/options/`: options page components (projects, scope, fields, site mappings)
 - `public/icon/`: extension icons
 - `tests/`: Vitest tests
