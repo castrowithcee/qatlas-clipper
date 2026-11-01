@@ -1,6 +1,9 @@
+import { useId, useState } from 'react';
 import type { HeaderValues, Target } from '../config';
+import { useI18n } from '../settings';
+import { Button, Checkbox, Disclosure, EmptyState, Icon, IconButton, TextField } from '../ui/components';
+import { accessKeyState, setAccessKey } from './accessKey';
 import { errorsAt, moveItem, newTarget, type Issue } from './draft';
-import { ItemButtons, TextInput } from './fields';
 import { originPattern, type PermissionStatus } from './permissions';
 
 interface Props {
@@ -16,108 +19,183 @@ interface Props {
   onChange: (targets: Target[]) => void;
 }
 
-const STATUS_TEXT: Record<PermissionStatus, string> = {
-  granted: 'granted',
-  denied: 'denied',
-  unchecked: 'not requested yet',
-};
-
 export function TargetEditor({ targets, basePath, issues, values, onValues, status, onRequest, onChange }: Props) {
-  const set = (i: number, patch: Partial<Target>) => onChange(targets.map((t, j) => (j === i ? { ...t, ...patch } : t)));
-  const setValue = (id: string, name: string, value: string) => onValues({ ...values, [id]: { ...values[id], [name]: value } });
-  const withoutValue = (id: string, name: string): HeaderValues => {
-    const { [name]: _gone, ...rest } = values[id] ?? {};
-    void _gone;
-    return { ...values, [id]: rest };
-  };
+  const { t } = useI18n();
+  const id = useId();
+  const set = (i: number, next: Target) => onChange(targets.map((x, j) => (j === i ? next : x)));
 
-  const renameHeader = (i: number, h: number, name: string) => {
-    const t = targets[i];
-    const old = t?.headers[h];
-    if (!t || old === undefined) return;
-    set(i, { headers: t.headers.map((x, k) => (k === h ? name : x)) });
-    const v = values[t.id]?.[old];
-    // The value follows its header, unless the new name is already taken by another stored value.
-    if (v !== undefined && old !== name && values[t.id]?.[name] === undefined) {
-      const moved = withoutValue(t.id, old);
-      onValues({ ...moved, [t.id]: { ...moved[t.id], [name]: v } });
-    }
-  };
-
-  const removeHeader = (i: number, h: number) => {
-    const t = targets[i];
-    const name = t?.headers[h];
-    if (!t || name === undefined) return;
-    set(i, { headers: t.headers.filter((_, k) => k !== h) });
-    onValues(withoutValue(t.id, name));
-  };
-
-  const removeTarget = (i: number) => {
-    const t = targets[i];
-    if (!t) return;
-    const { [t.id]: _gone, ...rest } = values;
+  const remove = (i: number) => {
+    const target = targets[i];
+    if (!target) return;
+    const { [target.id]: _gone, ...rest } = values;
     void _gone;
     onValues(rest);
     onChange(targets.filter((_, j) => j !== i));
   };
 
   return (
-    <section aria-labelledby="targets-h">
-      <h3 id="targets-h">Targets</h3>
-      <p className="hint">
-        Webhooks that receive the captured data. Only https: URLs are allowed, http: only for localhost. Header values are stored
-        separately on this device and are never exported.
-      </p>
-      {targets.length === 0 && <p>No targets.</p>}
-      {targets.map((t, i) => {
-        const p = `${basePath}.targets[${i}]`;
-        const st = status(t.url);
-        const canRequest = originPattern(t.url) !== undefined;
-        return (
-          <fieldset key={t.id}>
-            <legend>Target {i + 1}</legend>
-            <TextInput label="Target name" value={t.name} errors={errorsAt(issues, `${p}.name`)} onChange={(v) => set(i, { name: v })} />
-            <TextInput label="Target URL" hint="Example: https://example.com/hook" value={t.url} errors={errorsAt(issues, `${p}.url`)} onChange={(v) => set(i, { url: v })} />
-            <TextInput label="Target purpose" value={t.purpose} onChange={(v) => set(i, { purpose: v })} />
-            <p>
-              <span data-testid={`permission-${i}`}>Permission for this address: {STATUS_TEXT[st]}</span>{' '}
-              {canRequest && st !== 'granted' && (
-                <button type="button" aria-label={`Request permission for target ${t.name || i + 1}`} onClick={() => onRequest(t.url)}>
-                  {st === 'denied' ? 'Request again' : 'Request permission'}
-                </button>
-              )}
-            </p>
-            {t.headers.map((name, h) => (
-              <div key={h} role="group" aria-label={`Header ${h + 1} of target ${i + 1}`}>
-                <TextInput label={`Header name ${h + 1}`} value={name} errors={errorsAt(issues, `${p}.headers[${h}]`)} onChange={(v) => renameHeader(i, h, v)} />
-                <TextInput
-                  label={`Header value ${h + 1}`}
-                  type="password"
-                  value={values[t.id]?.[name] ?? ''}
-                  onChange={(v) => setValue(t.id, name, v)}
-                />
-                <button type="button" aria-label={`Remove header ${h + 1} of target ${i + 1}`} onClick={() => removeHeader(i, h)}>
-                  Remove header
-                </button>
-              </div>
-            ))}
-            <button type="button" aria-label={`Add header to target ${i + 1}`} onClick={() => set(i, { headers: [...t.headers, ''] })}>
-              Add header
-            </button>
-            <ItemButtons
-              noun="target"
-              name={t.name || String(i + 1)}
-              index={i}
-              count={targets.length}
-              onMove={(d) => onChange(moveItem(targets, i, d))}
-              onDelete={() => removeTarget(i)}
-            />
-          </fieldset>
-        );
-      })}
-      <button type="button" onClick={() => onChange([...targets, newTarget()])}>
-        Add target
-      </button>
+    <section aria-labelledby={`${id}-title`} className="options-section">
+      <h3 id={`${id}-title`}>{t('options.targets.title')}</h3>
+      <p className="q-hint">{t('options.targets.hint')}</p>
+      {targets.length === 0 && <EmptyState title={t('options.targets.empty')} />}
+      {targets.map((target, i) => (
+        <TargetCard
+          key={target.id}
+          target={target}
+          index={i}
+          count={targets.length}
+          path={`${basePath}.targets[${i}]`}
+          issues={issues}
+          values={values}
+          onValues={onValues}
+          status={status(target.url)}
+          canRequest={originPattern(target.url) !== undefined}
+          onRequest={() => onRequest(target.url)}
+          onChange={(next) => set(i, next)}
+          onMove={(d) => onChange(moveItem(targets, i, d))}
+          onRemove={() => remove(i)}
+        />
+      ))}
+      <Button icon="plus" onClick={() => onChange([...targets, newTarget(t('options.targets.newName'))])}>
+        {t('options.targets.add')}
+      </Button>
     </section>
+  );
+}
+
+interface CardProps {
+  target: Target;
+  index: number;
+  count: number;
+  path: string;
+  issues: Issue[];
+  values: HeaderValues;
+  onValues: (values: HeaderValues) => void;
+  status: PermissionStatus;
+  canRequest: boolean;
+  onRequest: () => void;
+  onChange: (target: Target) => void;
+  onMove: (delta: -1 | 1) => void;
+  onRemove: () => void;
+}
+
+function TargetCard({ target, index, count, path, issues, values, onValues, status, canRequest, onRequest, onChange, onMove, onRemove }: CardProps) {
+  const { t } = useI18n();
+  const id = useId();
+  const [reveal, setReveal] = useState(false);
+  const name = target.name || t('options.targets.unnamed');
+  const auth = accessKeyState(target, values);
+  const own = values[target.id] ?? {};
+  // The access key header is edited in the simple view; every other header is listed under "Advanced".
+  const custom = target.headers.map((header, h) => ({ header, h })).filter(({ h }) => h !== auth.index || auth.custom);
+  const headerErrors = custom.some(({ h }) => errorsAt(issues, `${path}.headers[${h}]`).length > 0);
+
+  const setValue = (header: string, value: string) => onValues({ ...values, [target.id]: { ...own, [header]: value } });
+
+  const renameHeader = (h: number, next: string) => {
+    const old = target.headers[h];
+    if (old === undefined) return;
+    onChange({ ...target, headers: target.headers.map((x, k) => (k === h ? next : x)) });
+    const v = own[old];
+    // The value follows its header, unless the new name is already taken by another stored value.
+    if (v !== undefined && old !== next && own[next] === undefined) {
+      const { [old]: _gone, ...rest } = own;
+      void _gone;
+      onValues({ ...values, [target.id]: { ...rest, [next]: v } });
+    }
+  };
+
+  const removeHeader = (h: number) => {
+    const old = target.headers[h];
+    if (old === undefined) return;
+    onChange({ ...target, headers: target.headers.filter((_, k) => k !== h) });
+    const { [old]: _gone, ...rest } = own;
+    void _gone;
+    onValues({ ...values, [target.id]: rest });
+  };
+
+  const urlError = errorsAt(issues, `${path}.url`)[0];
+
+  return (
+    <div role="group" aria-labelledby={`${id}-name`} className="options-field">
+      <div className="options-field-head">
+        <h4 id={`${id}-name`}>{name}</h4>
+        <span className="options-field-actions">
+          <IconButton icon="arrow-up" label={t('options.targets.moveUp', { name })} disabled={index === 0} onClick={() => onMove(-1)} />
+          <IconButton icon="arrow-down" label={t('options.targets.moveDown', { name })} disabled={index === count - 1} onClick={() => onMove(1)} />
+        </span>
+      </div>
+      <TextField
+        label={t('options.targets.name')}
+        value={target.name}
+        error={target.name.trim() === '' ? t('options.targets.nameMissing') : errorsAt(issues, `${path}.name`)[0]}
+        onChange={(e) => onChange({ ...target, name: e.target.value })}
+      />
+      <TextField
+        label={t('options.targets.url')}
+        hint={t('options.targets.url.hint')}
+        help={t('options.targets.url.help')}
+        type="url"
+        value={target.url}
+        error={urlError}
+        onChange={(e) => onChange({ ...target, url: e.target.value })}
+      />
+      {canRequest && (
+        <div role="status" className={`options-perm options-perm--${status === 'granted' ? 'ok' : 'missing'}`} data-testid={`permission-${index}`}>
+          <Icon name={status === 'granted' ? 'check' : 'alert'} />
+          <span>{status === 'granted' ? t('options.targets.permission.granted') : t('options.targets.permission.missing')}</span>
+          {status !== 'granted' && (
+            <Button onClick={onRequest}>{t('options.targets.permission.allow')}</Button>
+          )}
+        </div>
+      )}
+      <TextField
+        label={t('options.targets.key')}
+        hint={auth.custom ? t('options.targets.key.custom') : t('options.targets.key.hint')}
+        help={t('options.targets.key.help')}
+        type={reveal ? 'text' : 'password'}
+        autoComplete="off"
+        disabled={auth.custom}
+        value={auth.key}
+        onChange={(e) => {
+          const next = setAccessKey(target, values, e.target.value);
+          onChange(next.target);
+          onValues(next.values);
+        }}
+      />
+      <Checkbox label={t('options.targets.key.show')} checked={reveal} disabled={auth.custom} onChange={(e) => setReveal(e.target.checked)} />
+      <Disclosure forceOpen={headerErrors}>
+        <TextField label={t('options.targets.purpose')} value={target.purpose} onChange={(e) => onChange({ ...target, purpose: e.target.value })} />
+        <fieldset className="options-headers">
+          <legend>{t('options.targets.headers')}</legend>
+          {custom.map(({ header, h }, n) => (
+            <div key={h} role="group" aria-label={t('options.targets.header.group', { n: n + 1 })} className="options-header-row">
+              <TextField
+                label={t('options.targets.header.name')}
+                value={header}
+                error={errorsAt(issues, `${path}.headers[${h}]`)[0]}
+                onChange={(e) => renameHeader(h, e.target.value)}
+              />
+              <TextField
+                label={t('options.targets.header.value')}
+                type="password"
+                autoComplete="off"
+                value={own[header] ?? ''}
+                onChange={(e) => setValue(header, e.target.value)}
+              />
+              <Button icon="trash" onClick={() => removeHeader(h)}>
+                {t('options.targets.header.remove')}
+              </Button>
+            </div>
+          ))}
+          <Button icon="plus" onClick={() => onChange({ ...target, headers: [...target.headers, ''] })}>
+            {t('options.targets.header.add')}
+          </Button>
+        </fieldset>
+      </Disclosure>
+      <Button icon="trash" onClick={onRemove}>
+        {t('options.targets.remove')}
+      </Button>
+    </div>
   );
 }

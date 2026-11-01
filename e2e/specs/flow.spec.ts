@@ -2,6 +2,7 @@ import { WEBHOOK_ERROR_TEXT, WEBHOOK_RESPONSE } from '../servers';
 import { expect, openPopup, test } from '../fixtures';
 
 const HEADER_VALUE = 'test-token';
+const ACCESS_KEY = 'test-key';
 
 interface StoredConfig {
   projects: { fields: { key: string }[]; siteMappings: unknown }[];
@@ -43,8 +44,12 @@ test('configure, map by click, prefill on a second page, send, and show the resp
   await expect(options.getByRole('alertdialog', { name: 'Confirm import' })).toBeVisible();
   await options.getByRole('button', { name: 'Confirm import' }).click();
   await options.getByRole('navigation', { name: 'Options' }).getByRole('link').first().click();
-  await expect(options.getByLabel('Target name')).toHaveValue('Test hook');
-  await options.getByLabel('Header value 1').fill(HEADER_VALUE);
+  const target = options.getByRole('group', { name: 'Test hook' });
+  await expect(target.getByLabel('Name', { exact: true })).toHaveValue('Test hook');
+  // The access key goes through the simple view, the custom header through "Advanced".
+  await target.getByLabel('Access key (optional)').fill(ACCESS_KEY);
+  await target.getByRole('button', { name: 'Advanced' }).click();
+  await target.getByLabel('Header value').fill(HEADER_VALUE);
   // A field added in the editor gets its key from the label and takes its value from a click on the page.
   await options.getByLabel('Label of the new field').fill('Sub title');
   await options.getByRole('button', { name: 'Add field' }).click();
@@ -53,7 +58,8 @@ test('configure, map by click, prefill on a second page, send, and show the resp
   await expect(options.getByRole('status').filter({ hasText: 'Saved.' })).toBeVisible();
 
   const stored = await serviceWorker.evaluate(() => chrome.storage.local.get(['config', 'headerValues']));
-  expect(stored.headerValues).toEqual({ hook: { 'X-Token': HEADER_VALUE } });
+  expect(stored.headerValues).toEqual({ hook: { 'X-Token': HEADER_VALUE, Authorization: `Bearer ${ACCESS_KEY}` } });
+  expect(JSON.stringify(stored.config)).not.toContain(ACCESS_KEY);
   expect(JSON.stringify(stored.config)).toContain(webhook.url);
   expect((stored.config as StoredConfig).projects[0]!.fields.map((f) => f.key)).toEqual(['price', 'headline', 'sub_title']);
   await options.close();
@@ -128,6 +134,7 @@ test('configure, map by click, prefill on a second page, send, and show the resp
   expect(req.method).toBe('POST');
   expect(req.path).toBe('/hook');
   expect(req.headers['x-token']).toBe(HEADER_VALUE);
+  expect(req.headers['authorization']).toBe(`Bearer ${ACCESS_KEY}`);
   const body = req.body as Record<string, unknown>;
   expect(Object.keys(body).sort()).toEqual(
     ['captured_at', 'content_markdown', 'fields', 'note', 'project', 'target', 'title', 'url', 'version'].sort(),

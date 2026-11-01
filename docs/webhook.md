@@ -6,7 +6,7 @@ qatlas-clipper sends one HTTP request per click on a send button to the URL of t
 
 - Method: `POST`
 - URL: the target URL (`https`, or `http` for localhost only). Redirects are not followed (a redirect counts as a network error). No cookies or other credentials are sent.
-- Headers: `Content-Type: application/json` plus the headers configured for this target (name and value as entered in the options page). Header values are sent only to their own target. A configured header named `Content-Type` is ignored.
+- Headers: `Content-Type: application/json` plus the access key of this target as `Authorization: Bearer <key>` and the custom headers configured for it (name and value as entered in the options page). Access keys and header values are sent only to their own target. A configured header named `Content-Type` is ignored.
 - Body: one JSON object with exactly these keys:
 
 | Key | Type | Meaning |

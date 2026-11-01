@@ -15,8 +15,8 @@ export function newProject(name: string): Project {
   return { id: newId(), name, scope: { allSites: true, domains: [] }, fields: [], siteMappings: {}, targets: [] };
 }
 
-export function newTarget(): Target {
-  return { id: newId(), name: 'New target', url: 'https://', headers: [], purpose: '' };
+export function newTarget(name: string): Target {
+  return { id: newId(), name, url: 'https://', headers: [], purpose: '' };
 }
 
 const TRANSLITERATION: Record<string, string> = { ä: 'ae', ö: 'oe', ü: 'ue', ß: 'ss', æ: 'ae', œ: 'oe', ø: 'o', đ: 'd', ł: 'l', þ: 'th' };

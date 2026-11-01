@@ -19,7 +19,10 @@ const config = {
         { key: 'status', label: 'Status', required: false, sources: { manual: { type: 'choice', values: ['Draft', 'In review', 'Final'] } } },
       ],
       siteMappings: { 'example.com': { price: '.price' }, 'example.org': { price: '#cost' } },
-      targets: [],
+      targets: [
+        { id: 'hook', name: 'Archive', url: 'https://example.com/hook', headers: ['Authorization'], purpose: 'Reading list' },
+        { id: 'local', name: 'Local test', url: 'http://localhost:8787/hook', headers: [], purpose: '' },
+      ],
     },
     { id: 'products', name: 'Products', scope: { allSites: true, domains: [] }, fields: [], siteMappings: {}, targets: [] },
   ],
@@ -36,7 +39,7 @@ for (const lang of ['de', 'en'] as const) {
     test(`options screens ${lang} ${theme}`, async ({ context, serviceWorker, extensionId }) => {
       const tag = `${theme}-${lang}`;
       await serviceWorker.evaluate((settings) => chrome.storage.local.set({ settings }), { language: lang, appearance: theme });
-      await setConfig(serviceWorker, config);
+      await setConfig(serviceWorker, config, { hook: { Authorization: 'Bearer example-key' } });
       const page = await context.newPage();
       await page.setViewportSize({ width: 1100, height: 900 });
       await page.goto(`chrome-extension://${extensionId}/options.html`);
@@ -52,7 +55,17 @@ for (const lang of ['de', 'en'] as const) {
       await shot(page.getByRole('complementary'), 'sidebar', tag);
       await shot(sections.nth(0), 'scope', tag);
       await shot(sections.nth(1), 'fields', tag);
-      await shot(sections.nth(2), 'mappings', tag);
+      await shot(sections.nth(3), 'mappings', tag);
+
+      // Targets: the first has no permission yet (text, icon and button); the e2e build already holds localhost, so the second one is allowed.
+      const targets = sections.nth(2);
+      const archive = page.getByRole('group', { name: 'Archive' });
+      await expect(archive.getByText(t('Zugriff fehlt', 'Access missing'))).toBeVisible();
+      await expect(archive.getByRole('button', { name: t('Erlauben', 'Allow') })).toBeVisible();
+      await archive.getByLabel(t('Zugangsschlüssel anzeigen', 'Show access key')).check();
+      await expect(archive.getByLabel(t('Zugangsschlüssel (optional)', 'Access key (optional)'))).toHaveValue('example-key');
+      await archive.getByRole('button', { name: t('Erweitert', 'Advanced') }).click();
+      await shot(targets, 'targets', tag);
 
       // Settings, import and export, and a project address that does not exist.
       const nav = page.getByRole('navigation', { name: t('Optionen', 'Options') });
