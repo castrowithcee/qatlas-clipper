@@ -15,6 +15,8 @@ Chromium browser extension (Manifest V3) that reads page content and fields acco
 - `src/picker/`: CSS selector generation, click-mapping overlay (Shadow DOM), mapping persistence and picker start
 - `src/options/`: options page components (projects, scope, fields, site mappings, targets with header values and host permissions, import and export)
 - `src/popup/`: popup components (project choice, field form, picker start) and the per-URL draft cache of user edits (`storage.session`)
+- `src/send/`: send core (payload builder, service-worker send with header binding and timeout, response evaluation, per-URL result storage in `storage.session`, runtime message API)
+- `docs/`: `webhook.md` (webhook request and response contract)
 - `public/icon/`: extension icons
 - `tests/`: Vitest tests
 - `wxt.config.ts`: WXT and manifest config
