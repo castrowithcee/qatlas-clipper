@@ -1,5 +1,7 @@
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import { exportConfig, checkImportUrl, fetchImportText, MAX_IMPORT_CHARS, parseImportText, saveConfig, type Config, type StorageArea } from '../config';
+import { useI18n } from '../settings';
+import { Button, Dialog, Field, IconButton, TextField, Toast, Tooltip } from '../ui/components';
 import type { PermissionsApi } from './permissions';
 
 export const EXPORT_FILENAME = 'qatlas-clipper-config.json';
@@ -24,44 +26,51 @@ interface Props {
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 export function ImportExport({ storage, permissions, dirty, onImported }: Props) {
+  const { t, tn } = useI18n();
+  const id = useId();
   const [url, setUrl] = useState('');
   const [pending, setPending] = useState<Config>();
-  const [status, setStatus] = useState<{ kind: 'ok' | 'error'; text: string }>();
+  const [status, setStatus] = useState<{ kind: 'success' | 'error'; text: string }>();
+  const [fileError, setFileError] = useState<string>();
+  const [urlError, setUrlError] = useState<string>();
   const [busy, setBusy] = useState(false);
 
-  const preview = (text: string) => {
-    setPending(parseImportText(text));
+  const reset = () => {
+    setPending(undefined);
     setStatus(undefined);
+    setFileError(undefined);
+    setUrlError(undefined);
   };
 
   const doExport = async () => {
+    reset();
     try {
       // Only the saved state is exported, never header values.
       downloadText(EXPORT_FILENAME, await exportConfig(storage));
-      setStatus({ kind: 'ok', text: 'Exported the saved configuration.' });
+      setStatus({ kind: 'success', text: t('options.io.export.done') });
     } catch (e) {
-      setStatus({ kind: 'error', text: `Export failed: ${message(e)}` });
+      setStatus({ kind: 'error', text: t('options.io.export.failed', { message: message(e) }) });
     }
   };
 
   const fromFile = async (file: File | undefined) => {
-    setPending(undefined);
+    reset();
     if (!file) return;
     try {
-      if (file.size > MAX_IMPORT_CHARS * 4) throw new Error('Import is too large');
-      preview(await file.text());
+      if (file.size > MAX_IMPORT_CHARS * 4) throw new Error(t('options.io.tooLarge'));
+      setPending(parseImportText(await file.text()));
     } catch (e) {
-      setStatus({ kind: 'error', text: `Import failed: ${message(e)}` });
+      setFileError(t('options.io.failed', { message: message(e) }));
     }
   };
 
   const fromUrl = () => {
-    setPending(undefined);
+    reset();
     let pattern: string;
     try {
       pattern = checkImportUrl(url).pattern;
     } catch (e) {
-      setStatus({ kind: 'error', text: `Import failed: ${message(e)}` });
+      setUrlError(t('options.io.failed', { message: message(e) }));
       return;
     }
     // Requested directly from the click, with nothing awaited before, to keep the user gesture.
@@ -70,12 +79,12 @@ export function ImportExport({ storage, permissions, dirty, onImported }: Props)
     void (async () => {
       try {
         if (!(await request)) {
-          setStatus({ kind: 'error', text: 'Import failed: permission for the URL origin was not granted, nothing was fetched.' });
+          setUrlError(t('options.io.denied'));
           return;
         }
-        preview(await fetchImportText(url, { hasPermission: async () => true }));
+        setPending(parseImportText(await fetchImportText(url, { hasPermission: async () => true })));
       } catch (e) {
-        setStatus({ kind: 'error', text: `Import failed: ${message(e)}` });
+        setUrlError(t('options.io.failed', { message: message(e) }));
       } finally {
         setBusy(false);
       }
@@ -88,47 +97,95 @@ export function ImportExport({ storage, permissions, dirty, onImported }: Props)
     try {
       await saveConfig(pending, storage);
       setPending(undefined);
+      setStatus({ kind: 'success', text: tn('options.io.imported', pending.projects.length) });
       onImported();
     } catch (e) {
-      setStatus({ kind: 'error', text: `Import failed: ${message(e)}` });
+      setPending(undefined);
+      setStatus({ kind: 'error', text: t('options.io.failed', { message: message(e) }) });
     } finally {
       setBusy(false);
     }
   };
 
   return (
-    <section aria-label="Import and export" className="import-export">
-      <h2>Import and export</h2>
-      <div>
-        <button type="button" onClick={doExport} disabled={busy}>Export configuration</button>
-        <span className="hint">
-          Exports the saved configuration as a JSON file. Header values are not included.{dirty ? ' Unsaved changes are not exported.' : ''}
-        </span>
-      </div>
-      <div>
-        <label>
-          Import from file
-          <input type="file" accept="application/json,.json" disabled={busy} onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; void fromFile(f); }} />
-        </label>
-      </div>
-      <div>
-        <label>
-          Import from URL
-          <input type="url" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://example.com/config.json" />
-        </label>
-        <button type="button" onClick={fromUrl} disabled={busy || url.trim() === ''}>Fetch from URL</button>
-      </div>
-      {pending && (
-        <div role="alertdialog" aria-label="Confirm import" className="confirm">
-          <p>
-            The import contains {pending.projects.length} {pending.projects.length === 1 ? 'project' : 'projects'}. Importing replaces
-            the whole current configuration.{dirty ? ' Your unsaved changes will be discarded.' : ''}
-          </p>
-          <button type="button" onClick={confirm} disabled={busy}>Confirm import</button>
-          <button type="button" onClick={() => setPending(undefined)} disabled={busy}>Cancel</button>
+    <section aria-labelledby={`${id}-title`} className="options-io">
+      <h2 id={`${id}-title`}>
+        {t('options.nav.importExport')}{' '}
+        <Tooltip content={t('options.io.help')}>
+          {(props) => <IconButton icon="info" label={t('ui.moreInfo')} className="q-help" {...props} />}
+        </Tooltip>
+      </h2>
+      <section aria-labelledby={`${id}-export`} className="options-section">
+        <h3 id={`${id}-export`}>{t('options.io.export.title')}</h3>
+        <p className="q-hint">
+          {t('options.io.export.note')}
+          {dirty ? ` ${t('options.io.export.dirty')}` : ''}
+        </p>
+        <Button icon="arrow-down" onClick={doExport} disabled={busy}>
+          {t('options.io.export.button')}
+        </Button>
+      </section>
+      <section aria-labelledby={`${id}-import`} className="options-section">
+        <h3 id={`${id}-import`}>{t('options.io.import.title')}</h3>
+        <p className="q-hint">{t('options.io.import.note')}</p>
+        <Field label={t('options.io.file')} error={fileError} disabled={busy}>
+          {(control) => (
+            <input
+              {...control}
+              type="file"
+              className="q-input"
+              accept="application/json,.json"
+              disabled={busy}
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                e.target.value = '';
+                void fromFile(f);
+              }}
+            />
+          )}
+        </Field>
+        <div className="options-add">
+          <TextField
+            label={t('options.io.url')}
+            type="url"
+            value={url}
+            placeholder="https://example.com/config.json"
+            error={urlError}
+            onChange={(e) => setUrl(e.target.value)}
+          />
+          <Button icon="arrow-up" onClick={fromUrl} disabled={busy || url.trim() === ''}>
+            {t('options.io.load')}
+          </Button>
         </div>
+      </section>
+      {status && (
+        <Toast kind={status.kind} onDismiss={() => setStatus(undefined)}>
+          {status.text}
+        </Toast>
       )}
-      {status && <p role={status.kind === 'error' ? 'alert' : 'status'} className={status.kind === 'error' ? 'error' : undefined}>{status.text}</p>}
+      <Dialog
+        open={pending !== undefined}
+        onClose={() => !busy && setPending(undefined)}
+        title={t('options.io.confirm.title')}
+        actions={
+          <>
+            <Button onClick={() => setPending(undefined)} disabled={busy}>
+              {t('options.io.confirm.cancel')}
+            </Button>
+            <Button variant="danger" onClick={confirm} disabled={busy}>
+              {t('options.io.confirm.ok')}
+            </Button>
+          </>
+        }
+      >
+        {pending && (
+          <>
+            <p>{tn('options.io.confirm.count', pending.projects.length)}</p>
+            <p>{t('options.io.confirm.replace')}</p>
+            {dirty && <p>{t('options.io.confirm.dirty')}</p>}
+          </>
+        )}
+      </Dialog>
     </section>
   );
 }

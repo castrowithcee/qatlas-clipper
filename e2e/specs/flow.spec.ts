@@ -41,8 +41,8 @@ test('configure, map by click, prefill on a second page, send, and show the resp
     mimeType: 'application/json',
     buffer: Buffer.from(projectJson(webhook.url)),
   });
-  await expect(options.getByRole('alertdialog', { name: 'Confirm import' })).toBeVisible();
-  await options.getByRole('button', { name: 'Confirm import' }).click();
+  await expect(options.getByRole('dialog', { name: 'Replace configuration?' })).toBeVisible();
+  await options.getByRole('button', { name: 'Replace', exact: true }).click();
   await options.getByRole('navigation', { name: 'Options' }).getByRole('link').first().click();
   const target = options.getByRole('group', { name: 'Test hook' });
   await expect(target.getByLabel('Name', { exact: true })).toHaveValue('Test hook');

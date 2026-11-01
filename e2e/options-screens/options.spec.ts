@@ -73,8 +73,17 @@ for (const lang of ['de', 'en'] as const) {
       await expect(nav.getByRole('link', { name: t('Einstellungen', 'Settings') })).toHaveAttribute('aria-current', 'page');
       await shot(page, 'settings', tag);
       await nav.getByRole('link', { name: t('Import und Export', 'Import and export') }).click();
-      await expect(page.getByLabel('Import from file')).toBeVisible();
+      await expect(page.getByLabel(t('Aus Datei', 'From file'))).toBeVisible();
       await shot(page, 'import-export', tag);
+      await page.getByLabel(t('Aus Datei', 'From file')).setInputFiles({
+        name: 'config.json',
+        mimeType: 'application/json',
+        buffer: Buffer.from(JSON.stringify({ schemaVersion: 1, projects: [] })),
+      });
+      const replace = page.getByRole('dialog', { name: t('Konfiguration ersetzen?', 'Replace configuration?') });
+      await expect(replace).toBeVisible();
+      await shot(page, 'import-preview', tag);
+      await replace.getByRole('button', { name: t('Abbrechen', 'Cancel') }).click();
       await page.goto(`chrome-extension://${extensionId}/options.html#/projects/missing`);
       await expect(page.getByText(t('Projekt nicht gefunden', 'Project not found'))).toBeVisible();
       await shot(page, 'not-found', tag);

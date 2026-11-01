@@ -76,17 +76,13 @@ a.q-button { text-decoration: none; }
 .q-tooltip { overflow-wrap: anywhere; font-family: var(--font-mono); }
 
 /* Parts that are not redesigned yet (targets, import and export) */
-.row { display: flex; flex-direction: column; margin-bottom: var(--space-2); }
-.buttons { display: inline-flex; gap: var(--space-1); flex-wrap: wrap; }
 fieldset { margin-bottom: var(--space-4); border: 1px solid var(--color-border); border-radius: var(--radius-md); }
 .hint { color: var(--color-text-muted); font-size: var(--font-size-small); margin: var(--space-1) 0; }
 .error { color: var(--color-danger); }
-.confirm { border: 2px solid var(--color-danger); padding: var(--space-2); margin: var(--space-2) 0; }
 button, input, select, textarea { font: inherit; }
 button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 3px solid var(--color-focus); outline-offset: 2px; }
 
-.settings, .import-export { margin-bottom: var(--space-4); }
-.import-export > div { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; margin: var(--space-1) 0; }
+.settings, .options-io { margin-bottom: var(--space-4); }
 
 /* Targets */
 .options-perm { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); margin-bottom: var(--space-3); font-weight: 600; }
