@@ -137,14 +137,17 @@ test('configure, map by click, prefill on a second page, send, and show the resp
   expect(req.headers['authorization']).toBe(`Bearer ${ACCESS_KEY}`);
   const body = req.body as Record<string, unknown>;
   expect(Object.keys(body).sort()).toEqual(
-    ['captured_at', 'content_markdown', 'fields', 'note', 'project', 'target', 'title', 'url', 'version'].sort(),
+    ['captured_at', 'content', 'content_format', 'fields', 'note', 'project', 'target', 'title', 'url', 'version'].sort(),
   );
   expect(body.version).toBe(1);
   expect(body.url).toBe(`${pages.origin}/plain-2.html`);
   expect(body.note).toBe('Checked by e2e');
   expect((body.fields as Record<string, unknown>).price).toBe('21.50');
   expect(typeof body.captured_at).toBe('string');
-  expect(typeof body.content_markdown).toBe('string');
+  // The default project has no content setting, which means real Markdown.
+  expect(body.content_format).toBe('markdown');
+  expect(typeof body.content).toBe('string');
+  expect(body.content).not.toMatch(/<(p|div|body|h1)[\s>]/);
   expect(typeof body.title).toBe('string');
   expect(body.project).toBeDefined();
   expect(body.target).toBeDefined();

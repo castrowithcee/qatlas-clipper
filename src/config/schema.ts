@@ -79,6 +79,9 @@ export const targetSchema = z.strictObject({
   purpose: z.string(),
 });
 
+export const CONTENT_FORMATS = ['none', 'markdown', 'html'] as const;
+export type ContentFormat = (typeof CONTENT_FORMATS)[number];
+
 export const projectSchema = z.strictObject({
   id,
   name: nonEmpty,
@@ -87,6 +90,8 @@ export const projectSchema = z.strictObject({
   // domain -> field key -> CSS selector
   siteMappings: z.record(nonEmpty, z.record(nonEmpty, nonEmpty)),
   targets: z.array(targetSchema),
+  // Page content sent with the payload; an absent value means "markdown" (see contentFormatOf).
+  content: z.enum(CONTENT_FORMATS).optional(),
 });
 
 export const configSchema = z
@@ -131,6 +136,9 @@ export type Scope = z.infer<typeof scopeSchema>;
 export type Field = z.infer<typeof fieldSchema>;
 export type Target = z.infer<typeof targetSchema>;
 export type Project = z.infer<typeof projectSchema>;
+
+/** Effective content format of a project; projects without the setting send Markdown. */
+export const contentFormatOf = (project: Pick<Project, 'content'>): ContentFormat => project.content ?? 'markdown';
 export type Config = z.infer<typeof configSchema>;
 /** targetId -> header name -> value. Never exported. */
 export type HeaderValues = Record<string, Record<string, string>>;

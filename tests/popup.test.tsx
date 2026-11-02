@@ -45,7 +45,7 @@ function fakeRead(page: () => Page) {
     return {
       ok: true,
       result: {
-        title: p.title, url: p.url, contentMarkdown: '', contentTruncated: false, jsonLdTypes: [],
+        title: p.title, url: p.url, content: '', contentFormat: 'markdown', contentTruncated: false, jsonLdTypes: [],
         matchingProjects: p.matching.map((id) => ({ id, name: id })),
         selectedProjectId: selected,
         fields: selected ? (p.fields[selected] ?? {}) : {},

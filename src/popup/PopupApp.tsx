@@ -246,7 +246,8 @@ export function PopupApp({
           url: page.url,
           title: page.title,
           values,
-          contentMarkdown: page.contentMarkdown,
+          content: page.content,
+          contentFormat: page.contentFormat,
           note: current.note,
         }),
       });

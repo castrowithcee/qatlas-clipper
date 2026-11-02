@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   CONFIG_KEY,
   ConfigError,
+  contentFormatOf,
   HEADER_VALUES_KEY,
   exportConfig,
   importFromText,
@@ -173,6 +174,25 @@ describe('migration', () => {
     expect(err.message).toMatch(/Unsupported configuration version 2/);
     storage = fakeStorage({ [CONFIG_KEY]: { schemaVersion: 99, projects: [] } });
     await expect(loadConfig(storage)).rejects.toThrow(/Unsupported configuration version 99/);
+  });
+});
+
+describe('content format', () => {
+  it('treats a missing setting as markdown and keeps explicit values through import and export', async () => {
+    const cfg = validConfig();
+    const parsed = parseConfig(cfg);
+    expect(parsed.projects[0]!.content).toBeUndefined();
+    expect(contentFormatOf(parsed.projects[0]!)).toBe('markdown');
+    const withHtml = { ...cfg, projects: [{ ...cfg.projects[0]!, content: 'html' }] };
+    await importFromText(JSON.stringify(withHtml), storage);
+    const exported = JSON.parse(await exportConfig(storage));
+    expect(exported.projects[0].content).toBe('html');
+    expect(contentFormatOf(parseConfig(exported).projects[0]!)).toBe('html');
+  });
+
+  it('rejects an unknown value', () => {
+    const cfg = validConfig();
+    expect(() => parseConfig({ ...cfg, projects: [{ ...cfg.projects[0]!, content: 'pdf' }] })).toThrow(ConfigError);
   });
 });
 

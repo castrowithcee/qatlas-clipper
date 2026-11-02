@@ -41,25 +41,33 @@ const payloadFor = (projectId: string, targetId: string) =>
   buildPayload({
     project: { id: projectId, name: `Project ${projectId}`, fields: [{ key: 'title' }, { key: 'price' }] },
     target: { id: targetId, name: `Target ${targetId}` },
-    url: TAB, title: 'Article', values: { title: 'Article' }, contentMarkdown: '# Article', note: 'n',
+    url: TAB, title: 'Article', values: { title: 'Article' }, content: '# Article', contentFormat: 'markdown', note: 'n',
     now: () => new Date('2026-01-02T03:04:05.000Z'),
   });
 const req = (projectId: string, targetId: string, extra: Record<string, unknown> = {}): SendRequest =>
   ({ tabUrl: TAB, projectId, targetId, payload: payloadFor(projectId, targetId), ...extra });
 
 describe('payload', () => {
-  it('has exactly the nine keys', () => {
+  it('has exactly the ten keys', () => {
     const p = buildPayload({
       project: { id: 'p1', name: 'Articles', fields: [{ key: 'title' }, { key: 'price' }] },
       target: { id: 'a', name: 'Hook' },
-      url: TAB, title: 'Article', values: { title: 'T', stray: 'x' }, contentMarkdown: '# T', note: 'note',
+      url: TAB, title: 'Article', values: { title: 'T', stray: 'x' }, content: '# T', contentFormat: 'markdown', note: 'note',
       now: () => new Date('2026-01-02T03:04:05.000Z'),
     });
-    expect(Object.keys(p).sort()).toEqual(['captured_at', 'content_markdown', 'fields', 'note', 'project', 'target', 'title', 'url', 'version']);
+    expect(Object.keys(p).sort()).toEqual(['captured_at', 'content', 'content_format', 'fields', 'note', 'project', 'target', 'title', 'url', 'version']);
     expect(p).toEqual({
       project: { id: 'p1', name: 'Articles' }, target: { id: 'a', name: 'Hook' }, url: TAB, title: 'Article',
-      fields: { title: 'T', price: '' }, content_markdown: '# T', note: 'note', captured_at: '2026-01-02T03:04:05.000Z', version: 1,
+      fields: { title: 'T', price: '' }, content: '# T', content_format: 'markdown', note: 'note', captured_at: '2026-01-02T03:04:05.000Z', version: 1,
     });
+  });
+});
+
+describe('payload content format', () => {
+  const base = { project: { id: 'p1', name: 'A', fields: [] }, target: { id: 'a', name: 'H' }, url: TAB, title: 'T', values: {}, note: '' };
+  it('carries html as given and empties content for none', () => {
+    expect(buildPayload({ ...base, content: '<p>x</p>', contentFormat: 'html' })).toMatchObject({ content: '<p>x</p>', content_format: 'html' });
+    expect(buildPayload({ ...base, content: 'ignored', contentFormat: 'none' })).toMatchObject({ content: '', content_format: 'none' });
   });
 });
 
