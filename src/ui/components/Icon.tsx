@@ -4,6 +4,8 @@ import './components.css';
 const PATHS = {
   close: <path d="M6 6l12 12M18 6L6 18" />,
   'chevron-down': <path d="M6 9l6 6 6-6" />,
+  'chevron-right': <path d="M9 6l6 6-6 6" />,
+  grip: <path d="M9 6h.01M9 12h.01M9 18h.01M15 6h.01M15 12h.01M15 18h.01" />,
   info: (
     <>
       <circle cx="12" cy="12" r="9" />

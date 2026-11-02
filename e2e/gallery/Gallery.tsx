@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react';
 import { useI18n } from '../../src/settings';
 import {
-  Button, Checkbox, Chip, Dialog, Disclosure, EmptyState, ErrorState, ICON_NAMES, Icon, IconButton, LoadingState, NotificationsProvider, Select, Switch, TextField, Toast, Tooltip, TileGroup, useNotifications,
+  Button, Checkbox, Chip, DataTable, DetailPanel, Dialog, Disclosure, EmptyState, ErrorState, ICON_NAMES, Icon, IconButton, LoadingState, NotificationsProvider, RowActions, RowError, Select, Switch, TextField, Toast, Tooltip, TileGroup, useNotifications,
 } from '../../src/ui/components';
 import '../../src/ui/components/components.css';
 
@@ -34,6 +34,56 @@ function TileGroupDemo() {
       onChange={setV}
       options={[{ value: 'system', label: 'System', icon: 'monitor' }, { value: 'light', label: 'Light', icon: 'sun' }, { value: 'dark', label: 'Dark', icon: 'moon' }]}
     />
+  );
+}
+
+const ROWS = [
+  { label: 'Title', source: 'auto' as const, sourceName: 'Detected automatically', format: 'Text', required: true, sites: 2, error: false },
+  { label: 'Summary', source: 'pointer' as const, sourceName: 'Assigned by click', format: 'Markdown', required: false, sites: 1, error: false },
+  { label: 'Author', source: 'edit' as const, sourceName: 'Enter it yourself', format: 'Text', required: false, sites: 0, error: true },
+];
+
+function TableDemo() {
+  const i18n = useI18n();
+  const [open, setOpen] = useState<string | null>(null);
+  return (
+    <>
+      <DataTable
+        caption="Fields"
+        columns={[{ label: 'Move', hidden: true, narrow: true }, 'Label', { label: 'Source', narrow: true }, 'Format', 'Required', 'Websites', { label: 'Actions', hidden: true, narrow: true }]}
+      >
+        {ROWS.map((r) => (
+          <tr key={r.label} data-invalid={r.error || undefined}>
+            <td><Icon name="grip" /></td>
+            <td>
+              {r.label}
+              {r.error && <div><RowError>Label is missing</RowError></div>}
+            </td>
+            <td><Icon name={r.source} label={r.sourceName} /></td>
+            <td>{r.format}</td>
+            <td>{r.required ? 'Yes' : 'No'}</td>
+            <td>{r.sites}</td>
+            <td>
+              <RowActions>
+                <IconButton icon="arrow-up" label={`Move ${r.label} up`} />
+                <IconButton icon="arrow-down" label={`Move ${r.label} down`} />
+                <IconButton icon="chevron-right" label={`Open ${r.label}`} onClick={() => setOpen(r.label)} data-testid={`row-open-${r.label}`} />
+              </RowActions>
+            </td>
+          </tr>
+        ))}
+      </DataTable>
+      <DetailPanel
+        open={open !== null}
+        onClose={() => setOpen(null)}
+        title={open ?? ''}
+        actions={<Button variant="danger" icon="trash">Delete field</Button>}
+      >
+        <TextField label="Label" defaultValue={open ?? ''} />
+        <Select label="Format" options={[{ value: 'text', label: 'Text' }, { value: 'markdown', label: 'Markdown' }]} defaultValue="text" />
+        <Button onClick={() => setOpen(null)}>{i18n.t('ui.close')}</Button>
+      </DetailPanel>
+    </>
   );
 }
 
@@ -118,6 +168,9 @@ export function Gallery() {
         >
           The project and its field mappings will be removed. This cannot be undone.
         </Dialog>
+      </Section>
+      <Section id="table" title="Table and detail panel">
+        <div style={{ width: '100%' }}><TableDemo /></div>
       </Section>
       <Section id="chips" title="Chips">
         <ul className="gallery-chips">

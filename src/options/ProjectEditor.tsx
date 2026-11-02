@@ -1,9 +1,8 @@
 import { useState } from 'react';
 import { contentFormatOf, type ContentFormat, type HeaderValues, type Project } from '../config';
 import { FieldEditor } from './FieldEditor';
-import { SiteMappings } from './SiteMappings';
 import { ScopeEditor } from './ScopeEditor';
-import { deleteDomain, deleteField, deleteMapping, errorsAt, renameFieldKey, type Issue } from './draft';
+import { deleteField, deleteMapping, errorsAt, renameFieldKey, type Issue } from './draft';
 import { useI18n } from '../settings';
 import { Button, Dialog, IconButton, Select, TextField, Tooltip } from '../ui/components';
 import { TargetEditor } from './TargetEditor';
@@ -36,6 +35,7 @@ export function ProjectEditor({ project, index, count, onMove, onDelete, issues,
       <ScopeEditor scope={project.scope} basePath={base} issues={issues} onChange={(scope) => onChange({ ...project, scope })} />
       <FieldEditor
         fields={project.fields}
+        siteMappings={project.siteMappings}
         basePath={base}
         issues={issues}
         onChange={(fields) => onChange({ ...project, fields })}
@@ -46,6 +46,7 @@ export function ProjectEditor({ project, index, count, onMove, onDelete, issues,
           onChange(renameFieldKey(project, i, key));
         }}
         onDelete={(i) => onChange(deleteField(project, i))}
+        onDeleteMapping={(site, key) => onChange(deleteMapping(project, site, key))}
       />
       <section className="options-section">
         <Select
@@ -69,13 +70,6 @@ export function ProjectEditor({ project, index, count, onMove, onDelete, issues,
         status={permissionStatus}
         onRequest={onRequestPermission}
         onChange={(targets) => onChange({ ...project, targets })}
-      />
-      <SiteMappings
-        project={project}
-        basePath={base}
-        issues={issues}
-        onDeleteEntry={(d, k) => onChange(deleteMapping(project, d, k))}
-        onDeleteDomain={(d) => onChange(deleteDomain(project, d))}
       />
     </div>
   );

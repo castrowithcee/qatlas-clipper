@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import {
-  Button, Checkbox, Chip, Dialog, Disclosure, EmptyState, ErrorState, Icon, IconButton, LoadingState, Select, Switch, TextField, Toast, Tooltip, TileGroup, ICON_NAMES, NotificationsProvider, TOAST_DURATION_MS, useNotifications, type ToastKind,
+  Button, Checkbox, Chip, DataTable, DetailPanel, Dialog, Disclosure, EmptyState, ErrorState, Icon, IconButton, LoadingState, Select, Switch, TextField, Toast, Tooltip, TileGroup, ICON_NAMES, NotificationsProvider, TOAST_DURATION_MS, useNotifications, type ToastKind,
 } from '../src/ui/components';
 import { de, en } from '../src/i18n/catalog';
 
@@ -268,6 +268,52 @@ describe('Dialog', () => {
     await user.click(screen.getByRole('button', { name: 'Close' }));
     expect(document.querySelector('dialog')?.open).toBe(false);
     expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Open' }));
+  });
+});
+
+describe('DetailPanel', () => {
+  function Harness() {
+    const [open, setOpen] = useState(false);
+    return (
+      <>
+        <button onClick={() => setOpen(true)}>Open</button>
+        <DetailPanel open={open} onClose={() => setOpen(false)} title="Title field">
+          <input aria-label="Label" />
+        </DetailPanel>
+      </>
+    );
+  }
+
+  it('opens as a modal side panel, closes on Escape and returns focus to the opener', async () => {
+    const user = userEvent.setup();
+    render(<Harness />);
+    const opener = screen.getByRole('button', { name: 'Open' });
+    await user.click(opener);
+    const panel = document.querySelector('dialog')!;
+    expect(panel.open).toBe(true);
+    expect(panel.classList.contains('q-dialog--panel')).toBe(true);
+    expect(screen.getByRole('heading', { name: 'Title field' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Close' })).toBeTruthy();
+    expect(panel.contains(document.activeElement)).toBe(true);
+    await user.keyboard('{Escape}');
+    expect(panel.open).toBe(false);
+    expect(document.activeElement).toBe(opener);
+  });
+});
+
+describe('DataTable', () => {
+  it('renders a caption, scoped column headers and a labelled scroll region', () => {
+    render(
+      <DataTable caption="Fields" columns={['Label', { label: 'Actions', hidden: true }]}>
+        <tr><td>Title</td><td /></tr>
+      </DataTable>,
+    );
+    const table = screen.getByRole('table', { name: 'Fields' });
+    expect(table.querySelector('caption')?.textContent).toBe('Fields');
+    const heads = [...table.querySelectorAll('th')];
+    expect(heads.map((h) => h.textContent)).toEqual(['Label', 'Actions']);
+    for (const h of heads) expect(h.getAttribute('scope')).toBe('col');
+    expect(screen.getByRole('region', { name: 'Fields' }).tabIndex).toBe(0);
   });
 });
 

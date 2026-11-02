@@ -9,4 +9,6 @@ export { Chip } from './Chip';
 export { NotificationsProvider, TOAST_DURATION_MS, useNotifications, type Notifications } from './Notifications';
 export { TileGroup, type TileOption } from './TileGroup';
 export { MarkdownView } from './Markdown';
+export { DetailPanel } from './DetailPanel';
+export { DataTable, RowActions, RowError, type DataTableColumn } from './DataTable';
 export { Menu, type MenuEntry } from './Menu';

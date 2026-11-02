@@ -5,7 +5,7 @@ import { join, resolve } from 'node:path';
 const OUT = resolve(process.env.SCREENS_DIR ?? 'test-results/screens');
 mkdirSync(OUT, { recursive: true });
 
-const SECTIONS = ['buttons', 'fields', 'toggles', 'tooltip', 'toasts', 'states', 'disclosure', 'chips', 'tiles', 'icons'];
+const SECTIONS = ['buttons', 'fields', 'toggles', 'tooltip', 'toasts', 'states', 'disclosure', 'table', 'chips', 'tiles', 'icons'];
 
 async function open(page: Page, theme: string, lang = 'en') {
   await page.goto(`/?theme=${theme}&lang=${lang}`);
@@ -43,6 +43,24 @@ for (const theme of ['light', 'dark']) {
       const outline = await tiles.locator('.q-tile-input:focus-visible + .q-tile-body').evaluate((el) => getComputedStyle(el).outlineStyle);
       expect(outline).toBe('solid');
       await tiles.screenshot({ path: join(OUT, `${theme}-focus-tiles.png`) });
+    });
+
+    test('detail panel wide and narrow', async ({ page }) => {
+      await open(page, theme);
+      const open1 = page.getByTestId('row-open-Summary');
+      for (const [name, width] of [['wide', 1280], ['narrow', 400]] as const) {
+        await page.setViewportSize({ width, height: 800 });
+        await open1.focus();
+        await page.keyboard.press('Enter');
+        await expect(page.getByRole('dialog')).toBeVisible();
+        const box = await page.getByRole('dialog').boundingBox();
+        if (name === 'narrow') expect(box!.width).toBe(width);
+        else expect(box!.x + box!.width).toBe(width);
+        await page.screenshot({ path: join(OUT, `${theme}-panel-${name}.png`) });
+        await page.keyboard.press('Escape');
+        await expect(page.getByRole('dialog')).toBeHidden();
+        await expect(open1).toBeFocused();
+      }
     });
 
     test('tooltip open by keyboard and dialog', async ({ page }) => {

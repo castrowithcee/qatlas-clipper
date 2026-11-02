@@ -15,7 +15,7 @@ test('a field added in the popup is picked on the page, read on reopening and sh
   const options = await context.newPage();
   await options.goto(`chrome-extension://${extensionId}/options.html#/projects/items`);
   await expect(options.getByLabel('Project name')).toHaveValue('Items');
-  await expect(options.getByRole('group', { name: 'Cost' })).toHaveCount(0);
+  await expect(options.getByRole('button', { name: 'Edit field Cost' })).toHaveCount(0);
 
   const page = await context.newPage();
   await page.goto(`${pages.origin}/plain-1.html`);
@@ -26,7 +26,7 @@ test('a field added in the popup is picked on the page, read on reopening and sh
 
   await expect(page.getByText('Choose element for "Cost"')).toBeVisible();
   // The options page (not reloaded) already shows the saved field.
-  await expect(options.getByRole('group', { name: 'Cost' })).toBeVisible();
+  await expect(options.getByRole('button', { name: 'Edit field Cost' })).toBeVisible();
 
   await page.locator('#price').click();
   await page.getByRole('button', { name: 'Apply' }).click();

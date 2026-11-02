@@ -53,7 +53,9 @@ test('configure, map by click, prefill on a second page, send, and show the resp
   // A field added in the editor gets its key from the label and takes its value from a click on the page.
   await options.getByLabel('Label of the new field').fill('Sub title');
   await options.getByRole('button', { name: 'Add field' }).click();
-  await expect(options.getByRole('group', { name: 'Sub title' }).getByLabel('Where does the value come from?')).toHaveValue('click');
+  const subTitle = options.getByRole('dialog', { name: 'Sub title' });
+  await expect(subTitle.getByLabel('Where does the value come from?')).toHaveValue('click');
+  await subTitle.getByRole('button', { name: 'Close' }).click();
   await options.getByRole('button', { name: 'Save changes' }).click();
   await expect(options.getByRole('status').filter({ hasText: 'Saved.' })).toBeVisible();
 

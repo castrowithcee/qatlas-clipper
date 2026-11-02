@@ -11,6 +11,35 @@ export function moveItem<T>(items: T[], index: number, delta: -1 | 1): T[] {
   return next;
 }
 
+/** Moves the item at `from` so that it ends up at index `to`. */
+export function moveTo<T>(items: T[], from: number, to: number): T[] {
+  if (from === to || from < 0 || to < 0 || from >= items.length || to >= items.length) return items;
+  const next = [...items];
+  const [item] = next.splice(from, 1);
+  next.splice(to, 0, item as T);
+  return next;
+}
+
+/**
+ * Carries row identities from one version of a list to the next, for items without an id of their own:
+ * the same object keeps its id, then an item with the same key, then the item at the same position.
+ */
+export function followIds<T extends { key: string }>(prev: readonly T[], prevIds: readonly string[], next: readonly T[], fresh: (item: T) => string): string[] {
+  const free = new Set(prev.map((_, j) => j));
+  const ids: (string | undefined)[] = next.map(() => undefined);
+  const take = (i: number, match: (p: T, j: number) => boolean) => {
+    if (ids[i] !== undefined) return;
+    const j = prev.findIndex((p, k) => free.has(k) && match(p, k));
+    if (j < 0) return;
+    free.delete(j);
+    ids[i] = prevIds[j];
+  };
+  next.forEach((item, i) => take(i, (p) => p === item));
+  next.forEach((item, i) => take(i, (p) => p.key === item.key));
+  next.forEach((_, i) => take(i, (_p, j) => j === i));
+  return ids.map((id, i) => id ?? fresh(next[i] as T));
+}
+
 export function newProject(name: string): Project {
   return { id: newId(), name, scope: { allSites: true, domains: [] }, fields: [], siteMappings: {}, targets: [], content: 'markdown' };
 }
@@ -135,10 +164,15 @@ export function deleteMapping(project: Project, domain: string, key: string): Pr
   return { ...project, siteMappings };
 }
 
-export function deleteDomain(project: Project, domain: string): Project {
-  const siteMappings = { ...project.siteMappings };
-  delete siteMappings[domain];
-  return { ...project, siteMappings };
+/** The websites with a saved click mapping for a field key, with their selector. */
+export function mappedSites(project: Pick<Project, 'siteMappings'>, key: string): [site: string, selector: string][] {
+  return Object.entries(project.siteMappings).flatMap(([site, map]) => (Object.hasOwn(map, key) ? [[site, map[key] as string] as [string, string]] : []));
+}
+
+/** Mappings whose key belongs to no field, e.g. after renaming a key onto one that was taken. */
+export function orphanMappings(project: Pick<Project, 'siteMappings' | 'fields'>): { site: string; key: string }[] {
+  const keys = new Set(project.fields.map((f) => f.key));
+  return Object.entries(project.siteMappings).flatMap(([site, map]) => Object.keys(map).filter((k) => !keys.has(k)).map((key) => ({ site, key })));
 }
 
 /** Trim the scope and drop unused optional sources so that "empty input" means "not used". */
@@ -193,7 +227,8 @@ export function splitIssue(raw: string): Issue {
 export const errorsAt = (issues: Issue[], path: string): string[] =>
   issues.filter((i) => i.path === path).map((i) => i.message);
 
-// Paths that an input of the project editor shows itself.
+// Paths that the project editor shows itself: at an input, at a marked field row (whose details hold the input)
+// or, for site mappings, in the details of their field or in the warning line of a mapping without field.
 const MAPPED = /^projects\[(\d+)\]\.(name|scope\.(pageType|domains\[\d+\]|domains)|fields\[\d+\]\.(key|label|sources\.schemaOrgPath|sources\.metaTag\.name|sources\.manual\.values(\[\d+\])?)|siteMappings\..+|targets\[\d+\]\.(name|url|purpose|headers\[\d+\]))$/;
 
 /** Issues that no visible input of the selected project shows. */
