@@ -11,6 +11,9 @@ export function LoadingView() {
   return <LoadingState label={t('popup.loading')} />;
 }
 
+/** Host of a match pattern such as `https://example.com/*`; foreign data, rendered as text only. */
+const siteOf = (pattern: string) => pattern.replace(/^https?:\/\//, '').replace(/\/\*$/, '');
+
 const TEXT: Record<BlockReason, { title?: MessageKey; text: MessageKey }> = {
   unsupported: { title: 'popup.unreadable.title', text: 'popup.unreadable.text' },
   'no-access': { title: 'popup.noAccess.title', text: 'popup.noAccess.text' },
@@ -20,12 +23,31 @@ const TEXT: Record<BlockReason, { title?: MessageKey; text: MessageKey }> = {
 };
 
 /** A page that cannot be read: unreadable pages get the options page as the only way on, the others a retry. */
-export function BlockedView({ reason, onRetry, onOpenOptions }: { reason: BlockReason; onRetry: () => void; onOpenOptions: () => void }) {
+export function BlockedView({
+  reason,
+  onRetry,
+  onOpenOptions,
+  access,
+}: {
+  reason: BlockReason;
+  onRetry: () => void;
+  onOpenOptions: () => void;
+  /** Side panel only, for `no-access`: ask for the tab's origin when known, otherwise point to the toolbar button. */
+  access?: { origin?: string; denied: boolean; onAllow: () => void };
+}) {
   const { t } = useI18n();
   const { title, text } = TEXT[reason];
+  const site = access?.origin ? siteOf(access.origin) : undefined;
+  const message = !access ? t(text) : site ? t('popup.noAccess.siteText', { site }) : t('popup.noAccess.panelText');
   return (
     <>
-      <ErrorState title={title && t(title)} message={t(text)} onRetry={reason === 'unsupported' ? undefined : onRetry} />
+      <ErrorState title={title && t(title)} message={message} onRetry={reason === 'unsupported' ? undefined : onRetry} />
+      {access?.origin && (
+        <div className="popup-actions">
+          <Button variant="primary" onClick={access.onAllow}>{t('popup.noAccess.allow')}</Button>
+        </div>
+      )}
+      {access?.denied && <p role="status" className="popup-error">{t('popup.noAccess.denied')}</p>}
       {reason === 'unsupported' && (
         <div className="popup-actions">
           <Button onClick={onOpenOptions}>{t('popup.header.options')}</Button>
