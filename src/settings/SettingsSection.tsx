@@ -1,8 +1,9 @@
-import { useId, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import type { Settings } from './schema';
 import type { LanguageChoice } from '../i18n';
 import type { Appearance } from '../ui';
 import { IconButton, Select, TileGroup, Tooltip, type IconName } from '../ui/components';
+import { ALL_SITES_ORIGINS, defaultPermissions, type PermissionsApi } from '../options/permissions';
 import { sidePanelSupported } from './openAs';
 import { useSettings } from './SettingsProvider';
 
@@ -18,10 +19,45 @@ const OPEN_AS: { value: Settings['openAs']; icon: IconName }[] = [
   { value: 'sidepanel', icon: 'sidepanel' },
 ];
 
-export function SettingsSection() {
+export function SettingsSection({ permissions = defaultPermissions }: { permissions?: Pick<PermissionsApi, 'contains' | 'request'> } = {}) {
   const { settings, i18n, update } = useSettings();
   const [error, setError] = useState<string>();
   const id = useId();
+  // Known ahead of the click: the request has to run synchronously in the click to keep the user gesture.
+  const granted = useRef(false);
+  useEffect(() => {
+    let live = true;
+    try {
+      permissions.contains(ALL_SITES_ORIGINS).then(
+        (g) => live && (granted.current = g),
+        () => undefined,
+      );
+    } catch {
+      // Unknown state: the click then asks for the access.
+    }
+    return () => {
+      live = false;
+    };
+  }, [permissions]);
+
+  const chooseOpenAs = (openAs: Settings['openAs']) => {
+    if (openAs === 'popup' || granted.current) return change({ openAs });
+    setError(undefined);
+    let asked: Promise<boolean>;
+    try {
+      asked = permissions.request(ALL_SITES_ORIGINS);
+    } catch {
+      asked = Promise.resolve(false);
+    }
+    void asked.catch(() => false).then((ok) => {
+      if (ok) {
+        granted.current = true;
+        change({ openAs });
+      } else {
+        setError(i18n.t('settings.openAs.needsAccess'));
+      }
+    });
+  };
 
   const change = (patch: Parameters<typeof update>[0]) => {
     setError(undefined);
@@ -53,7 +89,7 @@ export function SettingsSection() {
         <TileGroup
           legend={i18n.t('settings.openAs.label')}
           value={settings.openAs}
-          onChange={(openAs) => change({ openAs })}
+          onChange={chooseOpenAs}
           options={OPEN_AS.map((o) => ({ ...o, label: i18n.t(`settings.openAs.${o.value}`) }))}
         />
       )}

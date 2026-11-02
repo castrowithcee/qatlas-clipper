@@ -11,9 +11,6 @@ export function LoadingView() {
   return <LoadingState label={t('popup.loading')} />;
 }
 
-/** Host of a match pattern such as `https://example.com/*`; foreign data, rendered as text only. */
-const siteOf = (pattern: string) => pattern.replace(/^https?:\/\//, '').replace(/\/\*$/, '');
-
 const TEXT: Record<BlockReason, { title?: MessageKey; text: MessageKey }> = {
   unsupported: { title: 'popup.unreadable.title', text: 'popup.unreadable.text' },
   'no-access': { title: 'popup.noAccess.title', text: 'popup.noAccess.text' },
@@ -32,17 +29,16 @@ export function BlockedView({
   reason: BlockReason;
   onRetry: () => void;
   onOpenOptions: () => void;
-  /** Side panel only, for `no-access`: ask for the tab's origin when known, otherwise point to the toolbar button. */
-  access?: { origin?: string; denied: boolean; onAllow: () => void };
+  /** Side panel only, for `no-access`: offer the all-websites permission when missing, otherwise the browser blocks the page. */
+  access?: { granted: boolean; denied: boolean; onAllow: () => void };
 }) {
   const { t } = useI18n();
   const { title, text } = TEXT[reason];
-  const site = access?.origin ? siteOf(access.origin) : undefined;
-  const message = !access ? t(text) : site ? t('popup.noAccess.siteText', { site }) : t('popup.noAccess.panelText');
+  const message = !access ? t(text) : access.granted ? t('popup.noAccess.blockedText') : t('popup.noAccess.panelText');
   return (
     <>
-      <ErrorState title={title && t(title)} message={message} onRetry={reason === 'unsupported' ? undefined : onRetry} />
-      {access?.origin && (
+      <ErrorState title={title && t(title)} message={message} onRetry={reason === 'unsupported' || access ? undefined : onRetry} />
+      {access && !access.granted && (
         <div className="popup-actions">
           <Button variant="primary" onClick={access.onAllow}>{t('popup.noAccess.allow')}</Button>
         </div>

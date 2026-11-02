@@ -5,7 +5,7 @@ import { readTab, type ReadTabResult } from '../extract/inject';
 import type { ReadResult } from '../extract/result';
 import { useI18n } from '../settings';
 import { Button } from '../ui/components';
-import { defaultPermissions, originPattern, type PermissionsApi } from '../options/permissions';
+import { ALL_SITES_ORIGINS, defaultPermissions, originPattern, type PermissionsApi } from '../options/permissions';
 import { startPicker } from '../picker/start';
 import { buildPayload } from '../send/payload';
 import { loadSendState, requestSend } from '../send/messages';
@@ -85,7 +85,7 @@ const defaultTab = () =>
 
 type State =
   | { phase: 'loading' }
-  | { phase: 'blocked'; reason: BlockReason; origin?: string }
+  | { phase: 'blocked'; reason: BlockReason; allSites?: boolean }
   | { phase: 'ready'; config: Config; tabId: number; tabUrl: string; read: ReadResult; projectId: string | null };
 
 export function PopupApp({
@@ -152,9 +152,13 @@ export function PopupApp({
         let result = await read(tab.id, config.projects);
         if (stale()) return;
         if (!result.ok) {
-          // Without access the browser hides the URL; only a still visible one names an origin we may ask for.
-          const origin = result.kind === 'no-access' ? originPattern(tab.url ?? tab.pendingUrl ?? '') : undefined;
-          return setState({ phase: 'blocked', reason: result.kind, origin });
+          // Side panel only: tells a missing all-websites permission from a page the browser blocks.
+          const allSites =
+            variant === 'sidepanel' && result.kind === 'no-access'
+              ? await permissions.contains(ALL_SITES_ORIGINS).catch(() => false)
+              : undefined;
+          if (stale()) return;
+          return setState({ phase: 'blocked', reason: result.kind, allSites });
         }
         const projectId = pickProject(config.projects, result.result.matchingProjects.map((p) => p.id), saved.projectId, lastId);
         if (projectId && projectId !== result.result.selectedProjectId) {
@@ -177,7 +181,7 @@ export function PopupApp({
     return () => {
       requestId.current = -1;
     };
-  }, [storage, draftStorage, resultStorage, getActiveTab, read, reload, reloadToken]);
+  }, [storage, draftStorage, resultStorage, getActiveTab, read, permissions, variant, reload, reloadToken]);
 
   const tabUrl = state.phase === 'ready' ? state.tabUrl : '';
   const anyInFlight = sendState.inFlight.length > 0;
@@ -198,8 +202,8 @@ export function PopupApp({
       await openOptions();
     })();
   // Must run synchronously inside the click handler: permissions.request needs the user gesture.
-  const allow = (origin: string) => {
-    const asked = requestOrigins([origin]).catch(() => false);
+  const allow = () => {
+    const asked = requestOrigins(ALL_SITES_ORIGINS).catch(() => false);
     void asked.then((granted) => {
       setAccessDenied(!granted);
       if (granted) {
@@ -217,7 +221,7 @@ export function PopupApp({
           onOpenOptions={openOpts}
           access={
             variant === 'sidepanel' && state.reason === 'no-access'
-              ? { origin: state.origin, denied: accessDenied, onAllow: () => allow(state.origin!) }
+              ? { granted: state.allSites === true, denied: accessDenied, onAllow: allow }
               : undefined
           }
           onRetry={() => {

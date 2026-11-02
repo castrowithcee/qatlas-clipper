@@ -41,7 +41,7 @@ function fakeBus() {
 
 const Probe = () => <p data-testid="probe">{useI18n().t('settings.title')}</p>;
 
-function mount(opts: { stored?: unknown; dark?: boolean; lang?: string } = {}) {
+function mount(opts: { stored?: unknown; dark?: boolean; lang?: string; permissions?: { contains: () => Promise<boolean>; request: (o: string[]) => Promise<boolean> } } = {}) {
   const storage = fakeStorage(opts.stored === undefined ? {} : { [SETTINGS_KEY]: opts.stored });
   const media = fakeMedia(opts.dark ?? false);
   const bus = fakeBus();
@@ -49,7 +49,7 @@ function mount(opts: { stored?: unknown; dark?: boolean; lang?: string } = {}) {
   render(
     <SettingsProvider storage={storage} media={media as never} subscribe={bus.subscribe} browserLanguage={opts.lang ?? 'en-US'}>
       <Probe />
-      <SettingsSection />
+      <SettingsSection permissions={opts.permissions ?? { contains: async () => false, request: async () => true }} />
     </SettingsProvider>,
   );
   return { storage, media, bus, user };
@@ -125,12 +125,60 @@ describe('open as setting', () => {
     expect(screen.queryByText('Open as')).toBeNull();
   });
 
-  it('saves the choice under the settings key; popup is the default', async () => {
+  const ALL = ['https://*/*', 'http://*/*'];
+  const perms = (contains: boolean, request: boolean) => ({
+    contains: vi.fn(async () => contains),
+    request: vi.fn(async () => request),
+  });
+
+  it('requests the two origins synchronously in the click; granted saves the side panel', async () => {
     vi.stubGlobal('chrome', { sidePanel: {} });
-    const { user, storage } = mount();
+    const permissions = perms(false, true);
+    const { storage } = mount({ permissions });
     expect(((await screen.findByRole('radio', { name: 'Popup' })) as HTMLInputElement).checked).toBe(true);
+    await waitFor(() => expect(permissions.contains).toHaveBeenCalled());
+    screen.getByRole('radio', { name: 'Side panel' }).click();
+    expect(permissions.request).toHaveBeenCalledTimes(1);
+    expect(permissions.request).toHaveBeenCalledWith(ALL);
+    await waitFor(() => expect(storage.data[SETTINGS_KEY]).toEqual({ language: 'auto', appearance: 'system', openAs: 'sidepanel' }));
+  });
+
+  it('keeps the popup and explains when the request is declined', async () => {
+    vi.stubGlobal('chrome', { sidePanel: {} });
+    const { user, storage } = mount({ permissions: perms(false, false) });
+    await user.click(await screen.findByRole('radio', { name: 'Side panel' }));
+    expect((await screen.findByRole('alert')).textContent).toContain('needs access to all websites');
+    expect(storage.data[SETTINGS_KEY]).toBeUndefined();
+    expect(((await screen.findByRole('radio', { name: 'Popup' })) as HTMLInputElement).checked).toBe(true);
+  });
+
+  it('keeps the popup when the request throws', async () => {
+    vi.stubGlobal('chrome', { sidePanel: {} });
+    const permissions = { contains: async () => false, request: () => { throw new Error('no gesture'); } };
+    const { user, storage } = mount({ permissions });
+    await user.click(await screen.findByRole('radio', { name: 'Side panel' }));
+    expect(await screen.findByRole('alert')).toBeTruthy();
+    expect(storage.data[SETTINGS_KEY]).toBeUndefined();
+  });
+
+  it('switches without a request when the access is already granted', async () => {
+    vi.stubGlobal('chrome', { sidePanel: {} });
+    const permissions = perms(true, true);
+    const { user, storage } = mount({ permissions });
+    await screen.findByRole('radio', { name: 'Side panel' });
+    await waitFor(() => expect(permissions.contains).toHaveBeenCalled());
     await user.click(screen.getByRole('radio', { name: 'Side panel' }));
-    expect(storage.data[SETTINGS_KEY]).toEqual({ language: 'auto', appearance: 'system', openAs: 'sidepanel' });
+    await waitFor(() => expect((storage.data[SETTINGS_KEY] as Settings).openAs).toBe('sidepanel'));
+    expect(permissions.request).not.toHaveBeenCalled();
+  });
+
+  it('never requests when popup is selected', async () => {
+    vi.stubGlobal('chrome', { sidePanel: {} });
+    const permissions = perms(false, true);
+    const { user, storage } = mount({ stored: { language: 'auto', appearance: 'system', openAs: 'sidepanel' }, permissions });
+    await user.click(await screen.findByRole('radio', { name: 'Popup' }));
+    await waitFor(() => expect((storage.data[SETTINGS_KEY] as Settings).openAs).toBe('popup'));
+    expect(permissions.request).not.toHaveBeenCalled();
   });
 
   it('falls back to popup for invalid values', () => {

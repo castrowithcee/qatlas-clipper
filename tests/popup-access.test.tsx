@@ -47,44 +47,53 @@ function setup(over: Partial<PopupDeps>, reads: ReadTabResult[]) {
   return { read, user: userEvent.setup() };
 }
 
+const ALL = ['https://*/*', 'http://*/*'];
+
 describe('side panel site access', () => {
-  it('requests exactly the origin of the tab on click and reads again after the grant', async () => {
+  it('requests the two all-websites origins on click and reads again after the grant', async () => {
     const requestOrigins = vi.fn(async () => true);
-    const { read, user } = setup({ requestOrigins }, [noAccess, ready]);
-    await user.click(await screen.findByRole('button', { name: 'Allow reading this website' }));
+    const { read, user } = setup({ requestOrigins, permissions: { contains: async () => false } }, [noAccess, ready]);
+    await user.click(await screen.findByRole('button', { name: 'Allow reading all websites' }));
     expect(requestOrigins).toHaveBeenCalledTimes(1);
-    expect(requestOrigins).toHaveBeenCalledWith(['https://shop.example.com/*']);
+    expect(requestOrigins).toHaveBeenCalledWith(ALL);
     expect(await screen.findByLabelText('Price')).toBeTruthy();
     expect(read).toHaveBeenCalledTimes(2);
   });
 
   it('calls the request synchronously within the click', async () => {
     const requestOrigins = vi.fn(() => Promise.resolve(false));
-    setup({ requestOrigins }, [noAccess]);
-    (await screen.findByRole('button', { name: 'Allow reading this website' })).click();
+    setup({ requestOrigins, permissions: { contains: async () => false } }, [noAccess]);
+    (await screen.findByRole('button', { name: 'Allow reading all websites' })).click();
     expect(requestOrigins).toHaveBeenCalledTimes(1);
   });
 
   it('explains a denied request and keeps the button', async () => {
-    const { user, read } = setup({ requestOrigins: async () => false }, [noAccess]);
-    await user.click(await screen.findByRole('button', { name: 'Allow reading this website' }));
+    const { user, read } = setup({ requestOrigins: async () => false, permissions: { contains: async () => false } }, [noAccess]);
+    await user.click(await screen.findByRole('button', { name: 'Allow reading all websites' }));
     expect(await screen.findByText(/Not allowed/)).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Allow reading this website' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Allow reading all websites' })).toBeTruthy();
     expect(read).toHaveBeenCalledTimes(1);
   });
 
-  it('asks for nothing and points to the toolbar button when the origin is unknown', async () => {
+  it('mentions the toolbar button and offers no retry without the permission', async () => {
+    setup({ permissions: { contains: async () => false } }, [noAccess]);
+    expect(await screen.findByText(/click on the extension icon/)).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull();
+  });
+
+  it('says the browser blocks the page, without a button, when the permission is present', async () => {
     const requestOrigins = vi.fn(async () => true);
-    setup({ requestOrigins, getActiveTab: async () => ({ id: 7 }) }, [noAccess]);
-    expect(await screen.findByText(/Click the extension icon/)).toBeTruthy();
-    expect(screen.queryByRole('button', { name: 'Allow reading this website' })).toBeNull();
+    setup({ requestOrigins, permissions: { contains: async () => true } }, [noAccess]);
+    expect(await screen.findByText('The browser does not allow reading this page.')).toBeTruthy();
+    expect(screen.queryByRole('button')).toBeNull();
     expect(requestOrigins).not.toHaveBeenCalled();
   });
 
   it('keeps the popup behavior unchanged', async () => {
     setup({ variant: 'popup' }, [noAccess]);
     expect(await screen.findByText('Open the extension from the page you want to read.')).toBeTruthy();
-    expect(screen.queryByRole('button', { name: 'Allow reading this website' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Allow reading all websites' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Try again' })).toBeTruthy();
   });
 
   it('keeps typed text when the panel reads the tab again', async () => {

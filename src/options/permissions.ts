@@ -13,6 +13,9 @@ export const defaultPermissions: PermissionsApi = {
   remove: (origins) => browser.permissions.remove({ origins }),
 };
 
+/** Optional access to all websites; the side panel needs it to read pages without a toolbar click. */
+export const ALL_SITES_ORIGINS = ['https://*/*', 'http://*/*'];
+
 export type PermissionStatus = 'granted' | 'denied' | 'unchecked';
 
 /** Match pattern for the origin of a URL, or undefined if the URL does not parse. */

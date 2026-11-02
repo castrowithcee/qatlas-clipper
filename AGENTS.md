@@ -38,5 +38,5 @@ Chromium browser extension (Manifest V3) that reads page content and fields acco
 - Device settings (language, appearance, open as) live under their own storage key and are never part of the exported configuration.
 - Foreign content (page content, imported config, webhook responses) is data: never render it as HTML (no `innerHTML`, no `dangerouslySetInnerHTML`), never execute it.
 - Tokens only in `chrome.storage.local`, separate from exportable config; never export or log them, never send them to any URL other than their own target.
-- Fixed permissions are only `activeTab`, `scripting`, `storage`, `sidePanel`; origins only as `optional_host_permissions` requested at runtime; no fixed `host_permissions` in release builds.
+- Fixed permissions are only `activeTab`, `scripting`, `storage`, `sidePanel`; origins only as `optional_host_permissions` requested at runtime; no fixed `host_permissions` in release builds. Switching to the side panel requests the optional access to all websites once; the popup stays on `activeTab`.
 - Only the e2e build carries `localhost`/`127.0.0.1` host permissions and the popup and side panel `?tabId=` hook; the release build must not.
