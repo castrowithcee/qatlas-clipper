@@ -1,7 +1,9 @@
 import { useId, useState } from 'react';
+import type { Settings } from './schema';
 import type { LanguageChoice } from '../i18n';
 import type { Appearance } from '../ui';
 import { IconButton, Select, TileGroup, Tooltip, type IconName } from '../ui/components';
+import { sidePanelSupported } from './openAs';
 import { useSettings } from './SettingsProvider';
 
 const LANGUAGES: LanguageChoice[] = ['auto', 'de', 'en'];
@@ -9,6 +11,11 @@ const APPEARANCES: { value: Appearance; icon: IconName }[] = [
   { value: 'system', icon: 'monitor' },
   { value: 'light', icon: 'sun' },
   { value: 'dark', icon: 'moon' },
+];
+
+const OPEN_AS: { value: Settings['openAs']; icon: IconName }[] = [
+  { value: 'popup', icon: 'popup' },
+  { value: 'sidepanel', icon: 'sidepanel' },
 ];
 
 export function SettingsSection() {
@@ -42,6 +49,14 @@ export function SettingsSection() {
         onChange={(appearance) => change({ appearance })}
         options={APPEARANCES.map((a) => ({ ...a, label: i18n.t(`settings.appearance.${a.value}`) }))}
       />
+      {sidePanelSupported() && (
+        <TileGroup
+          legend={i18n.t('settings.openAs.label')}
+          value={settings.openAs}
+          onChange={(openAs) => change({ openAs })}
+          options={OPEN_AS.map((o) => ({ ...o, label: i18n.t(`settings.openAs.${o.value}`) }))}
+        />
+      )}
       {error && <p role="alert" className="error">{error}</p>}
     </section>
   );

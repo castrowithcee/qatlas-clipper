@@ -6,7 +6,7 @@ describe('manifest policy', () => {
   it('declares only the fixed permissions and no fixed host permissions in release modes', () => {
     for (const mode of ['production', 'development', 'staging']) {
       const manifest = buildManifest(mode) as Record<string, unknown>;
-      expect(manifest.permissions).toEqual(['activeTab', 'scripting', 'storage']);
+      expect(manifest.permissions).toEqual(['activeTab', 'scripting', 'storage', 'sidePanel']);
       expect(manifest.optional_host_permissions).toEqual(['https://*/*', 'http://*/*']);
       expect(manifest).not.toHaveProperty('host_permissions');
     }
@@ -16,7 +16,7 @@ describe('manifest policy', () => {
     const manifest = buildManifest('e2e') as Record<string, unknown>;
     expect(manifest.host_permissions).toEqual(['http://localhost/*', 'http://127.0.0.1/*']);
     expect(E2E_HOST_PERMISSIONS).toHaveLength(2);
-    expect(manifest.permissions).toEqual(['activeTab', 'scripting', 'storage']);
+    expect(manifest.permissions).toEqual(['activeTab', 'scripting', 'storage', 'sidePanel']);
   });
 
   it('sets version_name only when one is given', () => {

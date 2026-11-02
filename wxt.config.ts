@@ -10,7 +10,7 @@ export function buildManifest(mode: string, versionName = process.env.VERSION_NA
     // Shown in chrome://extensions to tell development builds apart; Chrome's numeric version stays from package.json.
     ...(versionName ? { version_name: versionName } : {}),
     description: '__MSG_extDescription__',
-    permissions: ['activeTab', 'scripting', 'storage'],
+    permissions: ['activeTab', 'scripting', 'storage', 'sidePanel'],
     optional_host_permissions: ['https://*/*', 'http://*/*'],
     // Release builds (any mode other than "e2e") never carry fixed host permissions.
     ...(mode === 'e2e' ? { host_permissions: E2E_HOST_PERMISSIONS } : {}),

@@ -7,7 +7,10 @@ import { SETTINGS_KEY, SettingsProvider, SettingsSection, parseSettings, useI18n
 
 vi.mock('wxt/browser', () => ({ browser: { storage: { local: {} } } }));
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+});
 
 function fakeStorage(initial: Record<string, unknown> = {}): StorageArea & { data: Record<string, unknown> } {
   const data = { ...initial };
@@ -56,9 +59,9 @@ const theme = () => document.documentElement.dataset.theme;
 
 describe('settings', () => {
   it('falls back to defaults for invalid data', () => {
-    expect(parseSettings({ language: 'fr', appearance: 3 })).toEqual({ language: 'auto', appearance: 'system' });
-    expect(parseSettings('x')).toEqual({ language: 'auto', appearance: 'system' });
-    expect(parseSettings({ language: 'de' })).toEqual({ language: 'de', appearance: 'system' });
+    expect(parseSettings({ language: 'fr', appearance: 3 })).toEqual({ language: 'auto', appearance: 'system', openAs: 'popup' });
+    expect(parseSettings('x')).toEqual({ language: 'auto', appearance: 'system', openAs: 'popup' });
+    expect(parseSettings({ language: 'de' })).toEqual({ language: 'de', appearance: 'system', openAs: 'popup' });
   });
 
   it('auto follows the browser language; a fixed choice wins', async () => {
@@ -91,24 +94,46 @@ describe('settings', () => {
     expect(document.documentElement.lang).toBe('de');
     await user.click(screen.getByRole('radio', { name: 'Dunkel' }));
     expect(theme()).toBe('dark');
-    expect(storage.data[SETTINGS_KEY]).toEqual({ language: 'de', appearance: 'dark' });
+    expect(storage.data[SETTINGS_KEY]).toEqual({ language: 'de', appearance: 'dark', openAs: 'popup' });
   });
 
   it('reacts to a change made in another context', async () => {
     const { bus } = mount();
     await screen.findByTestId('probe');
-    act(() => bus.emit({ language: 'de', appearance: 'dark' }));
+    act(() => bus.emit({ language: 'de', appearance: 'dark', openAs: 'popup' }));
     expect(screen.getByTestId('probe').textContent).toBe('Einstellungen');
     expect(theme()).toBe('dark');
   });
 
   it('is not part of the exported configuration', async () => {
-    const storage = fakeStorage({ [SETTINGS_KEY]: { language: 'de', appearance: 'dark' } });
+    const storage = fakeStorage({ [SETTINGS_KEY]: { language: 'de', appearance: 'dark', openAs: 'sidepanel' } });
     await saveConfig({ schemaVersion: 1, projects: [] }, storage);
     const text = await exportConfig(storage);
-    expect(text).not.toMatch(/language|appearance|settings/);
+    expect(text).not.toMatch(/language|appearance|openAs|settings/);
     expect(JSON.parse(text)).toEqual({ schemaVersion: 1, projects: [] });
     expect(SETTINGS_KEY).not.toBe(CONFIG_KEY);
     expect(SETTINGS_KEY).not.toBe(HEADER_VALUES_KEY);
+  });
+});
+
+describe('open as setting', () => {
+  it('is hidden without chrome.sidePanel', async () => {
+    vi.stubGlobal('chrome', {});
+    mount();
+    await screen.findByTestId('probe');
+    expect(screen.queryByRole('radio', { name: 'Side panel' })).toBeNull();
+    expect(screen.queryByText('Open as')).toBeNull();
+  });
+
+  it('saves the choice under the settings key; popup is the default', async () => {
+    vi.stubGlobal('chrome', { sidePanel: {} });
+    const { user, storage } = mount();
+    expect(((await screen.findByRole('radio', { name: 'Popup' })) as HTMLInputElement).checked).toBe(true);
+    await user.click(screen.getByRole('radio', { name: 'Side panel' }));
+    expect(storage.data[SETTINGS_KEY]).toEqual({ language: 'auto', appearance: 'system', openAs: 'sidepanel' });
+  });
+
+  it('falls back to popup for invalid values', () => {
+    expect(parseSettings({ openAs: 'window' }).openAs).toBe('popup');
   });
 });

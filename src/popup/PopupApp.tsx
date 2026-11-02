@@ -49,6 +49,10 @@ export interface PopupDeps {
   /** Re-read interval for the send state while a send is running. */
   pollMs?: number;
   close?: () => void;
+  /** 'sidepanel' fills the panel width and stays open while the picker runs (no close). */
+  variant?: 'popup' | 'sidepanel';
+  /** Increasing this number reads the active tab and the configuration again. */
+  reloadToken?: number;
 }
 
 type TabRef = { id?: number; url?: string } | undefined;
@@ -94,7 +98,10 @@ export function PopupApp({
   send = requestSend,
   pollMs = 1000,
   close = () => window.close(),
+  variant = 'popup',
+  reloadToken = 0,
 }: PopupDeps) {
+  const rootClass = variant === 'sidepanel' ? 'popup popup-panel' : 'popup';
   // Resolved once: default areas are new objects per call and must not retrigger the load effect.
   const [storage] = useState(() => storageProp ?? defaultStorage());
   const [draftStorage] = useState(() => draftProp ?? defaultDraftStorage());
@@ -159,7 +166,7 @@ export function PopupApp({
     return () => {
       requestId.current = -1;
     };
-  }, [storage, draftStorage, resultStorage, getActiveTab, read, reload]);
+  }, [storage, draftStorage, resultStorage, getActiveTab, read, reload, reloadToken]);
 
   const tabUrl = state.phase === 'ready' ? state.tabUrl : '';
   const anyInFlight = sendState.inFlight.length > 0;
@@ -179,10 +186,10 @@ export function PopupApp({
       if (focusId) await requestOptionsFocus(draftStorage, focusId).catch(() => undefined);
       await openOptions();
     })();
-  if (state.phase === 'loading') return <main className="popup"><LoadingView /></main>;
+  if (state.phase === 'loading') return <main className={rootClass}><LoadingView /></main>;
   if (state.phase === 'blocked') {
     return (
-      <main className="popup">
+      <main className={rootClass}>
         <BlockedView
           reason={state.reason}
           onOpenOptions={openOpts}
@@ -198,7 +205,7 @@ export function PopupApp({
   const { config, tabId, tabUrl: stateUrl, read: page, projectId } = state;
   if (config.projects.length === 0 || projectId === null) {
     return (
-      <main className="popup">
+      <main className={rootClass}>
         <NoProjectsView onOpenOptions={openOpts} />
       </main>
     );
@@ -224,9 +231,9 @@ export function PopupApp({
     setActionError(null);
     try {
       await pick(tabId, projectId, field.key);
-      // Closing ends the popup's context; pending draft writes must land first.
+      // Closing ends the popup's context; pending draft writes must land first. The side panel stays open.
       await writes.current;
-      close();
+      if (variant === 'popup') close();
     } catch {
       setActionError(t('popup.field.pickFailed'));
     }
@@ -342,7 +349,7 @@ export function PopupApp({
 
   if (project.targets.length === 0) {
     return (
-      <main className="popup">
+      <main className={rootClass}>
         {header}
         <NoTargetView onOpenOptions={openOpts} />
       </main>
@@ -350,7 +357,7 @@ export function PopupApp({
   }
 
   return (
-    <main className="popup">
+    <main className={rootClass}>
       {header}
       {actionError && <p role="alert" className="popup-error">{actionError}</p>}
       <FieldForm

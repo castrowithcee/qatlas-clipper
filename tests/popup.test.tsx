@@ -184,6 +184,25 @@ describe('popup', () => {
     expect(failing.deps.close).not.toHaveBeenCalled();
   });
 
+  it('side panel variant keeps the panel open after the picker starts and fills the width', async () => {
+    const { user, deps, view } = setup({ variant: 'sidepanel' });
+    await screen.findByLabelText('Price');
+    expect(view.container.querySelector('main')!.className).toContain('popup-panel');
+    await user.click(screen.getByRole('button', { name: 'Click Price on the page' }));
+    await waitFor(() => expect(deps.pick).toHaveBeenCalledWith(7, 'b', 'price'));
+    await new Promise((r) => setTimeout(r, 20));
+    expect(deps.close).not.toHaveBeenCalled();
+  });
+
+  it('reads the tab again when the reload token changes', async () => {
+    const read = fakeRead(basePage);
+    const { deps, view } = setup({ read });
+    await screen.findByLabelText('Price');
+    const before = read.mock.calls.length;
+    view.rerender(<PopupApp {...deps} reloadToken={1} />);
+    await waitFor(() => expect(read.mock.calls.length).toBeGreaterThan(before));
+  });
+
   it('shows a hint with options link without projects', async () => {
     const { user, deps } = setup({ projects: [] });
     expect(await screen.findByText('No projects yet')).toBeTruthy();
