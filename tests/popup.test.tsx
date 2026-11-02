@@ -321,3 +321,119 @@ describe('popup: add field while capturing', () => {
     expect(input).toHaveProperty('value', '');
   });
 });
+
+describe('popup: field menu', () => {
+  type Stored = { id: string; fields: { key: string; required: boolean; format?: string }[]; siteMappings: Record<string, Record<string, string>> };
+  const storedProject = (storage: { data: Record<string, unknown> }) =>
+    (storage.data[CONFIG_KEY] as { projects: Stored[] }).projects[0]!;
+  const menuProject = () =>
+    project('m', 'Menu', [field('price', 'Price'), field('title', 'Title')], {
+      siteMappings: {
+        'example.com': { price: '#price', title: '#title' },
+        'other.example.org': { price: '#other' },
+      },
+    });
+  const page = (): Page => ({ url: 'https://www.example.com/a', title: 'Article', matching: ['m'], fields: { m: { price: { value: '12', source: 'selector' } } } });
+  const open = (user: ReturnType<typeof userEvent.setup>, label: string) =>
+    user.click(screen.getByRole('button', { name: `Options for ${label}` }));
+
+  it('starts the picker for the field and closes', async () => {
+    const { user, deps } = setup({ projects: [menuProject()], page });
+    await screen.findByLabelText('Price');
+    await open(user, 'Price');
+    await user.click(screen.getByRole('menuitem', { name: 'Pick again on the page' }));
+    expect(deps.pick).toHaveBeenCalledWith(7, 'm', 'price');
+    await waitFor(() => expect(deps.close).toHaveBeenCalled());
+  });
+
+  it('removes only the mapping of this field on this site and reads again', async () => {
+    const storage = fakeStorage(stored(menuProject()));
+    const { user, read: rawRead } = setup({ storage, page });
+    const read = vi.mocked(rawRead);
+    await screen.findByLabelText('Price');
+    const reads = read.mock.calls.length;
+    await open(user, 'Price');
+    await user.click(screen.getByRole('menuitem', { name: 'Remove assignment for this website' }));
+    await waitFor(() => expect(storedProject(storage).siteMappings).toEqual({
+      'example.com': { title: '#title' },
+      'other.example.org': { price: '#other' },
+    }));
+    await waitFor(() => expect(read.mock.calls.length).toBeGreaterThan(reads));
+    const last = read.mock.calls.at(-1)!;
+    expect((last[1] as Stored[])[0]!.siteMappings['example.com']).toEqual({ title: '#title' });
+    // Menu is closed and focus is back on the button.
+    expect(screen.queryByRole('menu')).toBeNull();
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Options for Price' }));
+    // No mapping left for this field here: the action is gone.
+    await open(user, 'Price');
+    expect(screen.queryByRole('menuitem', { name: 'Remove assignment for this website' })).toBeNull();
+    expect(storedProject(storage).siteMappings['example.com']).toEqual({ title: '#title' });
+  });
+
+  it('hides the removal without a mapping for this site', async () => {
+    const { user } = setup({ projects: [project('m', 'Menu', [field('price', 'Price')], { siteMappings: { 'other.example.org': { price: '#x' } } })], page });
+    await screen.findByLabelText('Price');
+    await open(user, 'Price');
+    expect(screen.getByRole('menuitem', { name: 'Pick again on the page' })).toBeTruthy();
+    expect(screen.queryByRole('menuitem', { name: 'Remove assignment for this website' })).toBeNull();
+  });
+
+  it('saves required and format immediately and keeps typed values', async () => {
+    const storage = fakeStorage(stored(menuProject()));
+    const { user } = setup({ storage, page });
+    const title = await screen.findByLabelText('Title');
+    await user.type(title, 'typed');
+    await open(user, 'Price');
+    const required = screen.getByRole('menuitemcheckbox', { name: 'Required' });
+    expect(required.getAttribute('aria-checked')).toBe('false');
+    await user.click(required);
+    await waitFor(() => expect(storedProject(storage).fields[0]!.required).toBe(true));
+    await open(user, 'Price');
+    expect(screen.getByRole('menuitemradio', { name: 'Markdown' }).getAttribute('aria-checked')).toBe('true');
+    await user.click(screen.getByRole('menuitemradio', { name: 'Text' }));
+    await waitFor(() => expect(storedProject(storage).fields[0]!.format).toBe('text'));
+    expect(storedProject(storage).fields[0]!.required).toBe(true);
+    expect(await screen.findByLabelText('Price (required)')).toBeTruthy();
+    expect(screen.getByLabelText('Title')).toHaveProperty('value', 'typed');
+    await open(user, 'Price');
+    expect(screen.getByRole('menuitemcheckbox', { name: 'Required' }).getAttribute('aria-checked')).toBe('true');
+    expect(screen.getByRole('menuitemradio', { name: 'Text' }).getAttribute('aria-checked')).toBe('true');
+  });
+
+  it('shows a message and keeps the configuration when saving fails', async () => {
+    const storage = fakeStorage(stored(menuProject()));
+    const { user } = setup({ storage, page });
+    await screen.findByLabelText('Price');
+    storage.set = async () => {
+      throw new Error('quota');
+    };
+    await open(user, 'Price');
+    await user.click(screen.getByRole('menuitemcheckbox', { name: 'Required' }));
+    expect((await screen.findByRole('alert')).textContent).toBe('The change could not be saved.');
+    expect(storedProject(storage).fields[0]!.required).toBe(false);
+  });
+
+  it('is operated with the keyboard', async () => {
+    const { user } = setup({ projects: [menuProject()], page });
+    await screen.findByLabelText('Price');
+    const button = screen.getByRole('button', { name: 'Options for Price' });
+    expect(button.getAttribute('aria-haspopup')).toBe('menu');
+    expect(button.getAttribute('aria-expanded')).toBe('false');
+    button.focus();
+    await user.keyboard('{Enter}');
+    expect(button.getAttribute('aria-expanded')).toBe('true');
+    const items = [...screen.getByRole('menu').querySelectorAll('[role^="menuitem"]')];
+    expect(document.activeElement).toBe(items[0]);
+    await user.keyboard('{ArrowDown}');
+    expect(document.activeElement).toBe(items[1]);
+    await user.keyboard('{ArrowUp}{ArrowUp}');
+    expect(document.activeElement).toBe(items.at(-1));
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('menu')).toBeNull();
+    expect(document.activeElement).toBe(button);
+    await user.keyboard('{ArrowDown}');
+    expect(screen.getByRole('menu')).toBeTruthy();
+    await user.click(document.body);
+    expect(screen.queryByRole('menu')).toBeNull();
+  });
+});

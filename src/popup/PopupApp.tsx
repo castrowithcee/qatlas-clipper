@@ -22,9 +22,11 @@ import {
   saveDraft,
   type Draft,
 } from './draft';
-import { addCapturedField } from './projectFields';
+import { deleteMapping } from '../options/draft';
+import { normalizeDomain } from '../picker/mapping';
+import { addCapturedField, updateProject, updateProjectField } from './projectFields';
 import { requestOptionsFocus } from '../options/focus';
-import { FieldForm } from './FieldForm';
+import { FieldForm, type FieldPatch } from './FieldForm';
 import { Header } from './Header';
 import { MissingHint, ResultView } from './Outcome';
 import { BlockedView, LoadingView, NoPermissionView, NoProjectsView, NoTargetView, type BlockReason } from './States';
@@ -111,6 +113,8 @@ export function PopupApp({
   // Set on selection: state.projectId follows only after the tab re-read, too late for the options handoff.
   const chosenProject = useRef<string | null>(null);
   const writes = useRef<Promise<void>>(Promise.resolve());
+  // Menu changes run one after another so each re-read sees the configuration its save produced.
+  const menuOps = useRef<Promise<void>>(Promise.resolve());
 
   const persist = useCallback(
     (next: Draft) => {
@@ -236,6 +240,48 @@ export function PopupApp({
     await map(field);
   };
 
+  // Save through the merge-safe path, then read the page again with the saved configuration. Drafts stay untouched.
+  const saveAndReread = (save: () => Promise<Config>) => {
+    setActionError(null);
+    menuOps.current = menuOps.current.then(async () => {
+      let saved: Config;
+      try {
+        saved = await save();
+      } catch {
+        setActionError(t('popup.menu.failed'));
+        return;
+      }
+      const rid = ++requestId.current;
+      try {
+        const result = await read(tabId, saved.projects, projectId);
+        if (rid !== requestId.current) return;
+        if (!result.ok) return setState({ phase: 'blocked', reason: result.kind });
+        setState((s) => (s.phase === 'ready' ? { ...s, config: saved, read: result.result } : s));
+      } catch {
+        if (rid === requestId.current) setState({ phase: 'blocked', reason: 'load-failed' });
+      }
+    });
+  };
+
+  const siteDomain = (() => {
+    try {
+      return normalizeDomain(page.url);
+    } catch {
+      return null;
+    }
+  })();
+  const mappedKeys =
+    siteDomain !== null && Object.hasOwn(project.siteMappings, siteDomain)
+      ? project.fields.filter((f) => Object.hasOwn(project.siteMappings[siteDomain]!, f.key)).map((f) => f.key)
+      : [];
+
+  const updateField = (field: Field, patch: FieldPatch) =>
+    saveAndReread(() => updateProjectField(storage, projectId, field.key, (f) => ({ ...f, ...patch })));
+  const removeMapping = (field: Field) => {
+    if (siteDomain === null) return;
+    saveAndReread(() => updateProject(storage, projectId, (p) => deleteMapping(p, siteDomain, field.key)));
+  };
+
   const valueOf = (key: string) => (edits[key] ?? page.fields[key]?.value ?? '');
 
   const sendTo = async (target: { id: string; name: string; url: string }) => {
@@ -321,6 +367,9 @@ export function PopupApp({
         onNote={(note) => persist({ ...current, projectId, note })}
         onPick={(field) => void map(field)}
         onAddField={addField}
+        mappedKeys={mappedKeys}
+        onUpdateField={updateField}
+        onRemoveMapping={removeMapping}
       />
       <section aria-label={t('popup.send.section')} className="popup-send">
         {project.targets.map((target) => {
