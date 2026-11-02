@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react';
 import { useI18n } from '../../src/settings';
 import {
-  Button, Checkbox, Chip, Dialog, Disclosure, EmptyState, ErrorState, ICON_NAMES, Icon, IconButton, LoadingState, NotificationsProvider, Select, Switch, TextField, Toast, Tooltip, useNotifications,
+  Button, Checkbox, Chip, Dialog, Disclosure, EmptyState, ErrorState, ICON_NAMES, Icon, IconButton, LoadingState, NotificationsProvider, Select, Switch, TextField, Toast, Tooltip, TileGroup, useNotifications,
 } from '../../src/ui/components';
 import '../../src/ui/components/components.css';
 
@@ -24,6 +24,18 @@ function NotifyDemo() {
 }
 
 const OPTIONS = [{ value: 'a', label: 'Article' }, { value: 'b', label: 'Product' }];
+
+function TileGroupDemo() {
+  const [v, setV] = useState<'system' | 'light' | 'dark'>('light');
+  return (
+    <TileGroup
+      legend="Appearance"
+      value={v}
+      onChange={setV}
+      options={[{ value: 'system', label: 'System', icon: 'monitor' }, { value: 'light', label: 'Light', icon: 'sun' }, { value: 'dark', label: 'Dark', icon: 'moon' }]}
+    />
+  );
+}
 
 export function Gallery() {
   const i18n = useI18n();
@@ -112,6 +124,9 @@ export function Gallery() {
           <Chip label="example.com" removeLabel="Remove example.com" onRemove={() => {}} />
           <Chip label="example.org" removeLabel="Remove example.org" onRemove={() => {}} />
         </ul>
+      </Section>
+      <Section id="tiles" title="Tile group">
+        <TileGroupDemo />
       </Section>
       <Section id="icons" title="Icons">
         <div className="gallery-icons">{ICON_NAMES.map((n) => <Icon key={n} name={n} />)}</div>

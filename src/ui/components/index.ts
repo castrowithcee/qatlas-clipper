@@ -7,3 +7,4 @@ export { Dialog } from './Dialog';
 export { Disclosure, EmptyState, ErrorState, LoadingState, Toast, type ToastKind } from './Feedback';
 export { Chip } from './Chip';
 export { NotificationsProvider, TOAST_DURATION_MS, useNotifications, type Notifications } from './Notifications';
+export { TileGroup, type TileOption } from './TileGroup';

@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import {
-  Button, Checkbox, Chip, Dialog, Disclosure, EmptyState, ErrorState, Icon, IconButton, LoadingState, Select, Switch, TextField, Toast, Tooltip, ICON_NAMES, NotificationsProvider, TOAST_DURATION_MS, useNotifications, type ToastKind,
+  Button, Checkbox, Chip, Dialog, Disclosure, EmptyState, ErrorState, Icon, IconButton, LoadingState, Select, Switch, TextField, Toast, Tooltip, TileGroup, ICON_NAMES, NotificationsProvider, TOAST_DURATION_MS, useNotifications, type ToastKind,
 } from '../src/ui/components';
 import { de, en } from '../src/i18n/catalog';
 
@@ -333,5 +333,23 @@ describe('Chip', () => {
     expect(screen.getByRole('listitem').textContent).toBe('example.com');
     await userEvent.setup().click(screen.getByRole('button', { name: 'Remove example.com' }));
     expect(onRemove).toHaveBeenCalledOnce();
+  });
+});
+
+describe('TileGroup', () => {
+  function Demo() {
+    const [v, setV] = useState('a');
+    return <TileGroup legend="Mode" value={v} onChange={setV} options={[{ value: 'a', label: 'One', icon: 'sun' }, { value: 'b', label: 'Two', icon: 'moon' }]} />;
+  }
+  it('is a labelled group; click and arrow keys change the selection', async () => {
+    const user = userEvent.setup();
+    render(<Demo />);
+    expect(screen.getByRole('group', { name: 'Mode' })).toBeTruthy();
+    expect((screen.getByRole('radio', { name: 'One' }) as HTMLInputElement).checked).toBe(true);
+    await user.click(screen.getByRole('radio', { name: 'Two' }));
+    expect((screen.getByRole('radio', { name: 'Two' }) as HTMLInputElement).checked).toBe(true);
+    screen.getByRole('radio', { name: 'Two' }).focus();
+    await user.keyboard('{ArrowLeft}');
+    expect((screen.getByRole('radio', { name: 'One' }) as HTMLInputElement).checked).toBe(true);
   });
 });

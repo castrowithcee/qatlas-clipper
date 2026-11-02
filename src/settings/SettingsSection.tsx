@@ -1,11 +1,15 @@
 import { useId, useState } from 'react';
 import type { LanguageChoice } from '../i18n';
 import type { Appearance } from '../ui';
-import { IconButton, Select, Tooltip } from '../ui/components';
+import { IconButton, Select, TileGroup, Tooltip, type IconName } from '../ui/components';
 import { useSettings } from './SettingsProvider';
 
 const LANGUAGES: LanguageChoice[] = ['auto', 'de', 'en'];
-const APPEARANCES: Appearance[] = ['system', 'light', 'dark'];
+const APPEARANCES: { value: Appearance; icon: IconName }[] = [
+  { value: 'system', icon: 'monitor' },
+  { value: 'light', icon: 'sun' },
+  { value: 'dark', icon: 'moon' },
+];
 
 export function SettingsSection() {
   const { settings, i18n, update } = useSettings();
@@ -32,11 +36,11 @@ export function SettingsSection() {
         onChange={(e) => change({ language: e.target.value as LanguageChoice })}
         options={LANGUAGES.map((l) => ({ value: l, label: i18n.t(`settings.language.${l}`) }))}
       />
-      <Select
-        label={i18n.t('settings.appearance.label')}
+      <TileGroup
+        legend={i18n.t('settings.appearance.label')}
         value={settings.appearance}
-        onChange={(e) => change({ appearance: e.target.value as Appearance })}
-        options={APPEARANCES.map((a) => ({ value: a, label: i18n.t(`settings.appearance.${a}`) }))}
+        onChange={(appearance) => change({ appearance })}
+        options={APPEARANCES.map((a) => ({ ...a, label: i18n.t(`settings.appearance.${a.value}`) }))}
       />
       {error && <p role="alert" className="error">{error}</p>}
     </section>

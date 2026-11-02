@@ -772,7 +772,7 @@ describe('options page language', () => {
     expect(document.title).toBe(de['options.title']);
     expect(document.documentElement.dataset.theme).toBe('light');
     await user.click(screen.getByRole('link', { name: de['options.nav.settings'] }));
-    await user.selectOptions(screen.getByLabelText(de['settings.appearance.label']), 'dark');
+    await user.click(screen.getByRole('radio', { name: de['settings.appearance.dark'] }));
     expect(document.documentElement.dataset.theme).toBe('dark');
     await user.selectOptions(screen.getByLabelText(de['settings.language.label']), 'en');
     await user.click(screen.getByRole('link', { name: 'A' }));
