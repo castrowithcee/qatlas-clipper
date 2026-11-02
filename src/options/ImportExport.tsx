@@ -1,10 +1,38 @@
-import { useId, useState } from 'react';
+import { useId, useRef, useState } from 'react';
 import { exportConfig, checkImportUrl, fetchImportText, MAX_IMPORT_CHARS, parseImportText, saveConfig, type Config, type StorageArea } from '../config';
 import { useI18n } from '../settings';
-import { Button, Dialog, Field, IconButton, TextField, Toast, Tooltip } from '../ui/components';
+import { Button, Dialog, Field, IconButton, TextField, Tooltip, useNotifications } from '../ui/components';
 import type { PermissionsApi } from './permissions';
 
 export const EXPORT_FILENAME = 'qatlas-clipper-config.json';
+
+// Not in the TypeScript DOM lib yet; only what is used here.
+interface SaveFileHandle {
+  createWritable(): Promise<{ write(data: string): Promise<void>; close(): Promise<void> }>;
+}
+type SaveFilePicker = (options: { suggestedName: string; types: { description: string; accept: Record<string, string[]> }[] }) => Promise<SaveFileHandle>;
+
+const isAbort = (e: unknown) => typeof e === 'object' && e !== null && (e as { name?: unknown }).name === 'AbortError';
+
+/** Resolves true once the file is written, false if the user cancelled or no save dialog exists (plain download, no outcome known). */
+async function saveText(filename: string, text: string, description: string): Promise<boolean> {
+  const picker = (window as { showSaveFilePicker?: SaveFilePicker }).showSaveFilePicker;
+  if (!picker) {
+    downloadText(filename, text);
+    return false;
+  }
+  try {
+    const handle = await picker.call(window, { suggestedName: filename, types: [{ description, accept: { 'application/json': ['.json'] } }] });
+    const writable = await handle.createWritable();
+    // eslint-disable-next-line no-restricted-syntax -- FileSystemWritableFileStream.write, not document.write
+    await writable.write(text);
+    await writable.close();
+    return true;
+  } catch (e) {
+    if (isAbort(e)) return false;
+    throw e;
+  }
+}
 
 function downloadText(filename: string, text: string) {
   const url = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
@@ -21,16 +49,23 @@ interface Props {
   /** True if the editor has unsaved changes. */
   dirty: boolean;
   onImported: () => void;
+  /** Brackets the replacing write, so the page does not treat its own import as a foreign change. */
+  onImporting?: (active: boolean) => void;
 }
 
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
-export function ImportExport({ storage, permissions, dirty, onImported }: Props) {
+export function ImportExport({ storage, permissions, dirty, onImported, onImporting }: Props) {
   const { t, tn } = useI18n();
   const id = useId();
   const [url, setUrl] = useState('');
   const [pending, setPending] = useState<Config>();
-  const [status, setStatus] = useState<{ kind: 'success' | 'error'; text: string }>();
+  const { notify, dismiss } = useNotifications();
+  const statusId = useRef<number | undefined>(undefined);
+  const setStatus = (status: { kind: 'success' | 'error'; text: string } | undefined) => {
+    if (statusId.current !== undefined) dismiss(statusId.current);
+    statusId.current = status && notify(status.kind, status.text);
+  };
   const [fileError, setFileError] = useState<string>();
   const [urlError, setUrlError] = useState<string>();
   const [busy, setBusy] = useState(false);
@@ -46,8 +81,10 @@ export function ImportExport({ storage, permissions, dirty, onImported }: Props)
     reset();
     try {
       // Only the saved state is exported, never header values.
-      downloadText(EXPORT_FILENAME, await exportConfig(storage));
-      setStatus({ kind: 'success', text: t('options.io.export.done') });
+      // Success is only reported once the file is written; a plain download or a cancelled dialog says nothing.
+      if (await saveText(EXPORT_FILENAME, await exportConfig(storage), t('options.io.export.fileType'))) {
+        setStatus({ kind: 'success', text: t('options.io.export.done') });
+      }
     } catch (e) {
       setStatus({ kind: 'error', text: t('options.io.export.failed', { message: message(e) }) });
     }
@@ -94,12 +131,14 @@ export function ImportExport({ storage, permissions, dirty, onImported }: Props)
   const confirm = async () => {
     if (!pending) return;
     setBusy(true);
+    onImporting?.(true);
     try {
       await saveConfig(pending, storage);
       setPending(undefined);
       setStatus({ kind: 'success', text: tn('options.io.imported', pending.projects.length) });
       onImported();
     } catch (e) {
+      onImporting?.(false);
       setPending(undefined);
       setStatus({ kind: 'error', text: t('options.io.failed', { message: message(e) }) });
     } finally {
@@ -158,11 +197,6 @@ export function ImportExport({ storage, permissions, dirty, onImported }: Props)
           </Button>
         </div>
       </section>
-      {status && (
-        <Toast kind={status.kind} onDismiss={() => setStatus(undefined)}>
-          {status.text}
-        </Toast>
-      )}
       <Dialog
         open={pending !== undefined}
         onClose={() => !busy && setPending(undefined)}

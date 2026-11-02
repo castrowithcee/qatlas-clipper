@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react';
 import { useI18n } from '../../src/settings';
 import {
-  Button, Checkbox, Chip, Dialog, Disclosure, EmptyState, ErrorState, ICON_NAMES, Icon, IconButton, LoadingState, Select, Switch, TextField, Toast, Tooltip,
+  Button, Checkbox, Chip, Dialog, Disclosure, EmptyState, ErrorState, ICON_NAMES, Icon, IconButton, LoadingState, NotificationsProvider, Select, Switch, TextField, Toast, Tooltip, TileGroup, useNotifications,
 } from '../../src/ui/components';
 import '../../src/ui/components/components.css';
 
@@ -12,7 +12,30 @@ const Section = ({ id, title, children }: { id: string; title: string; children:
   </section>
 );
 
+// The area itself sits fixed at the top of the window; these buttons show it live.
+function NotifyDemo() {
+  const { notify } = useNotifications();
+  return (
+    <div className="gallery-row">
+      <Button onClick={() => notify('success', 'Saved.')}>Show message</Button>
+      <Button onClick={() => notify('error', 'Not saved: the webhook did not respond')}>Show error</Button>
+    </div>
+  );
+}
+
 const OPTIONS = [{ value: 'a', label: 'Article' }, { value: 'b', label: 'Product' }];
+
+function TileGroupDemo() {
+  const [v, setV] = useState<'system' | 'light' | 'dark'>('light');
+  return (
+    <TileGroup
+      legend="Appearance"
+      value={v}
+      onChange={setV}
+      options={[{ value: 'system', label: 'System', icon: 'monitor' }, { value: 'light', label: 'Light', icon: 'sun' }, { value: 'dark', label: 'Dark', icon: 'moon' }]}
+    />
+  );
+}
 
 export function Gallery() {
   const i18n = useI18n();
@@ -72,6 +95,9 @@ export function Gallery() {
         <Toast kind="success" onDismiss={() => {}}>Sent to the webhook</Toast>
         <Toast kind="warning">Permission is still missing</Toast>
         <Toast kind="error" onDismiss={() => {}}>The webhook did not respond</Toast>
+        <NotificationsProvider>
+          <NotifyDemo />
+        </NotificationsProvider>
       </Section>
       <Section id="states" title="Empty, loading and error">
         <EmptyState title="No projects yet" description="Create a project to start clipping" action={<Button variant="primary" icon="plus">New project</Button>} />
@@ -98,6 +124,9 @@ export function Gallery() {
           <Chip label="example.com" removeLabel="Remove example.com" onRemove={() => {}} />
           <Chip label="example.org" removeLabel="Remove example.org" onRemove={() => {}} />
         </ul>
+      </Section>
+      <Section id="tiles" title="Tile group">
+        <TileGroupDemo />
       </Section>
       <Section id="icons" title="Icons">
         <div className="gallery-icons">{ICON_NAMES.map((n) => <Icon key={n} name={n} />)}</div>

@@ -199,6 +199,18 @@ describe('popup', () => {
     expect(draftStorage.data[OPTIONS_FOCUS_KEY]).toMatchObject({ projectId: 'a' });
   });
 
+  it('hands the newly selected project over while its page read is still pending', async () => {
+    const ready = fakeRead(basePage);
+    const read = vi.fn((tab: number, projects: unknown, projectId?: string) =>
+      read.mock.calls.length > 1 ? new Promise<ReadTabResult>(() => undefined) : ready(tab, projects, projectId));
+    const { user, deps, draftStorage } = setup({ read });
+    await user.selectOptions(await screen.findByLabelText('Project'), 'a');
+    await user.click(screen.getByRole('button', { name: 'Open settings' }));
+    await waitFor(() => expect(deps.openOptions).toHaveBeenCalledTimes(1));
+    expect(read).toHaveBeenLastCalledWith(7, expect.anything(), 'a');
+    expect(draftStorage.data[OPTIONS_FOCUS_KEY]).toMatchObject({ projectId: 'a' });
+  });
+
   it('opens the options page without a request when writing it fails', async () => {
     const draftStorage = { ...fakeStorage(), set: async () => { throw new Error('no session'); } };
     const { user, deps } = setup({ draftStorage });

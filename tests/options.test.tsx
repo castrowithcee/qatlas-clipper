@@ -586,21 +586,73 @@ describe('import and export', () => {
 
   afterEach(() => vi.unstubAllGlobals());
 
+  const exportDone = 'The saved configuration was exported.';
+
   it('exports the saved configuration without header values and says so', async () => {
+    const storage = withHeader();
+    let written = '';
+    const writable = { write: vi.fn(async (t: string) => void (written = t)), close: vi.fn(async () => {}) };
+    let options: unknown;
+    vi.stubGlobal('showSaveFilePicker', async (o: unknown) => ((options = o), { createWritable: async () => writable }));
+    const user = await mount(storage, fakePermissions(), IMPORT_EXPORT);
+    expect(screen.getByText(/Access keys are not included/)).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Export' }));
+    await screen.findByText(exportDone);
+    expect(options).toMatchObject({ suggestedName: 'qatlas-clipper-config.json' });
+    expect(written).toContain('Authorization');
+    expect(written).not.toContain('secret-token');
+    expect(writable.close).toHaveBeenCalledOnce();
+  });
+
+  it('reports the export only after the file is closed', async () => {
+    let finish!: () => void;
+    const writable = { write: vi.fn(async () => {}), close: vi.fn(() => new Promise<void>((r) => (finish = r))) };
+    vi.stubGlobal('showSaveFilePicker', async () => ({ createWritable: async () => writable }));
+    const user = await mount(withHeader(), fakePermissions(), IMPORT_EXPORT);
+    await user.click(screen.getByRole('button', { name: 'Export' }));
+    await waitFor(() => expect(writable.close).toHaveBeenCalled());
+    expect(screen.queryByText(exportDone)).toBeNull();
+    finish();
+    await screen.findByText(exportDone);
+  });
+
+  it('stays silent when the save dialog is cancelled', async () => {
+    const picker = vi.fn(async () => {
+      throw new DOMException('cancelled', 'AbortError');
+    });
+    vi.stubGlobal('showSaveFilePicker', picker);
+    const user = await mount(withHeader(), fakePermissions(), IMPORT_EXPORT);
+    await user.click(screen.getByRole('button', { name: 'Export' }));
+    await waitFor(() => expect(picker).toHaveBeenCalled());
+    await act(async () => {});
+    expect(screen.queryByText(exportDone)).toBeNull();
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('shows other save errors as an error message that stays', async () => {
+    vi.stubGlobal('showSaveFilePicker', async () => ({
+      createWritable: async () => ({ write: async () => { throw new Error('disk full'); }, close: async () => {} }),
+    }));
+    const user = await mount(withHeader(), fakePermissions(), IMPORT_EXPORT);
+    await user.click(screen.getByRole('button', { name: 'Export' }));
+    expect((await screen.findByRole('alert')).textContent).toContain('Export failed: disk full');
+    expect(screen.queryByText(exportDone)).toBeNull();
+  });
+
+  it('falls back to a download without a message when there is no save dialog', async () => {
     const storage = withHeader();
     let blob: Blob | undefined;
     URL.createObjectURL = vi.fn((b: Blob) => ((blob = b), 'blob:x'));
     URL.revokeObjectURL = vi.fn();
     const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
     const user = await mount(storage, fakePermissions(), IMPORT_EXPORT);
-    expect(screen.getByText(/Access keys are not included/)).toBeTruthy();
     await user.click(screen.getByRole('button', { name: 'Export' }));
-    await screen.findByText('The saved configuration was exported.');
+    await waitFor(() => expect(click).toHaveBeenCalledOnce());
     const text = await blob!.text();
     expect(text).toContain('Authorization');
     expect(text).not.toContain('secret-token');
-    expect(click).toHaveBeenCalledOnce();
     expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:x');
+    expect(screen.queryByText(exportDone)).toBeNull();
     click.mockRestore();
   });
 
@@ -636,6 +688,8 @@ describe('import and export', () => {
     await user.upload(screen.getByLabelText('From file'), file);
     await user.click(await screen.findByRole('button', { name: 'Replace' }));
     expect(await screen.findByRole('link', { name: 'Imported 1' })).toBeTruthy();
+    // The message survives the reload that remounts the page content.
+    expect(screen.getByText(/Imported: 2 projects/)).toBeTruthy();
     expect((await loadConfig(storage)).projects.map((p) => p.name)).toEqual(['Imported 1', 'Imported 2']);
   });
 
@@ -733,7 +787,7 @@ describe('options page language', () => {
     expect(document.title).toBe(de['options.title']);
     expect(document.documentElement.dataset.theme).toBe('light');
     await user.click(screen.getByRole('link', { name: de['options.nav.settings'] }));
-    await user.selectOptions(screen.getByLabelText(de['settings.appearance.label']), 'dark');
+    await user.click(screen.getByRole('radio', { name: de['settings.appearance.dark'] }));
     expect(document.documentElement.dataset.theme).toBe('dark');
     await user.selectOptions(screen.getByLabelText(de['settings.language.label']), 'en');
     await user.click(screen.getByRole('link', { name: 'A' }));
@@ -980,5 +1034,186 @@ describe('field format defaults per value way', () => {
     const manual = setValueWay(detect, 'manual');
     expect(manual.format).toBe('text');
     expect(setValueWay(manual, 'click').format).toBe('markdown');
+  });
+});
+
+describe('saving without overwriting', () => {
+  // Storage that tells its subscribers about every write, like storage.onChanged does for other windows.
+  function watched(initial: Record<string, unknown>) {
+    const storage = fakeStorage(initial);
+    const listeners = new Set<() => void>();
+    const origSet = storage.set.bind(storage);
+    const fire = () => act(() => listeners.forEach((l) => l()));
+    return Object.assign(storage, {
+      subscribe: (cb: () => void) => (listeners.add(cb), () => listeners.delete(cb)),
+      fire,
+      // A write by another window: changes the data, then fires the event.
+      foreign: async (change: (data: Record<string, unknown>) => void, silent = false) => {
+        change(storage.data);
+        if (!silent) fire();
+      },
+      echo: async (items: Record<string, unknown>) => {
+        await origSet(items);
+        fire();
+      },
+    });
+  }
+  type Watched = ReturnType<typeof watched>;
+  const cfg = (data: Record<string, unknown>) => (data[CONFIG_KEY] as { projects: Record<string, unknown>[] });
+  const mountWatched = async (storage: Watched) => {
+    const user = userEvent.setup();
+    window.location.hash = '';
+    render(<OptionsApp storage={storage} permissions={fakePermissions()} stored={storage.subscribe} />);
+    await screen.findByRole('navigation', { name: 'Options' });
+    return user;
+  };
+  const links = () => within(screen.getByRole('navigation', { name: 'Options' })).getAllByRole('link').map((a) => a.textContent).filter((x) => x !== 'Settings' && x !== 'Import and export');
+  const rename = async (user: ReturnType<typeof userEvent.setup>, name: string) => {
+    const input = screen.getByLabelText('Project name');
+    await user.clear(input);
+    await user.type(input, name);
+  };
+  const CONFLICT = 'Changes from another window';
+
+  it('shows a foreign change silently when there are no own changes', async () => {
+    const storage = watched(stored(project('p1', 'A')));
+    await mountWatched(storage);
+    await storage.foreign((d) => { cfg(d).projects.push(project('p2', 'B')); });
+    await waitFor(() => expect(links()).toContain('B'));
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(screen.queryByText('Unsaved changes.')).toBeNull();
+  });
+
+  it('merges a foreign change with own unsaved changes', async () => {
+    const storage = watched(stored(project('p1', 'A')));
+    const user = await mountWatched(storage);
+    await rename(user, 'Mine');
+    await storage.foreign((d) => { cfg(d).projects.push(project('p2', 'B')); });
+    await waitFor(() => expect(links()).toEqual(expect.arrayContaining(['Mine', 'B'])));
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(screen.getByText('Unsaved changes.')).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+    await screen.findByText('Saved.');
+    expect((await loadConfig(storage)).projects.map((p) => p.name)).toEqual(['Mine', 'B']);
+  });
+
+  it('asks on a conflict, blocks saving until the choice and keeps the own version on request', async () => {
+    const storage = watched(stored(project('p1', 'A')));
+    const user = await mountWatched(storage);
+    await rename(user, 'Mine');
+    await storage.foreign((d) => { cfg(d).projects[0]!.name = 'Theirs'; });
+    const dialog = await screen.findByRole('dialog', { name: CONFLICT });
+    expect(dialog.textContent).toContain('Name of the project "Mine"');
+    expect(screen.getByRole('button', { name: 'Save changes' })).toHaveProperty('disabled', true);
+    // Escape does not decide anything and loses nothing.
+    await user.keyboard('{Escape}');
+    expect(screen.getByRole('dialog', { name: CONFLICT })).toBeTruthy();
+    expect(within(dialog).queryByRole('button', { name: 'Close' })).toBeNull();
+    await user.click(within(dialog).getByRole('button', { name: 'Keep mine' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(links()).toEqual(['Mine']);
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+    await screen.findByText('Saved.');
+    expect((await loadConfig(storage)).projects[0]?.name).toBe('Mine');
+  });
+
+  it('takes the other version on request', async () => {
+    const storage = watched(stored(project('p1', 'A')));
+    const user = await mountWatched(storage);
+    await rename(user, 'Mine');
+    await storage.foreign((d) => { cfg(d).projects[0]!.name = 'Theirs'; });
+    await user.click(within(await screen.findByRole('dialog', { name: CONFLICT })).getByRole('button', { name: 'Take the other' }));
+    await waitFor(() => expect(links()).toEqual(['Theirs']));
+    expect(screen.queryByText('Unsaved changes.')).toBeNull();
+  });
+
+  it('does not react to the echo of its own save', async () => {
+    const storage = watched(stored(project('p1', 'A')));
+    const user = await mountWatched(storage);
+    await rename(user, 'Mine');
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+    await screen.findByText('Saved.');
+    storage.fire();
+    await new Promise((r) => setTimeout(r, 10));
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(screen.getByText('Saved.')).toBeTruthy();
+    expect(links()).toEqual(['Mine']);
+  });
+
+  it('merges on save when the stored state changed unnoticed and does not lose the foreign change', async () => {
+    const storage = watched(stored(project('p1', 'A')));
+    const user = await mountWatched(storage);
+    await rename(user, 'Mine');
+    await storage.foreign((d) => { cfg(d).projects.push(project('p2', 'B')); }, true);
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+    await screen.findByText('Saved.');
+    expect((await loadConfig(storage)).projects.map((p) => p.name)).toEqual(['Mine', 'B']);
+    expect(links()).toEqual(['Mine', 'B']);
+  });
+
+  it('shows the dialog instead of saving when the unnoticed change conflicts', async () => {
+    const storage = watched(stored(project('p1', 'A')));
+    const user = await mountWatched(storage);
+    await rename(user, 'Mine');
+    await storage.foreign((d) => { cfg(d).projects[0]!.name = 'Theirs'; }, true);
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+    expect(await screen.findByRole('dialog', { name: CONFLICT })).toBeTruthy();
+    expect(cfg(storage.data).projects[0]!.name).toBe('Theirs');
+  });
+
+  it('keeps a renamed field key apart from a mapping another window added for the old key', async () => {
+    const field = { key: 'price', label: 'Price', required: false, sources: {} };
+    const storage = watched(stored(project('p1', 'A', { fields: [field], siteMappings: { 'example.com': { price: '.a' } } })));
+    const user = await mountWatched(storage);
+    await user.click(within(screen.getByRole('group', { name: 'Price' })).getByRole('button', { name: 'Advanced' }));
+    const key = within(screen.getByRole('group', { name: 'Price' })).getByLabelText('Field key', { selector: 'input' });
+    await user.clear(key);
+    await user.type(key, 'cost');
+    await storage.foreign((d) => { cfg(d).projects[0]!.siteMappings = { 'example.com': { price: '.a' }, 'example.org': { price: '.b' } }; });
+    await waitFor(() => expect(screen.getByText('Unsaved changes.')).toBeTruthy());
+    await new Promise((r) => setTimeout(r, 10));
+    expect(screen.queryByRole('dialog')).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+    await screen.findByText('Saved.');
+    const p = (await loadConfig(storage)).projects[0]!;
+    expect(p.fields.map((x) => x.key)).toEqual(['cost']);
+    expect(p.siteMappings).toEqual({ 'example.com': { cost: '.a' }, 'example.org': { cost: '.b' } });
+  });
+
+  it('discards to the current stored state after a foreign change', async () => {
+    const storage = watched(stored(project('p1', 'A')));
+    const user = await mountWatched(storage);
+    await rename(user, 'Mine');
+    await storage.foreign((d) => { cfg(d).projects.push(project('p2', 'B')); });
+    await waitFor(() => expect(links()).toContain('B'));
+    await user.click(screen.getByRole('button', { name: 'Discard changes' }));
+    expect(links()).toEqual(['A', 'B']);
+  });
+
+  it('keeps the draft when the stored state is invalid', async () => {
+    const storage = watched(stored(project('p1', 'A')));
+    const user = await mountWatched(storage);
+    await rename(user, 'Mine');
+    await storage.foreign((d) => { d[CONFIG_KEY] = { schemaVersion: 1, projects: 'broken' }; });
+    await new Promise((r) => setTimeout(r, 10));
+    expect(links()).toEqual(['Mine']);
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('does not treat its own import as a foreign change', async () => {
+    const storage = watched(stored(project('p1', 'Old')));
+    const origSet = storage.set.bind(storage);
+    storage.set = async (items) => {
+      await origSet(items);
+      storage.fire();
+    };
+    const user = await mountWatched(storage);
+    await rename(user, 'Mine');
+    await user.click(screen.getByRole('link', { name: 'Import and export' }));
+    const file = new File([JSON.stringify({ schemaVersion: 1, projects: [project('n1', 'Imported')] })], 'c.json');
+    await user.upload(screen.getByLabelText('From file'), file);
+    await user.click(await screen.findByRole('button', { name: 'Replace' }));
+    expect(await screen.findByRole('link', { name: 'Imported' })).toBeTruthy();
+    expect(screen.queryByRole('dialog', { name: CONFLICT })).toBeNull();
   });
 });

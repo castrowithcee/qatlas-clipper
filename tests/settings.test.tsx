@@ -89,7 +89,7 @@ describe('settings', () => {
     await user.selectOptions(await screen.findByLabelText('Language'), 'de');
     expect(screen.getByTestId('probe').textContent).toBe('Einstellungen');
     expect(document.documentElement.lang).toBe('de');
-    await user.selectOptions(screen.getByLabelText('Darstellung'), 'dark');
+    await user.click(screen.getByRole('radio', { name: 'Dunkel' }));
     expect(theme()).toBe('dark');
     expect(storage.data[SETTINGS_KEY]).toEqual({ language: 'de', appearance: 'dark' });
   });
