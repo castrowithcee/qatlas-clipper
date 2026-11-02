@@ -169,3 +169,16 @@
 .q-tile-input:checked + .q-tile-body .q-tile-check { display: block; }
 .q-tile-input:focus-visible + .q-tile-body { outline: 3px solid var(--color-focus); outline-offset: 2px; }
 .q-tile-input:disabled + .q-tile-body { opacity: 0.5; }
+
+/* Markdown view: values come from untrusted pages, so only token-based text styling here. */
+.q-markdown { overflow-wrap: anywhere; line-height: var(--line-height); }
+.q-markdown > :first-child { margin-top: 0; }
+.q-markdown > :last-child { margin-bottom: 0; }
+.q-markdown p, .q-markdown ul, .q-markdown ol { margin: 0 0 var(--space-2); }
+.q-markdown ul, .q-markdown ol { padding-left: var(--space-5); }
+.q-markdown h1, .q-markdown h2, .q-markdown h3, .q-markdown h4, .q-markdown h5, .q-markdown h6 { margin: var(--space-3) 0 var(--space-1); line-height: 1.25; }
+.q-markdown h1 { font-size: calc(var(--font-size-base) * 1.5); }
+.q-markdown h2 { font-size: calc(var(--font-size-base) * 1.3); }
+.q-markdown h3 { font-size: calc(var(--font-size-base) * 1.15); }
+.q-markdown h4, .q-markdown h5, .q-markdown h6 { font-size: var(--font-size-base); }
+.q-markdown code { font-family: var(--font-mono); font-size: var(--font-size-small); background: var(--color-surface); padding: 0 var(--space-1); border-radius: var(--radius-sm); }
