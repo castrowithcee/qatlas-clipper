@@ -47,7 +47,7 @@ export function fieldKeyFromLabel(label: string, taken: readonly string[]): stri
 /** The key is derived once, here; renaming the label later leaves it alone. */
 export function newField(existing: Field[], label: string): Field {
   const trimmed = label.trim();
-  return { key: fieldKeyFromLabel(trimmed, existing.map((f) => f.key)), label: trimmed, required: false, sources: {} };
+  return { key: fieldKeyFromLabel(trimmed, existing.map((f) => f.key)), label: trimmed, required: false, format: 'markdown', sources: {} };
 }
 
 export type ValueWay = 'detect' | 'click' | 'manual';
@@ -61,9 +61,10 @@ export function setValueWay(field: Field, way: ValueWay): Field {
   if (valueWay(field) === way) return field;
   const { detect: _detect, manual, ...rest } = field.sources;
   void _detect;
-  if (way === 'detect') return { ...field, sources: { ...rest, detect: 'title' } };
-  if (way === 'manual') return { ...field, sources: { ...rest, manual: manual ?? { type: 'text' } } };
-  return { ...field, sources: rest };
+  // The format only affects clicked elements: a new way starts with its default, click mapping with Markdown.
+  if (way === 'detect') return { ...field, format: 'text', sources: { ...rest, detect: 'title' } };
+  if (way === 'manual') return { ...field, format: 'text', sources: { ...rest, manual: manual ?? { type: 'text' } } };
+  return { ...field, format: 'markdown', sources: rest };
 }
 
 /** Switching to "all sites" drops the domain list; switching to specific sites starts with an empty list. */

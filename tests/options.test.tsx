@@ -310,7 +310,7 @@ describe('options page', () => {
       await user.click(screen.getByRole('button', { name: 'Save changes' }));
       await screen.findByText('Saved.');
       expect((await loadConfig(storage)).projects[0]?.fields).toEqual([
-        { key: 'groesse_der_strasse', label: 'Headline', required: true, sources: { detect: 'title' } },
+        { key: 'groesse_der_strasse', label: 'Headline', required: true, format: 'text', sources: { detect: 'title' } },
       ]);
     });
 
@@ -337,6 +337,20 @@ describe('options page', () => {
       await user.click(screen.getByRole('button', { name: 'Save changes' }));
       await screen.findByText('Saved.');
       expect((await loadConfig(storage)).projects[0]?.fields[0]?.sources).toEqual({ schemaOrgPath: 'Article.headline' });
+    });
+
+    it('offers the format only for the click way and saves the choice', async () => {
+      const storage = fakeStorage(stored(project('p1', 'A')));
+      const user = await mount(storage);
+      await addField(user, 'Contact');
+      const field = within(screen.getByRole('group', { name: 'Contact' }));
+      expect((field.getByLabelText('Format') as HTMLSelectElement).value).toBe('markdown');
+      await user.selectOptions(field.getByLabelText('Format'), 'text');
+      await user.click(screen.getByRole('button', { name: 'Save changes' }));
+      await screen.findByText('Saved.');
+      expect((await loadConfig(storage)).projects[0]?.fields[0]?.format).toBe('text');
+      await user.selectOptions(field.getByLabelText('Where does the value come from?'), 'manual');
+      expect(field.queryByLabelText('Format')).toBeNull();
     });
 
     it('saves a choice list with its chip values, rejects duplicates and needs at least one value', async () => {
@@ -379,7 +393,8 @@ describe('options page', () => {
       await user.click(screen.getByRole('button', { name: 'Move up field Second' }));
       expect(screen.getAllByRole('group').map((g) => g.querySelector('h4')?.textContent)).toEqual(['Second', 'First']);
       const first = within(screen.getByRole('group', { name: 'First' }));
-      const help = first.getByRole('button', { name: 'More information' });
+      // The way help is the first one; a click-way field also has a format help after it.
+      const help = first.getAllByRole('button', { name: 'More information' })[0]!;
       act(() => help.focus());
       expect(document.getElementById(help.getAttribute('aria-describedby')!)?.hidden).toBe(false);
       expect(document.getElementById(help.getAttribute('aria-describedby')!)?.textContent).toMatch(/click the value on the page/);
@@ -1006,6 +1021,19 @@ describe('options navigation', () => {
       await mountWith(ch);
       expect(await screen.findByText('Project not found')).toBeTruthy();
     });
+  });
+});
+
+describe('field format defaults per value way', () => {
+  it('sets the format for new fields and when switching the way', async () => {
+    const { newField, setValueWay } = await import('../src/options/draft');
+    const created = newField([], 'Price');
+    expect(created.format).toBe('markdown');
+    const detect = setValueWay(created, 'detect');
+    expect(detect.format).toBe('text');
+    const manual = setValueWay(detect, 'manual');
+    expect(manual.format).toBe('text');
+    expect(setValueWay(manual, 'click').format).toBe('markdown');
   });
 });
 

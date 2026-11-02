@@ -1,5 +1,5 @@
 import { useId, useState, type KeyboardEvent } from 'react';
-import type { Field } from '../config';
+import { FIELD_FORMATS, fieldFormatOf, type Field, type FieldFormat } from '../config';
 import { DETECT_VALUES } from '../extract/detect';
 import { useI18n } from '../settings';
 import type { MessageKey } from '../i18n';
@@ -133,6 +133,15 @@ function FieldCard({ field, fields, index, path, issues, onChange, onRenameKey, 
         options={WAYS.map((w) => ({ value: w, label: t(`options.fields.way.${w}` as MessageKey) }))}
         onChange={(e) => onChange(setValueWay(field, e.target.value as ValueWay))}
       />
+      {way === 'click' && (
+        <Select
+          label={t('options.fields.format.label')}
+          help={t('options.fields.format.help')}
+          value={fieldFormatOf(field)}
+          options={FIELD_FORMATS.map((f) => ({ value: f, label: t(`options.fields.format.${f}` as MessageKey) }))}
+          onChange={(e) => onChange({ ...field, format: e.target.value as FieldFormat })}
+        />
+      )}
       {way === 'detect' && (
         <Select
           label={t('options.fields.detect.label')}

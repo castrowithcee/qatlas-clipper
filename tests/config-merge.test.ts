@@ -363,3 +363,61 @@ describe('mergeConfig project content', () => {
     expect(contentOf(r2.preferTheirs)).toBe('html');
   });
 });
+
+describe('mergeConfig field format', () => {
+  const setFormat = (s: StoredState, key: string, format?: 'text' | 'markdown') =>
+    onA(s, (p) => ({
+      ...p,
+      fields: p.fields.map((f) => {
+        if (f.key !== key) return f;
+        const rest: Record<string, unknown> = { ...f };
+        delete rest.format;
+        return (format ? { ...rest, format } : rest) as typeof f;
+      }),
+    }));
+  const formatOf = (s: StoredState, key = 'title') => s.config.projects[0]!.fields.find((f) => f.key === key)!.format;
+  const b = setFormat(base(), 'title', 'markdown');
+
+  it('keeps a format change of mine next to a project change of theirs', () => {
+    const r = merged(setFormat(b, 'title', 'text'), onA(b, (p) => ({ ...p, name: 'N' })), undefined, b);
+    expect(r.conflicts).toEqual([]);
+    for (const s of [r.preferMine, r.preferTheirs]) {
+      expect(formatOf(s)).toBe('text');
+      expect(s.config.projects[0]!.name).toBe('N');
+    }
+  });
+
+  it('takes a format change of theirs without conflict', () => {
+    const r = merged(b, setFormat(b, 'title', 'text'), undefined, b);
+    expect(r.conflicts).toEqual([]);
+    expect(formatOf(r.preferMine)).toBe('text');
+    expect(formatOf(r.preferTheirs)).toBe('text');
+  });
+
+  it('conflicts when both set different formats on the same field', () => {
+    const r = merged(setFormat(b, 'title', 'text'), setFormat(b, 'title', undefined), undefined, b);
+    expect(r.conflicts).toHaveLength(1);
+    expect(r.conflicts[0]).toMatchObject({ kind: 'field', projectId: 'a', fieldKey: 'title' });
+    expect(formatOf(r.preferMine)).toBe('text');
+    expect(formatOf(r.preferTheirs)).toBeUndefined();
+  });
+
+  it('conflicts with explicit text vs markdown, each preference carries its value', () => {
+    const b3 = setFormat(base(), 'title', 'text');
+    const mine = setFormat(b3, 'title', 'markdown');
+    const theirs = onA(b3, (p) => ({ ...p, fields: p.fields.map((f) => (f.key === 'title' ? { ...f, format: 'text' as const, label: 'L' } : f)) }));
+    const r = merged(mine, theirs, undefined, b3);
+    expect(r.conflicts).toHaveLength(1);
+    expect(formatOf(r.preferMine)).toBe('markdown');
+    expect(formatOf(r.preferTheirs)).toBe('text');
+    expect(r.preferTheirs.config.projects[0]!.fields[0]!.label).toBe('L');
+  });
+
+  it('leaves a field without format untouched by an unrelated change', () => {
+    const r = merged(onA(base(), (p) => ({ ...p, name: 'N' })), base(), undefined, base());
+    expect(r.conflicts).toEqual([]);
+    for (const s of [r.preferMine, r.preferTheirs]) {
+      expect('format' in s.config.projects[0]!.fields[0]!).toBe(false);
+    }
+  });
+});

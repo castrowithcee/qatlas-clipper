@@ -153,13 +153,19 @@ describe('popup', () => {
     expect((screen.getByLabelText('Note') as HTMLTextAreaElement).value).toBe('');
   });
 
+  it('keeps line breaks of an edited value in the draft cache', async () => {
+    const storage = fakeStorage();
+    await saveDraft(storage, { ...emptyDraft('https://example.com/x'), fields: { a: { price: 'one\ntwo\n\nthree' } } });
+    expect((await loadDraft(storage, 'https://example.com/x')).fields.a!.price).toBe('one\ntwo\n\nthree');
+  });
+
   it('renders foreign values as literal text', async () => {
     const evil = '<img src=x onerror=alert(1)>';
     const page = () => ({ ...basePage(), title: evil, url: `https://example.com/?q=${evil}`, fields: { b: { price: { value: evil, source: 'meta' } } } });
     const { view } = setup({ page });
     const input = (await screen.findByLabelText('Price')) as HTMLInputElement;
     expect(input.value).toBe(evil);
-    expect(screen.getByText(evil)).toBeTruthy();
+    expect(screen.getAllByText(evil).length).toBeGreaterThan(0);
     expect(view.container.querySelector('img')).toBeNull();
   });
 

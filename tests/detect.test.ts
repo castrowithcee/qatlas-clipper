@@ -135,7 +135,7 @@ describe('source order', () => {
   const mapped = project({ 'example.com': { f: 'h1' } });
 
   it('click mapping beats detect value', () => {
-    expect(resolveField(field(sources), mapped, page(doc))).toEqual({ value: 'Clicked', source: 'selector' });
+    expect(resolveField({ ...field(sources), format: 'text' }, mapped, page(doc))).toEqual({ value: 'Clicked', source: 'selector' });
   });
   it('detect value beats own path and meta tag', () => {
     expect(resolveField(field(sources), project(), page(doc))).toEqual({ value: 'Detected', source: 'detect' });

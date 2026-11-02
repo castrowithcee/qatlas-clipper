@@ -1,4 +1,5 @@
-import type { Field, Project } from '../config/schema';
+import { fieldFormatOf, type Field, type FieldFormat, type Project } from '../config/schema';
+import { elementMarkdown, elementText } from './element';
 import { detectValue } from './detect';
 import { readMeta } from './meta';
 import { PAGE_TYPES } from './pageTypes';
@@ -74,13 +75,19 @@ export function findSelector(siteMappings: Project['siteMappings'], url: string,
   return undefined;
 }
 
-/** Whitespace-normalized text of the first match; an invalid selector yields ''. */
-export function readSelector(doc: Document, selector: string): string {
+/**
+ * Visible content of the first match: one line for "text", structured Markdown for "markdown".
+ * An invalid selector or no match yields ''.
+ */
+export function readSelector(doc: Document, selector: string, format: FieldFormat = 'text', baseUrl: string = doc.URL): string {
+  let el: Element | null;
   try {
-    return (doc.querySelector(selector)?.textContent ?? '').replace(/\s+/g, ' ').trim();
+    el = doc.querySelector(selector);
   } catch {
     return '';
   }
+  if (!el) return '';
+  return format === 'markdown' ? elementMarkdown(el, baseUrl) : elementText(el);
 }
 
 /**
@@ -92,7 +99,7 @@ export function resolveField(field: Field, project: Pick<Project, 'siteMappings'
   const { detect, schemaOrgPath, metaTag } = field.sources;
   const selector = findSelector(project.siteMappings, page.url, field.key);
   if (selector) {
-    const value = readSelector(page.doc, selector);
+    const value = readSelector(page.doc, selector, fieldFormatOf(field), page.url);
     if (value) return { value, source: 'selector' };
   }
   if (detect) {
