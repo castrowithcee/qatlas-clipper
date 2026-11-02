@@ -93,6 +93,19 @@ describe('popup send', () => {
     expect(req.payload.fields.title).toBe(`${value}\ninfo@example.com`);
   });
 
+  it('sends a value edited in the long-value preview', async () => {
+    const value = Array.from({ length: 7 }, (_, i) => `row ${i}`).join('\n');
+    const { user, deps } = setup({ fields: { title: { value, source: 'selector' } } });
+    await user.click(await screen.findByRole('button', { name: 'Show more' }));
+    await user.click(screen.getByRole('button', { name: 'Edit' }));
+    await user.type(screen.getByRole('textbox', { name: 'Edit Headline' }), '!');
+    await user.keyboard('{Escape}');
+    await user.click(screen.getByRole('button', { name: 'Send to Hook' }));
+    await screen.findByText(SENT);
+    const req = (deps.send as ReturnType<typeof vi.fn>).mock.calls[0]![0];
+    expect(req.payload.fields.title).toBe(`${value}!`);
+  });
+
   it('blocks an empty required field and marks it invalid', async () => {
     const { user, deps } = setup({ fields: {} });
     await user.click(await sendButton());
