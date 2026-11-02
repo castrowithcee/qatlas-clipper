@@ -212,3 +212,21 @@
 .q-markdown h3 { font-size: calc(var(--font-size-base) * 1.15); }
 .q-markdown h4, .q-markdown h5, .q-markdown h6 { font-size: var(--font-size-base); }
 .q-markdown code { font-family: var(--font-mono); font-size: var(--font-size-small); background: var(--color-surface); padding: 0 var(--space-1); border-radius: var(--radius-sm); }
+
+/* Menu: fixed so it never changes document size; Menu.tsx sets top and left, clamped to the window. No motion. */
+.q-menu-wrap { position: relative; display: inline-flex; }
+.q-menu {
+  position: fixed; z-index: 20; top: 0; left: 0; box-sizing: border-box; overflow-y: auto;
+  min-width: 12rem; max-width: calc(100vw - var(--space-2)); padding: var(--space-1);
+  color: var(--color-text); background: var(--color-bg);
+  border: 1px solid var(--color-border); border-radius: var(--radius-md);
+}
+.q-menu-item {
+  display: flex; align-items: center; gap: var(--space-2); width: 100%; min-height: 2.25rem; padding: var(--space-1) var(--space-3) var(--space-1) var(--space-1);
+  font: inherit; font-size: var(--font-size-base); text-align: left; color: inherit; background: none; border: 0; border-radius: var(--radius-sm); cursor: pointer;
+}
+.q-menu-item:hover, .q-menu-item:focus { background: var(--color-surface); }
+.q-menu-item:focus-visible { outline: 3px solid var(--color-focus); outline-offset: -3px; }
+.q-menu-mark { display: inline-flex; flex: none; width: 1.25rem; justify-content: center; color: var(--color-accent); }
+.q-menu-heading { padding: var(--space-1) var(--space-3) 0 var(--space-1); font-size: var(--font-size-small); color: var(--color-text-muted); }
+.q-menu-sep { height: 1px; margin: var(--space-1) 0; background: var(--color-border); }

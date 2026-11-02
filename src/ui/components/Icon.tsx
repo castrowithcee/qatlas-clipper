@@ -31,6 +31,13 @@ const PATHS = {
       <circle cx="12" cy="12" r="3" />
     </>
   ),
+  more: (
+    <>
+      <circle cx="12" cy="5" r="1" />
+      <circle cx="12" cy="12" r="1" />
+      <circle cx="12" cy="19" r="1" />
+    </>
+  ),
   pointer: <path d="M5 3l14 7-6 2-2 6z" />,
   edit: <path d="M4 20l1-4L16 5l3 3L8 19zM14 7l3 3" />,
   auto: <path d="M12 3l2 5 5 2-5 2-2 5-2-5-5-2 5-2z" />,
@@ -44,6 +51,18 @@ const PATHS = {
     <>
       <circle cx="12" cy="12" r="4" />
       <path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M5.6 18.4L7 17M17 7l1.4-1.4" />
+    </>
+  ),
+  popup: (
+    <>
+      <rect x="4" y="5" width="16" height="14" rx="2" />
+      <path d="M4 9h16" />
+    </>
+  ),
+  sidepanel: (
+    <>
+      <rect x="3" y="4" width="18" height="16" rx="2" />
+      <path d="M15 4v16" />
     </>
   ),
   moon: <path d="M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5z" />,

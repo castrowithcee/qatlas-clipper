@@ -11,3 +11,4 @@ export { TileGroup, type TileOption } from './TileGroup';
 export { MarkdownView } from './Markdown';
 export { DetailPanel } from './DetailPanel';
 export { DataTable, RowActions, RowError, type DataTableColumn } from './DataTable';
+export { Menu, type MenuEntry } from './Menu';

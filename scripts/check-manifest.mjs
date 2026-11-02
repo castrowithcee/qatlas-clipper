@@ -1,8 +1,8 @@
-// Fails if the built release manifest carries host_permissions or permissions beyond the fixed three.
+// Fails if the built release manifest carries host_permissions or permissions beyond the fixed four.
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
-export const FIXED_PERMISSIONS = ['activeTab', 'scripting', 'storage'];
+export const FIXED_PERMISSIONS = ['activeTab', 'scripting', 'storage', 'sidePanel'];
 
 /** Returns a list of problems; empty means the manifest is release-conformant. */
 export function checkManifest(manifest) {

@@ -22,8 +22,11 @@ import {
   saveDraft,
   type Draft,
 } from './draft';
+import { deleteMapping } from '../options/draft';
+import { normalizeDomain } from '../picker/mapping';
+import { addCapturedField, updateProject, updateProjectField } from './projectFields';
 import { requestOptionsFocus } from '../options/focus';
-import { FieldForm } from './FieldForm';
+import { FieldForm, type FieldPatch } from './FieldForm';
 import { Header } from './Header';
 import { MissingHint, ResultView } from './Outcome';
 import { BlockedView, LoadingView, NoPermissionView, NoProjectsView, NoTargetView, type BlockReason } from './States';
@@ -34,21 +37,27 @@ export interface PopupDeps {
   storage?: StorageArea;
   /** Per-tab-URL user edits (chrome.storage.session). */
   draftStorage?: StorageArea;
-  getActiveTab?: () => Promise<{ id?: number; url?: string } | undefined>;
+  getActiveTab?: () => Promise<{ id?: number; url?: string; pendingUrl?: string } | undefined>;
   read?: (tabId: number, projects: Config['projects'], projectId?: string) => Promise<ReadTabResult>;
   pick?: (tabId: number, projectId: string, fieldKey: string) => Promise<void>;
   openOptions?: () => Promise<void>;
   /** Host permission check before sending. */
   permissions?: Pick<PermissionsApi, 'contains'>;
+  /** Asks the browser for host access; called straight from a click (user gesture). Defaults to permissions.request. */
+  requestOrigins?: (origins: string[]) => Promise<boolean>;
   /** Per-tab-URL send results and running sends (chrome.storage.session). */
   resultStorage?: StorageArea;
   send?: (req: SendRequest) => Promise<SendOutcome>;
   /** Re-read interval for the send state while a send is running. */
   pollMs?: number;
   close?: () => void;
+  /** 'sidepanel' fills the panel width and stays open while the picker runs (no close). */
+  variant?: 'popup' | 'sidepanel';
+  /** Increasing this number reads the active tab and the configuration again. */
+  reloadToken?: number;
 }
 
-type TabRef = { id?: number; url?: string } | undefined;
+type TabRef = { id?: number; url?: string; pendingUrl?: string } | undefined;
 
 /**
  * Playwright cannot open the real action popup bound to a page tab, so the e2e build accepts `?tabId=<n>`.
@@ -76,7 +85,7 @@ const defaultTab = () =>
 
 type State =
   | { phase: 'loading' }
-  | { phase: 'blocked'; reason: BlockReason }
+  | { phase: 'blocked'; reason: BlockReason; origin?: string }
   | { phase: 'ready'; config: Config; tabId: number; tabUrl: string; read: ReadResult; projectId: string | null };
 
 export function PopupApp({
@@ -87,11 +96,15 @@ export function PopupApp({
   pick = startPicker,
   openOptions = () => browser.runtime.openOptionsPage(),
   permissions = defaultPermissions,
+  requestOrigins = defaultPermissions.request,
   resultStorage: resultProp,
   send = requestSend,
   pollMs = 1000,
   close = () => window.close(),
+  variant = 'popup',
+  reloadToken = 0,
 }: PopupDeps) {
+  const rootClass = variant === 'sidepanel' ? 'popup popup-panel' : 'popup';
   // Resolved once: default areas are new objects per call and must not retrigger the load effect.
   const [storage] = useState(() => storageProp ?? defaultStorage());
   const [draftStorage] = useState(() => draftProp ?? defaultDraftStorage());
@@ -106,10 +119,13 @@ export function PopupApp({
   const [sendingIds, setSendingIds] = useState<string[]>([]);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [accessDenied, setAccessDenied] = useState(false);
   const requestId = useRef(0);
   // Set on selection: state.projectId follows only after the tab re-read, too late for the options handoff.
   const chosenProject = useRef<string | null>(null);
   const writes = useRef<Promise<void>>(Promise.resolve());
+  // Menu changes run one after another so each re-read sees the configuration its save produced.
+  const menuOps = useRef<Promise<void>>(Promise.resolve());
 
   const persist = useCallback(
     (next: Draft) => {
@@ -129,11 +145,17 @@ export function PopupApp({
         if (tab?.id === undefined) return setState({ phase: 'blocked', reason: 'no-tab' });
         const config = await loadConfig(storage);
         const url = tab.url ?? '';
+        // A reload while the user types must not read a draft older than the edit.
+        await writes.current;
         const [saved, last] = await Promise.all([loadDraft(draftStorage, url), storage.get([LAST_PROJECT_KEY])]);
         const lastId = typeof last[LAST_PROJECT_KEY] === 'string' ? (last[LAST_PROJECT_KEY] as string) : undefined;
         let result = await read(tab.id, config.projects);
         if (stale()) return;
-        if (!result.ok) return setState({ phase: 'blocked', reason: result.kind });
+        if (!result.ok) {
+          // Without access the browser hides the URL; only a still visible one names an origin we may ask for.
+          const origin = result.kind === 'no-access' ? originPattern(tab.url ?? tab.pendingUrl ?? '') : undefined;
+          return setState({ phase: 'blocked', reason: result.kind, origin });
+        }
         const projectId = pickProject(config.projects, result.result.matchingProjects.map((p) => p.id), saved.projectId, lastId);
         if (projectId && projectId !== result.result.selectedProjectId) {
           const again = await read(tab.id, config.projects, projectId);
@@ -142,6 +164,7 @@ export function PopupApp({
           result = again;
         }
         setDraft(saved);
+        setAccessDenied(false);
         const stored = await loadSendState(url, resultStorage).catch(() => undefined);
         if (stale()) return;
         if (stored) setSendState(stored);
@@ -154,7 +177,7 @@ export function PopupApp({
     return () => {
       requestId.current = -1;
     };
-  }, [storage, draftStorage, resultStorage, getActiveTab, read, reload]);
+  }, [storage, draftStorage, resultStorage, getActiveTab, read, reload, reloadToken]);
 
   const tabUrl = state.phase === 'ready' ? state.tabUrl : '';
   const anyInFlight = sendState.inFlight.length > 0;
@@ -174,13 +197,29 @@ export function PopupApp({
       if (focusId) await requestOptionsFocus(draftStorage, focusId).catch(() => undefined);
       await openOptions();
     })();
-  if (state.phase === 'loading') return <main className="popup"><LoadingView /></main>;
+  // Must run synchronously inside the click handler: permissions.request needs the user gesture.
+  const allow = (origin: string) => {
+    const asked = requestOrigins([origin]).catch(() => false);
+    void asked.then((granted) => {
+      setAccessDenied(!granted);
+      if (granted) {
+        setState({ phase: 'loading' });
+        setReload((n) => n + 1);
+      }
+    });
+  };
+  if (state.phase === 'loading') return <main className={rootClass}><LoadingView /></main>;
   if (state.phase === 'blocked') {
     return (
-      <main className="popup">
+      <main className={rootClass}>
         <BlockedView
           reason={state.reason}
           onOpenOptions={openOpts}
+          access={
+            variant === 'sidepanel' && state.reason === 'no-access'
+              ? { origin: state.origin, denied: accessDenied, onAllow: () => allow(state.origin!) }
+              : undefined
+          }
           onRetry={() => {
             setState({ phase: 'loading' });
             setReload((n) => n + 1);
@@ -193,7 +232,7 @@ export function PopupApp({
   const { config, tabId, tabUrl: stateUrl, read: page, projectId } = state;
   if (config.projects.length === 0 || projectId === null) {
     return (
-      <main className="popup">
+      <main className={rootClass}>
         <NoProjectsView onOpenOptions={openOpts} />
       </main>
     );
@@ -219,12 +258,62 @@ export function PopupApp({
     setActionError(null);
     try {
       await pick(tabId, projectId, field.key);
-      // Closing ends the popup's context; pending draft writes must land first.
+      // Closing ends the popup's context; pending draft writes must land first. The side panel stays open.
       await writes.current;
-      close();
+      if (variant === 'popup') close();
     } catch {
       setActionError(t('popup.field.pickFailed'));
     }
+  };
+
+  // Saved before the picker starts: saveMapping rejects unknown fields. Rejects when saving failed.
+  const addField = async (label: string) => {
+    setActionError(null);
+    const { config: saved, field } = await addCapturedField(storage, projectId, label);
+    setState((s) => (s.phase === 'ready' ? { ...s, config: saved } : s));
+    await map(field);
+  };
+
+  // Save through the merge-safe path, then read the page again with the saved configuration. Drafts stay untouched.
+  const saveAndReread = (save: () => Promise<Config>) => {
+    setActionError(null);
+    menuOps.current = menuOps.current.then(async () => {
+      let saved: Config;
+      try {
+        saved = await save();
+      } catch {
+        setActionError(t('popup.menu.failed'));
+        return;
+      }
+      const rid = ++requestId.current;
+      try {
+        const result = await read(tabId, saved.projects, projectId);
+        if (rid !== requestId.current) return;
+        if (!result.ok) return setState({ phase: 'blocked', reason: result.kind });
+        setState((s) => (s.phase === 'ready' ? { ...s, config: saved, read: result.result } : s));
+      } catch {
+        if (rid === requestId.current) setState({ phase: 'blocked', reason: 'load-failed' });
+      }
+    });
+  };
+
+  const siteDomain = (() => {
+    try {
+      return normalizeDomain(page.url);
+    } catch {
+      return null;
+    }
+  })();
+  const mappedKeys =
+    siteDomain !== null && Object.hasOwn(project.siteMappings, siteDomain)
+      ? project.fields.filter((f) => Object.hasOwn(project.siteMappings[siteDomain]!, f.key)).map((f) => f.key)
+      : [];
+
+  const updateField = (field: Field, patch: FieldPatch) =>
+    saveAndReread(() => updateProjectField(storage, projectId, field.key, (f) => ({ ...f, ...patch })));
+  const removeMapping = (field: Field) => {
+    if (siteDomain === null) return;
+    saveAndReread(() => updateProject(storage, projectId, (p) => deleteMapping(p, siteDomain, field.key)));
   };
 
   const valueOf = (key: string) => (edits[key] ?? page.fields[key]?.value ?? '');
@@ -287,7 +376,7 @@ export function PopupApp({
 
   if (project.targets.length === 0) {
     return (
-      <main className="popup">
+      <main className={rootClass}>
         {header}
         <NoTargetView onOpenOptions={openOpts} />
       </main>
@@ -295,7 +384,7 @@ export function PopupApp({
   }
 
   return (
-    <main className="popup">
+    <main className={rootClass}>
       {header}
       {actionError && <p role="alert" className="popup-error">{actionError}</p>}
       <FieldForm
@@ -311,6 +400,10 @@ export function PopupApp({
         }}
         onNote={(note) => persist({ ...current, projectId, note })}
         onPick={(field) => void map(field)}
+        onAddField={addField}
+        mappedKeys={mappedKeys}
+        onUpdateField={updateField}
+        onRemoveMapping={removeMapping}
       />
       <section aria-label={t('popup.send.section')} className="popup-send">
         {project.targets.map((target) => {

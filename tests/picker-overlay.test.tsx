@@ -135,7 +135,7 @@ describe('language', () => {
     const { q, push } = setup({ settings: { language: 'de' }, browserLanguage: 'en-US' });
     await flush();
     expect(q('.confirm').textContent).toBe('Übernehmen');
-    push({ language: 'en', appearance: 'system' });
+    push({ language: 'en', appearance: 'system', openAs: 'popup' });
     expect(q('.confirm').textContent).toBe('Apply');
   });
 
@@ -165,7 +165,7 @@ describe('appearance', () => {
     const dark = setup({ settings: { appearance: 'dark' } });
     await flush();
     expect(dark.host.getAttribute('data-theme')).toBe('dark');
-    dark.push({ language: 'auto', appearance: 'light' });
+    dark.push({ language: 'auto', appearance: 'light', openAs: 'popup' });
     expect(dark.host.getAttribute('data-theme')).toBe('light');
   });
 
