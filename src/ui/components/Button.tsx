@@ -1,4 +1,4 @@
-import type { ButtonHTMLAttributes } from 'react';
+import type { ButtonHTMLAttributes, Ref } from 'react';
 import { Icon, type IconName } from './Icon';
 import './components.css';
 
@@ -22,6 +22,7 @@ interface IconButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 
   icon: IconName;
   /** Required: the accessible name of a button without visible text. */
   label: string;
+  ref?: Ref<HTMLButtonElement>;
 }
 
 export function IconButton({ icon, label, className, type = 'button', ...rest }: IconButtonProps) {

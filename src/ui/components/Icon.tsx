@@ -29,6 +29,13 @@ const PATHS = {
       <circle cx="12" cy="12" r="3" />
     </>
   ),
+  more: (
+    <>
+      <circle cx="12" cy="5" r="1" />
+      <circle cx="12" cy="12" r="1" />
+      <circle cx="12" cy="19" r="1" />
+    </>
+  ),
   pointer: <path d="M5 3l14 7-6 2-2 6z" />,
   edit: <path d="M4 20l1-4L16 5l3 3L8 19zM14 7l3 3" />,
   auto: <path d="M12 3l2 5 5 2-5 2-2 5-2-5-5-2 5-2z" />,

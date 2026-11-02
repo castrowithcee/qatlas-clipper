@@ -64,6 +64,15 @@ for (const lang of ['de', 'en'] as const) {
       await popup.getByRole('textbox', { name: /Price|Preis/ }).fill('12,50');
       await shot(popup, 'form', tag);
 
+      // Field menu open (it is fixed and clamped into the window, so the window must be tall enough to review it).
+      const menuButton = popup.getByRole('button', { name: /^(Options for|Optionen für) Price$/ });
+      await popup.setViewportSize({ width: 384, height: 600 });
+      await menuButton.click();
+      await expect(popup.getByRole('menu')).toBeVisible();
+      await shot(popup, 'field-menu', tag, 600);
+      await popup.keyboard.press('Escape');
+      await expect(menuButton).toBeFocused();
+
       // Long Markdown value: input capped at five lines with fade and "Show more", then the preview.
       const longValue = ['## Product details', '**Lightweight** and durable.', '- Water resistant', '- Two year warranty', '- Available in three sizes', '- Free returns within 30 days', '- Made from recycled material', 'See the full description on the product page.'].join('\n');
       await popup.getByRole('textbox', { name: /Price|Preis/ }).fill(longValue);
