@@ -11,6 +11,8 @@ const BLOCKS = new Set([
   'form', 'header', 'hgroup', 'hr', 'main', 'nav', 'ol', 'p', 'pre', 'section', 'summary', 'table', 'tbody', 'tfoot', 'thead', 'tr', 'ul', 'li',
   ...HEADINGS,
 ]);
+// Computed display values that render as a block; inline-block, inline-flex and contents stay inline.
+const BLOCK_DISPLAYS = new Set(['block', 'flex', 'grid', 'list-item', 'table', 'table-row', 'flow-root']);
 const BOLD_TAGS = new Set(['strong', 'b', 'th']);
 const ITALIC_TAGS = new Set(['em', 'i', 'cite', 'dfn', 'var']);
 const LINK_SCHEMES = new Set(['http:', 'https:', 'mailto:', 'tel:']);
@@ -101,7 +103,7 @@ function walk(node: Node, parent: Node, ctx: Ctx): void {
     }
   } else if (KEEP.has(tag)) {
     container = ctx.out.createElement(tag);
-  } else if (BLOCKS.has(tag)) {
+  } else if (BLOCKS.has(tag) || BLOCK_DISPLAYS.has(cs?.display ?? '')) {
     container = ctx.out.createElement('div');
   }
   if (container) {

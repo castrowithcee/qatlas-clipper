@@ -37,6 +37,6 @@ test('a contact block mapped by click reaches the webhook as Markdown with line 
   await expect(popup.getByText(/^Sent at /)).toBeVisible();
   expect(webhook.requests).toHaveLength(1);
   const value = ((webhook.requests[0]!.body as { fields: Record<string, string> }).fields).contact!;
-  expect(value).toBe('**Ansprechpartner**\n\nErika Beispiel\n\nLeitung Einkauf\n\n[info@example.com](mailto:info@example.com)');
+  expect(value).toBe('**Ansprechpartner**\n\nErika Beispiel\n\nLeitung Einkauf\n\nTelefon 0000\n\n[info@example.com](mailto:info@example.com)');
   expect(value).not.toContain('Hidden');
 });

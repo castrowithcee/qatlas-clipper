@@ -190,6 +190,13 @@ describe('field format of clicked elements', () => {
     return resolveField(f, p, page(html(body))).value;
   };
 
+  it('treats elements with a block display as paragraphs', () => {
+    const html =
+      '<div id="c"><span style="display:block">Erika Beispiel</span><span style="display:block">Leitung Einkauf</span><span style="display:inline-block">A</span><span>B</span></div>';
+    expect(pick(html, 'markdown').split('\n').filter(Boolean)).toEqual(['Erika Beispiel', 'Leitung Einkauf', 'AB']);
+    expect(pick(html, 'text')).toBe('Erika Beispiel Leitung Einkauf AB');
+  });
+
   it('renders a contact block as Markdown lines and as one text line', () => {
     const md = pick(CONTACT, 'markdown').split('\n').map((l) => l.trim()).filter(Boolean);
     expect(md).toEqual(['**Ansprechpartner**', 'Erika Beispiel', 'Leitung Einkauf', '[info@example.com](mailto:info@example.com)']);
