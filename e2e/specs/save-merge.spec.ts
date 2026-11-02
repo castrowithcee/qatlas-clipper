@@ -47,7 +47,9 @@ test('saving in the options page keeps a click mapping stored from another tab',
 
   // The options page shows the foreign mapping without a reload.
   await options.bringToFront();
-  await expect(options.getByRole('region', { name: 'Click mappings for 127.0.0.1' })).toBeVisible();
+  await options.getByRole('button', { name: 'Edit field Price' }).click();
+  await expect(options.getByRole('dialog', { name: 'Price' }).getByRole('button', { name: 'Remove mapping for 127.0.0.1' })).toBeVisible();
+  await options.keyboard.press('Escape');
 
   // Change another field and save.
   await options.getByLabel('Project name').fill('Products renamed');
@@ -61,6 +63,8 @@ test('saving in the options page keeps a click mapping stored from another tab',
       return { name: config.projects[0]!.name, siteMappings: config.projects[0]!.siteMappings };
     });
   await expect.poll(stored).toEqual({ name: 'Products renamed', siteMappings: { '127.0.0.1': { price: '#price' } } });
-  await expect(options.getByRole('region', { name: 'Click mappings for 127.0.0.1' })).toBeVisible();
+  await options.getByRole('button', { name: 'Edit field Price' }).click();
+  await expect(options.getByRole('dialog', { name: 'Price' }).getByRole('button', { name: 'Remove mapping for 127.0.0.1' })).toBeVisible();
+  await options.keyboard.press('Escape');
   await expect(options.getByLabel('Project name')).toHaveValue('Products renamed');
 });

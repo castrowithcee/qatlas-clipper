@@ -375,7 +375,12 @@ function Editor({ initial, initialValues, storage, permissions, subscribe, onRel
       if (e instanceof ConfigError) {
         setStatus({ kind: 'error', text: tn('options.status.invalid', Math.max(1, issues.length)) });
         // Move to the first marked input; the render with the message has to be done first.
-        setTimeout(() => document.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus(), 0);
+        // A marked field row opens its details instead, which then focus their first marked input.
+        setTimeout(() => {
+          const first = document.querySelector<HTMLElement>('[aria-invalid="true"], [data-error-open], [data-error-focus]');
+          if (first?.hasAttribute('data-error-open')) first.click();
+          else first?.focus();
+        }, 0);
       } else {
         setStatus({ kind: 'error', text: t('options.status.failed', { message: e instanceof Error ? e.message : String(e) }) });
       }

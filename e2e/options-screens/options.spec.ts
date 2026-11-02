@@ -47,15 +47,25 @@ for (const lang of ['de', 'en'] as const) {
       await expect(page.getByRole('heading', { name: t('Felder', 'Fields'), level: 3 })).toBeVisible();
 
       const sections = page.locator('section.options-section');
-      const field = (label: string) => page.getByRole('group', { name: label });
-      await field('Headline').getByRole('button', { name: t('Erweitert', 'Advanced') }).click();
-      await expect(field('Headline').getByLabel(t('Eigener schema.org-Pfad', 'Custom schema.org path'))).toBeVisible();
-
+      const field = (label: string) => page.getByRole('dialog', { name: label });
+      const openField = (label: string) => page.getByRole('button', { name: t(`Feld ${label} bearbeiten`, `Edit field ${label}`) }).click();
+      const closeField = (label: string) => field(label).getByRole('button', { name: t('Schließen', 'Close') }).click();
       await shot(page, 'project', tag);
       await shot(page.getByRole('complementary'), 'sidebar', tag);
       await shot(sections.nth(0), 'scope', tag);
       await shot(sections.nth(1), 'fields', tag);
-      await shot(sections.nth(3), 'mappings', tag);
+
+      await openField('Headline');
+      await field('Headline').getByRole('button', { name: t('Erweitert', 'Advanced') }).click();
+      await expect(field('Headline').getByLabel(t('Eigener schema.org-Pfad', 'Custom schema.org path'))).toBeVisible();
+      await shot(page, 'field-detail', tag);
+      await closeField('Headline');
+      await openField('Price');
+      await shot(field('Price'), 'field-price', tag);
+      await page.setViewportSize({ width: 360, height: 800 });
+      await shot(page, 'field-price-360', tag);
+      await page.setViewportSize({ width: 1100, height: 900 });
+      await closeField('Price');
 
       // Targets: the first has no permission yet (text, icon and button); the e2e build already holds localhost, so the second one is allowed.
       const targets = sections.nth(2);
@@ -101,7 +111,10 @@ for (const lang of ['de', 'en'] as const) {
       await page.setViewportSize({ width: 1100, height: 900 });
 
       // Error feedback: an empty label and an empty project name block saving.
+      await openField('Price');
       await field('Price').getByLabel(t('Bezeichnung', 'Label'), { exact: true }).fill('');
+      // The dialog name follows the label, so it is no longer found as "Price".
+      await page.getByRole('dialog').getByRole('button', { name: t('Schließen', 'Close') }).click();
       await page.getByLabel(t('Projektname', 'Project name')).fill('');
       await page.getByRole('button', { name: t('Änderungen speichern', 'Save changes') }).click();
       await expect(page.getByText(/Nicht gespeichert|Not saved/)).toBeVisible();
