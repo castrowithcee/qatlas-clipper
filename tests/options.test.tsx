@@ -310,7 +310,7 @@ describe('options page', () => {
       await user.click(screen.getByRole('button', { name: 'Save changes' }));
       await screen.findByText('Saved.');
       expect((await loadConfig(storage)).projects[0]?.fields).toEqual([
-        { key: 'groesse_der_strasse', label: 'Headline', required: true, sources: { detect: 'title' } },
+        { key: 'groesse_der_strasse', label: 'Headline', required: true, format: 'text', sources: { detect: 'title' } },
       ]);
     });
 
@@ -952,5 +952,18 @@ describe('options navigation', () => {
       await mountWith(ch);
       expect(await screen.findByText('Project not found')).toBeTruthy();
     });
+  });
+});
+
+describe('field format defaults per value way', () => {
+  it('sets the format for new fields and when switching the way', async () => {
+    const { newField, setValueWay } = await import('../src/options/draft');
+    const created = newField([], 'Price');
+    expect(created.format).toBe('markdown');
+    const detect = setValueWay(created, 'detect');
+    expect(detect.format).toBe('text');
+    const manual = setValueWay(detect, 'manual');
+    expect(manual.format).toBe('text');
+    expect(setValueWay(manual, 'click').format).toBe('markdown');
   });
 });

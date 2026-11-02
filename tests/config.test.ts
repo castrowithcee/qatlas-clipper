@@ -289,3 +289,15 @@ describe('target URL rule', () => {
     }
   });
 });
+
+describe('field format', () => {
+  it('accepts text and markdown, rejects others, and defaults to markdown', async () => {
+    const { fieldSchema, fieldFormatOf } = await import('../src/config/schema');
+    const base = { key: 'a', label: 'A', required: false, sources: {} };
+    expect(fieldSchema.safeParse({ ...base, format: 'text' }).success).toBe(true);
+    expect(fieldSchema.safeParse({ ...base, format: 'markdown' }).success).toBe(true);
+    expect(fieldSchema.safeParse({ ...base, format: 'html' }).success).toBe(false);
+    expect(fieldFormatOf({ format: undefined })).toBe('markdown');
+    expect(fieldFormatOf({ format: 'text' })).toBe('text');
+  });
+});

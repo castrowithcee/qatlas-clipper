@@ -121,11 +121,15 @@ describe('schema.org paths', () => {
 });
 
 describe('field resolution', () => {
-  const full = field('title', {
-    schemaOrgPath: 'Article.headline',
-    metaTag: { attribute: 'property', name: 'og:title' },
-    manual: { type: 'text' },
-  });
+  // Format text keeps these source-order tests independent of the Markdown default for clicked elements.
+  const full: Field = {
+    ...field('title', {
+      schemaOrgPath: 'Article.headline',
+      metaTag: { attribute: 'property', name: 'og:title' },
+      manual: { type: 'text' },
+    }),
+    format: 'text',
+  };
   const proj = project('p', { allSites: true, domains: [] }, { siteMappings: { 'example.com': { title: 'h1' } } });
   const meta = '<meta property="og:title" content=" Meta Title ">';
   const body = '<h1>  Selector \n Title </h1>';
@@ -153,7 +157,7 @@ describe('field resolution', () => {
     expect(resolveField(f, proj, page(html('', '<meta property="description" content="Desc">'))).source).toBe('manual');
   });
   it('selector domain: exact host, then without www; no other domains', () => {
-    const f = field('title', {});
+    const f: Field = { ...field('title', {}), format: 'text' };
     const p = (domain: string) => project('p', { allSites: true, domains: [] }, { siteMappings: { [domain]: { title: 'h1' } } });
     const doc = html('<h1>T</h1>');
     expect(resolveField(f, p('www.example.com'), page(doc)).value).toBe('T');
@@ -174,5 +178,75 @@ describe('field resolution', () => {
     const p = project('p', { allSites: true, domains: [] }, { fields: [full, field('x', { manual: { type: 'text' } })] });
     const r = resolveFields(p, page(html(body + json, meta)));
     expect(r).toEqual({ title: { value: 'LD Title', source: 'schemaOrg' }, x: { value: '', source: 'manual' } });
+  });
+});
+
+describe('field format of clicked elements', () => {
+  const CONTACT =
+    '<div id="c"><strong>Ansprechpartner</strong><br>Erika Beispiel<br>Leitung Einkauf<br><a href="mailto:info@example.com">info@example.com</a></div>';
+  const pick = (body: string, format?: Field['format'], sel = '#c') => {
+    const f: Field = { ...field('f', {}), ...(format ? { format } : {}) };
+    const p = project('p', { allSites: true, domains: [] }, { siteMappings: { 'example.com': { f: sel } } });
+    return resolveField(f, p, page(html(body))).value;
+  };
+
+  it('renders a contact block as Markdown lines and as one text line', () => {
+    const md = pick(CONTACT, 'markdown').split('\n').map((l) => l.trim()).filter(Boolean);
+    expect(md).toEqual(['**Ansprechpartner**', 'Erika Beispiel', 'Leitung Einkauf', '[info@example.com](mailto:info@example.com)']);
+    expect(pick(CONTACT, 'text')).toBe('Ansprechpartner Erika Beispiel Leitung Einkauf info@example.com');
+  });
+
+  it('treats a missing format as Markdown', () => {
+    expect(pick(CONTACT)).toBe(pick(CONTACT, 'markdown'));
+  });
+
+  it('takes bold and italic from inline styles, also with block elements', () => {
+    const body =
+      '<div id="c"><div><span style="font-weight:700">Ansprechpartner</span></div><div>Erika <span style="font-style:italic">Beispiel</span></div><div>Leitung Einkauf</div></div>';
+    const md = pick(body, 'markdown').split('\n').map((l) => l.trim()).filter(Boolean);
+    expect(md).toEqual(['**Ansprechpartner**', 'Erika *Beispiel*', 'Leitung Einkauf']);
+  });
+
+  it('omits hidden text in both formats', () => {
+    const hidden = [
+      '<span style="display:none">SECRET</span>',
+      '<span style="visibility:hidden">SECRET</span>',
+      '<span hidden>SECRET</span>',
+      '<span aria-hidden="true">SECRET</span>',
+      '<script>SECRET</script><style>SECRET</style><template>SECRET</template><noscript>SECRET</noscript><iframe>SECRET</iframe>',
+    ];
+    for (const h of hidden) {
+      const body = `<div id="c">Visible ${h} text</div>`;
+      expect(pick(body, 'markdown')).toBe('Visible text');
+      expect(pick(body, 'text')).toBe('Visible text');
+    }
+  });
+
+  it('shows a visible child of a hidden-visibility parent', () => {
+    const body = '<div id="c" style="visibility:hidden">A<span style="visibility:visible">B</span></div>';
+    expect(pick(body, 'text')).toBe('B');
+  });
+
+  it('maps headings, lists and absolute links', () => {
+    const body = '<div id="c"><h2>Title</h2><p>See <a href="/docs/a">the docs</a> or <a href="javascript:alert(1)">bad</a>.</p><ul><li>One</li><li>Two</li></ul></div>';
+    const md = pick(body, 'markdown');
+    expect(md).toContain('## Title');
+    expect(md).toContain('[the docs](https://www.example.com/docs/a)');
+    expect(md).not.toContain('javascript');
+    expect(md).toContain('bad.');
+    expect(md).toMatch(/-\s+One\n-\s+Two/);
+    expect(pick(body, 'text')).toBe('Title See the docs or bad. One Two');
+  });
+
+  it('keeps detect, schema.org and meta values unchanged as text', () => {
+    const json = ld('{"@type":"Article","headline":"A *b* [c](d)"}');
+    const meta = '<meta name="description" content="**bold** text">';
+    const doc = html(json, meta);
+    for (const format of ['markdown', 'text'] as const) {
+      const proj = project('p', { allSites: true, domains: [] });
+      const g = (sources: Field['sources']) => resolveField({ ...field('f', sources), format }, proj, page(doc)).value;
+      expect(g({ schemaOrgPath: 'Article.headline' })).toBe('A *b* [c](d)');
+      expect(g({ metaTag: { attribute: 'name', name: 'description' } })).toBe('**bold** text');
+    }
   });
 });
