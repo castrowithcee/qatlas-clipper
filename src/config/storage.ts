@@ -1,4 +1,5 @@
 import { browser } from 'wxt/browser';
+import { deepEqual } from './equal';
 import { ConfigError } from './errors';
 import { migrateConfig } from './migrate';
 import {
@@ -41,7 +42,10 @@ function parseHeaderValues(raw: unknown): HeaderValues {
 
 /** Load stored config (migrated in memory, validated). Throws ConfigError on invalid data; never returns a partial state. */
 export async function loadConfig(storage: StorageArea = defaultStorage()): Promise<Config> {
-  const stored = (await storage.get([CONFIG_KEY]))[CONFIG_KEY];
+  return parseStoredConfig((await storage.get([CONFIG_KEY]))[CONFIG_KEY]);
+}
+
+function parseStoredConfig(stored: unknown): Config {
   if (stored === undefined) return emptyConfig();
   return parseConfig(migrateConfig(stored), 'Stored configuration is invalid');
 }
@@ -77,4 +81,62 @@ export async function setHeaderValue(
   const values = await loadHeaderValues(storage);
   values[targetId] = { ...values[targetId], [headerName]: value };
   await storage.set({ [HEADER_VALUES_KEY]: values });
+}
+
+/** Config and header values as stored. */
+export interface StoredState {
+  config: Config;
+  headerValues: HeaderValues;
+}
+
+/** Thrown by a change function when the stored state no longer matches the state the caller worked on. */
+export class StoredStateChangedError extends ConfigError {
+  constructor() {
+    super('The stored configuration changed in the meantime');
+    this.name = 'StoredStateChangedError';
+  }
+}
+
+const withoutEmptyTargets = (values: HeaderValues): HeaderValues =>
+  Object.fromEntries(Object.entries(values).filter(([, names]) => Object.keys(names).length > 0));
+
+/** Structural equality of two stored states; header values compare without empty per-target maps. */
+export function storedStateEquals(a: StoredState, b: StoredState): boolean {
+  return deepEqual(a.config, b.config) && deepEqual(withoutEmptyTargets(a.headerValues), withoutEmptyTargets(b.headerValues));
+}
+
+/** Result of a change function: the new config (validated by the writer) and optionally new header values. */
+export interface StoredChangeResult {
+  config: unknown;
+  headerValues?: HeaderValues;
+}
+
+// Serializes writers in this JS context so two read-modify-write cycles cannot interleave.
+let writeQueue: Promise<unknown> = Promise.resolve();
+
+/**
+ * Read-modify-write on the freshly stored state: reads config and header values, applies `change`,
+ * validates the config, prunes header values and writes both keys in one call. Nothing is written if
+ * `change` throws (it may throw StoredStateChangedError after comparing with storedStateEquals) or validation fails.
+ * Header values are never part of an error message.
+ */
+export function updateStored(
+  change: (config: Config, headerValues: HeaderValues) => StoredChangeResult,
+  storage: StorageArea = defaultStorage(),
+): Promise<StoredState> {
+  const run = async (): Promise<StoredState> => {
+    const raw = await storage.get([CONFIG_KEY, HEADER_VALUES_KEY]);
+    const current = { config: parseStoredConfig(raw[CONFIG_KEY]), headerValues: parseHeaderValues(raw[HEADER_VALUES_KEY]) };
+    const changed = change(structuredClone(current.config), structuredClone(current.headerValues));
+    const config = parseConfig(changed.config);
+    const headerValues = pruneHeaderValues(
+      config,
+      changed.headerValues === undefined ? current.headerValues : parseHeaderValues(changed.headerValues),
+    );
+    await storage.set({ [CONFIG_KEY]: config, [HEADER_VALUES_KEY]: headerValues });
+    return { config, headerValues };
+  };
+  const result = writeQueue.then(run, run);
+  writeQueue = result.catch(() => undefined);
+  return result;
 }
