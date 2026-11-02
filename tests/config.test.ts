@@ -13,6 +13,9 @@ import {
   parseConfig,
   saveConfig,
   setHeaderValue,
+  storedStateEquals,
+  StoredStateChangedError,
+  updateStored,
   type StorageArea,
 } from '../src/config';
 
@@ -287,5 +290,90 @@ describe('target URL rule', () => {
       expect(message).toContain('projects[0].targets[0].url: must be an absolute https: URL');
       expect(message).not.toContain(u);
     }
+  });
+});
+
+describe('updateStored', () => {
+  const stored = () =>
+    fakeStorage({
+      config: validConfig(),
+      headerValues: { 't1': { Authorization: HEADER_VALUE } },
+    });
+  const rename = (c: Awaited<ReturnType<typeof loadConfig>>, name: string) => ({
+    config: { ...c, projects: c.projects.map((p, i) => (i === 0 ? { ...p, name } : p)) },
+  });
+
+  it('applies the change to the freshly stored state and writes both keys in one call', async () => {
+    const s = stored();
+    const setCalls: string[][] = [];
+    const set = s.set;
+    s.set = async (items) => {
+      setCalls.push(Object.keys(items));
+      await set(items);
+    };
+    let seen = '';
+    await updateStored((c, v) => {
+      seen = `${c.projects[0]!.name}|${v['t1']?.Authorization}`;
+      return rename(c, 'Changed');
+    }, s);
+    expect(seen).toBe(`Articles|${HEADER_VALUE}`);
+    expect(setCalls).toEqual([[CONFIG_KEY, HEADER_VALUES_KEY]]);
+    expect((await loadConfig(s)).projects[0]!.name).toBe('Changed');
+    expect(await loadHeaderValues(s)).toEqual({ 't1': { Authorization: HEADER_VALUE } });
+  });
+  it('reads fresh state on every call', async () => {
+    const s = stored();
+    await updateStored((c) => rename(c, 'One'), s);
+    const names: string[] = [];
+    await updateStored((c) => (names.push(c.projects[0]!.name), { config: c }), s);
+    expect(names).toEqual(['One']);
+  });
+  it('writes nothing when the change throws', async () => {
+    const s = stored();
+    const before = structuredClone(s.data);
+    await expect(
+      updateStored(() => {
+        throw new StoredStateChangedError();
+      }, s),
+    ).rejects.toThrow(StoredStateChangedError);
+    expect(s.data).toEqual(before);
+  });
+  it('writes nothing when validation fails and does not leak header values', async () => {
+    const s = stored();
+    const before = structuredClone(s.data);
+    const err = await updateStored((c) => rename(c, ''), s).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(ConfigError);
+    expect(String((err as Error).message)).not.toContain(HEADER_VALUE);
+    expect(s.data).toEqual(before);
+  });
+  it('prunes header values and accepts new ones', async () => {
+    const s = stored();
+    await updateStored((c) => ({ config: { ...c, projects: [] }, headerValues: { gone: { X: 'v' } } }), s);
+    expect(await loadHeaderValues(s)).toEqual({});
+  });
+  it('serializes concurrent updates so none is lost', async () => {
+    const s = stored();
+    await Promise.all([
+      updateStored((c) => rename(c, 'First'), s),
+      updateStored((c) => ({ config: { ...c, projects: c.projects.map((p) => ({ ...p, scope: { allSites: true, domains: [] } })) } }), s),
+    ]);
+    const p = (await loadConfig(s)).projects[0]!;
+    expect(p.name).toBe('First');
+    expect(p.scope).toEqual({ allSites: true, domains: [] });
+  });
+});
+
+describe('storedStateEquals', () => {
+  const state = () => ({ config: parseConfig(validConfig()), headerValues: { 't1': { Authorization: HEADER_VALUE } } });
+  it('compares structurally and ignores empty target maps', () => {
+    const a = state();
+    const b = structuredClone(a);
+    b.headerValues = { ...b.headerValues, other: {} } as typeof b.headerValues;
+    expect(storedStateEquals(a, b)).toBe(true);
+    b.config.projects[0]!.name = 'Changed';
+    expect(storedStateEquals(a, b)).toBe(false);
+    const c = state();
+    c.headerValues['t1']!.Authorization = 'different';
+    expect(storedStateEquals(a, c)).toBe(false);
   });
 });

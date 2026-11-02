@@ -33,6 +33,18 @@ describe('saveMapping', () => {
     expect(cfg.projects[0]!.siteMappings['example.net']).toEqual({ title: 'h1.new' });
     expect(cfg.projects[1]!.siteMappings).toEqual({});
   });
+  it('keeps a foreign change stored after the caller loaded its view', async () => {
+    const s = fakeStorage({ config: config(), headerValues: { t: { X: 'v' } } });
+    const stale = await loadConfig(s);
+    const changed = structuredClone(stale);
+    changed.projects[1]!.name = 'Renamed elsewhere';
+    s.data.config = changed;
+    await saveMapping(base, s);
+    const cfg = await loadConfig(s);
+    expect(cfg.projects[1]!.name).toBe('Renamed elsewhere');
+    expect(cfg.projects[0]!.siteMappings['example.com']!.title).toBe('h1.new');
+    expect(s.data.headerValues).toEqual({});
+  });
   it('rejects unknown project, unknown field and non-http pages without writing', async () => {
     const s = fakeStorage({ config: config() });
     const before = structuredClone(s.data);
