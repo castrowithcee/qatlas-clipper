@@ -1,5 +1,6 @@
 import { fieldFormatOf, type Field as FieldConfig } from '../config';
 import { valueWay } from '../options/draft';
+import { AddFieldRow } from './AddFieldRow';
 import { LongValue } from './LongValue';
 import type { FieldResult } from '../extract';
 import type { IconName } from '../ui/components';
@@ -97,9 +98,11 @@ interface FormProps {
   onChange: (key: string, value: string) => void;
   onNote: (note: string) => void;
   onPick: (field: FieldConfig) => void;
+  /** Adds a field and starts picking it; rejects when saving failed. */
+  onAddField?: (label: string) => Promise<void>;
 }
 
-export function FieldForm({ fields, found, edits, invalidKeys, note, onChange, onNote, onPick }: FormProps) {
+export function FieldForm({ fields, found, edits, invalidKeys, note, onChange, onNote, onPick, onAddField }: FormProps) {
   const i18n = useI18n();
   return (
     <form className="popup-form" onSubmit={(e) => e.preventDefault()}>
@@ -118,6 +121,7 @@ export function FieldForm({ fields, found, edits, invalidKeys, note, onChange, o
           />
         );
       })}
+      {onAddField && <AddFieldRow onAdd={onAddField} />}
       <Field label={i18n.t('popup.note.label')}>
         {(control) => <textarea {...control} className="q-input" rows={3} value={note} onChange={(e) => onNote(e.target.value)} />}
       </Field>

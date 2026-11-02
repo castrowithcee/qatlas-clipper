@@ -241,3 +241,83 @@ describe('popup', () => {
     expect((s.data.popupDrafts as unknown[]).length).toBe(MAX_DRAFTS);
   });
 });
+
+describe('popup: add field while capturing', () => {
+  type Stored = { id: string; name: string; fields: { key: string }[] };
+  const configOf = (storage: { data: Record<string, unknown> }) => storage.data[CONFIG_KEY] as { projects: Stored[] };
+  const storedProject = (storage: { data: Record<string, unknown> }, id: string) =>
+    configOf(storage).projects.find((p) => p.id === id)!;
+
+  it('saves the field before the picker starts, with derived key and defaults', async () => {
+    const storage = fakeStorage(stored(...PROJECTS));
+    const seen: unknown[] = [];
+    const pick = vi.fn(async (_tab: number, projectId: string, key: string) => {
+      seen.push(storedProject(storage, projectId).fields.find((f: { key: string }) => f.key === key));
+    });
+    const { user, deps } = setup({ storage, pick });
+    await user.type(await screen.findByLabelText('New field'), 'Best Before');
+    await user.keyboard('{Enter}');
+    await waitFor(() => expect(deps.close).toHaveBeenCalled());
+    expect(pick).toHaveBeenCalledWith(7, 'b', 'best_before');
+    expect(seen[0]).toEqual({ key: 'best_before', label: 'Best Before', required: false, format: 'markdown', sources: {} });
+    expect(storedProject(storage, 'b').fields.map((f: { key: string }) => f.key)).toEqual(['price', 'best_before']);
+  });
+
+  it('keeps values typed into other fields', async () => {
+    const { user, deps } = setup();
+    const price = await screen.findByLabelText('Price');
+    await user.clear(price);
+    await user.type(price, '99');
+    await user.type(screen.getByLabelText('New field'), 'Extra');
+    await user.click(screen.getByRole('button', { name: 'Add' }));
+    await waitFor(() => expect(deps.close).toHaveBeenCalled());
+    expect(screen.getByLabelText('Price')).toHaveProperty('value', '99');
+    expect(screen.getByLabelText('Extra')).toBeTruthy();
+  });
+
+  it('does not overwrite a change made to storage after loading', async () => {
+    const storage = fakeStorage(stored(...PROJECTS));
+    const { user, deps } = setup({ storage });
+    await screen.findByLabelText('Price');
+    storage.data[CONFIG_KEY] = structuredClone(storage.data[CONFIG_KEY]);
+    configOf(storage).projects[0]!.name = 'Renamed';
+    configOf(storage).projects[1]!.fields.push(field('other', 'Other') as never);
+    await user.type(screen.getByLabelText('New field'), 'Mine');
+    await user.click(screen.getByRole('button', { name: 'Add' }));
+    await waitFor(() => expect(deps.close).toHaveBeenCalled());
+    expect(storedProject(storage, 'a').name).toBe('Renamed');
+    expect(storedProject(storage, 'b').fields.map((f: { key: string }) => f.key)).toEqual(['price', 'other', 'mine']);
+  });
+
+  it('shows a message, keeps the label and starts no picker when saving fails', async () => {
+    const storage = fakeStorage(stored(...PROJECTS));
+    const { user, deps } = setup({ storage });
+    await screen.findByLabelText('Price');
+    storage.set = async () => {
+      throw new Error('quota');
+    };
+    await user.type(screen.getByLabelText('New field'), 'Mine');
+    await user.click(screen.getByRole('button', { name: 'Add' }));
+    expect(await screen.findByText('The field could not be saved.')).toBeTruthy();
+    expect(screen.getByLabelText('New field')).toHaveProperty('value', 'Mine');
+    expect(deps.pick).not.toHaveBeenCalled();
+    expect(deps.close).not.toHaveBeenCalled();
+  });
+
+  it('creates nothing for an empty label', async () => {
+    const storage = fakeStorage(stored(...PROJECTS));
+    const { user, deps } = setup({ storage });
+    const input = await screen.findByLabelText('New field');
+    expect(screen.getByRole('button', { name: 'Add' })).toHaveProperty('disabled', true);
+    await user.type(input, '   {Enter}');
+    expect(deps.pick).not.toHaveBeenCalled();
+    expect(storedProject(storage, 'b').fields).toHaveLength(1);
+  });
+
+  it('clears the label with Escape', async () => {
+    const { user } = setup();
+    const input = await screen.findByLabelText('New field');
+    await user.type(input, 'Abc{Escape}');
+    expect(input).toHaveProperty('value', '');
+  });
+});

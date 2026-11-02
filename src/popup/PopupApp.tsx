@@ -22,6 +22,7 @@ import {
   saveDraft,
   type Draft,
 } from './draft';
+import { addCapturedField } from './projectFields';
 import { requestOptionsFocus } from '../options/focus';
 import { FieldForm } from './FieldForm';
 import { Header } from './Header';
@@ -227,6 +228,14 @@ export function PopupApp({
     }
   };
 
+  // Saved before the picker starts: saveMapping rejects unknown fields. Rejects when saving failed.
+  const addField = async (label: string) => {
+    setActionError(null);
+    const { config: saved, field } = await addCapturedField(storage, projectId, label);
+    setState((s) => (s.phase === 'ready' ? { ...s, config: saved } : s));
+    await map(field);
+  };
+
   const valueOf = (key: string) => (edits[key] ?? page.fields[key]?.value ?? '');
 
   const sendTo = async (target: { id: string; name: string; url: string }) => {
@@ -311,6 +320,7 @@ export function PopupApp({
         }}
         onNote={(note) => persist({ ...current, projectId, note })}
         onPick={(field) => void map(field)}
+        onAddField={addField}
       />
       <section aria-label={t('popup.send.section')} className="popup-send">
         {project.targets.map((target) => {
