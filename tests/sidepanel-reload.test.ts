@@ -18,6 +18,9 @@ function setup(pinnedTabId?: number) {
     storageChanged: source<[Record<string, unknown>, string]>(),
     tabActivated: source<[{ tabId: number; windowId: number }]>(),
     tabUpdated: source<[number, { url?: string; status?: string }, { windowId?: number; active?: boolean }]>(),
+    runtimeMessage: source<[unknown, { id?: string; url?: string; tab?: unknown }]>(),
+    extensionId: 'ext',
+    extensionOrigin: 'chrome-extension://ext/',
   };
   const onReload = vi.fn();
   const stop = watchPanelReload(events as unknown as PanelEvents, { windowId: () => 1, pinnedTabId, onReload, delayMs: 100 });
@@ -78,8 +81,40 @@ describe('watchPanelReload', () => {
   it('unsubscribes', () => {
     const { events, onReload, stop } = setup();
     stop();
-    expect(events.storageChanged.size() + events.tabActivated.size() + events.tabUpdated.size()).toBe(0);
+    expect(events.storageChanged.size() + events.runtimeMessage.size() + events.tabActivated.size() + events.tabUpdated.size()).toBe(0);
     events.storageChanged.emit({ config: {} }, 'local');
     expect(onReload).not.toHaveBeenCalled();
+  });
+
+  describe('toolbar click message', () => {
+    const msg = { type: 'qatlas-clipper/panel-click', tabId: 5 };
+    const own = { id: 'ext', url: 'chrome-extension://ext/background.js' };
+
+    it('reloads on a message of the own extension', () => {
+      const { events, onReload } = setup();
+      events.runtimeMessage.emit(msg, own);
+      expect(onReload).toHaveBeenCalledTimes(1);
+    });
+
+    it('ignores foreign senders, content scripts and other messages', () => {
+      const { events, onReload } = setup();
+      events.runtimeMessage.emit(msg, { id: 'other', url: 'chrome-extension://ext/background.js' });
+      events.runtimeMessage.emit(msg, { id: 'ext', url: 'https://evil.example/', tab: { id: 1 } });
+      events.runtimeMessage.emit(msg, { id: 'ext', url: 'https://evil.example/' });
+      events.runtimeMessage.emit(msg, { id: 'ext', url: 'chrome-extension://ext/x.html', tab: { id: 1 } });
+      events.runtimeMessage.emit(msg, { id: 'ext' });
+      events.runtimeMessage.emit({ type: 'qatlas-clipper/send', tabId: 5 }, own);
+      events.runtimeMessage.emit({ type: 'qatlas-clipper/panel-click' }, own);
+      events.runtimeMessage.emit('qatlas-clipper/panel-click', own);
+      expect(onReload).not.toHaveBeenCalled();
+    });
+
+    it('with a pinned tab only its own click counts', () => {
+      const { events, onReload } = setup(9);
+      events.runtimeMessage.emit(msg, own);
+      expect(onReload).not.toHaveBeenCalled();
+      events.runtimeMessage.emit({ ...msg, tabId: 9 }, own);
+      expect(onReload).toHaveBeenCalledTimes(1);
+    });
   });
 });

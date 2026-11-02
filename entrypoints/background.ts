@@ -11,5 +11,7 @@ export default defineBackground(() => {
     subscribe: subscribeSettings,
     onInstalled: chrome.runtime.onInstalled,
     onStartup: chrome.runtime.onStartup,
+    onActionClicked: chrome.action.onClicked,
+    notifyPanel: (message) => chrome.runtime.sendMessage(message),
   });
 });
