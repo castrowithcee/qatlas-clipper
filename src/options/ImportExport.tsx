@@ -21,11 +21,13 @@ interface Props {
   /** True if the editor has unsaved changes. */
   dirty: boolean;
   onImported: () => void;
+  /** Brackets the replacing write, so the page does not treat its own import as a foreign change. */
+  onImporting?: (active: boolean) => void;
 }
 
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
-export function ImportExport({ storage, permissions, dirty, onImported }: Props) {
+export function ImportExport({ storage, permissions, dirty, onImported, onImporting }: Props) {
   const { t, tn } = useI18n();
   const id = useId();
   const [url, setUrl] = useState('');
@@ -94,12 +96,14 @@ export function ImportExport({ storage, permissions, dirty, onImported }: Props)
   const confirm = async () => {
     if (!pending) return;
     setBusy(true);
+    onImporting?.(true);
     try {
       await saveConfig(pending, storage);
       setPending(undefined);
       setStatus({ kind: 'success', text: tn('options.io.imported', pending.projects.length) });
       onImported();
     } catch (e) {
+      onImporting?.(false);
       setPending(undefined);
       setStatus({ kind: 'error', text: t('options.io.failed', { message: message(e) }) });
     } finally {

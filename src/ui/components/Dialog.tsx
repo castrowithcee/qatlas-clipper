@@ -12,10 +12,13 @@ interface Props {
   children: ReactNode;
   /** Action buttons, right-aligned under the content. */
   actions?: ReactNode;
+  /** False: only the actions can end the dialog; Escape, backdrop and the close button do nothing (the latter is hidden). */
+  dismissible?: boolean;
 }
 
 /** Modal on the native `<dialog>`: the browser inerts the page; Tab wrapping, Escape and focus return are handled here as well. */
-export function Dialog({ open, onClose, title, children, actions }: Props) {
+export function Dialog({ open, onClose, title, children, actions, dismissible = true }: Props) {
+  const close = () => dismissible && onClose();
   const i18n = useI18n();
   const ref = useRef<HTMLDialogElement>(null);
   const titleId = useId();
@@ -36,7 +39,7 @@ export function Dialog({ open, onClose, title, children, actions }: Props) {
   const onKeyDown = (e: KeyboardEvent<HTMLDialogElement>) => {
     if (e.key === 'Escape') {
       e.preventDefault();
-      onClose();
+      close();
     } else if (e.key === 'Tab') {
       const items = [...e.currentTarget.querySelectorAll<HTMLElement>(FOCUSABLE)];
       const firstItem = items[0];
@@ -58,9 +61,9 @@ export function Dialog({ open, onClose, title, children, actions }: Props) {
       onKeyDown={onKeyDown}
       onCancel={(e) => {
         e.preventDefault();
-        onClose();
+        close();
       }}
-      onClick={(e) => e.target === e.currentTarget && onClose()}
+      onClick={(e) => e.target === e.currentTarget && close()}
     >
       {open && (
         <div className="q-dialog-body">
@@ -68,7 +71,7 @@ export function Dialog({ open, onClose, title, children, actions }: Props) {
             <h2 id={titleId} className="q-dialog-title">
               {title}
             </h2>
-            <IconButton icon="close" label={i18n.t('ui.close')} onClick={onClose} />
+            {dismissible && <IconButton icon="close" label={i18n.t('ui.close')} onClick={onClose} />}
           </header>
           <div>{children}</div>
           {actions && <footer className="q-dialog-actions">{actions}</footer>}

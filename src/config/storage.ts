@@ -89,6 +89,12 @@ export interface StoredState {
   headerValues: HeaderValues;
 }
 
+/** Reads both keys freshly; throws ConfigError if either is invalid. */
+export async function loadStoredState(storage: StorageArea = defaultStorage()): Promise<StoredState> {
+  const raw = await storage.get([CONFIG_KEY, HEADER_VALUES_KEY]);
+  return { config: parseStoredConfig(raw[CONFIG_KEY]), headerValues: parseHeaderValues(raw[HEADER_VALUES_KEY]) };
+}
+
 /** Thrown by a change function when the stored state no longer matches the state the caller worked on. */
 export class StoredStateChangedError extends ConfigError {
   constructor() {
@@ -140,3 +146,18 @@ export function updateStored(
   writeQueue = result.catch(() => undefined);
   return result;
 }
+
+/** Subscribes to changes of the stored config or header values; returns the unsubscribe function. */
+export type SubscribeStored = (onChange: () => void) => () => void;
+
+/** Fires for any write of `config` or `headerValues` in storage.local, including this context's own. Inert outside an extension. */
+export const subscribeStored: SubscribeStored = (onChange) => {
+  // `browser` itself is undefined outside an extension (unit tests).
+  const events = (browser as { storage?: typeof browser.storage } | undefined)?.storage?.onChanged;
+  if (!events) return () => {};
+  const listener = (changes: Record<string, unknown>, area: string) => {
+    if (area === 'local' && (CONFIG_KEY in changes || HEADER_VALUES_KEY in changes)) onChange();
+  };
+  events.addListener(listener);
+  return () => events.removeListener(listener);
+};

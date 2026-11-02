@@ -21,9 +21,11 @@ interface Props {
   onHeaderValues: (values: HeaderValues) => void;
   permissionStatus: (url: string) => PermissionStatus;
   onRequestPermission: (url: string) => void;
+  /** A field key was changed and its site mappings followed; lets the editor track renames for merging. */
+  onFieldRenamed?: (projectId: string, from: string, to: string) => void;
 }
 
-export function ProjectEditor({ project, index, count, onMove, onDelete, issues, onChange, headerValues, onHeaderValues, permissionStatus, onRequestPermission }: Props) {
+export function ProjectEditor({ project, index, count, onMove, onDelete, issues, onChange, headerValues, onHeaderValues, permissionStatus, onRequestPermission, onFieldRenamed }: Props) {
   const { t } = useI18n();
   const base = `projects[${index}]`;
   const nameError = project.name.trim() === '' ? t('options.project.nameMissing') : errorsAt(issues, `${base}.name`)[0];
@@ -37,7 +39,12 @@ export function ProjectEditor({ project, index, count, onMove, onDelete, issues,
         basePath={base}
         issues={issues}
         onChange={(fields) => onChange({ ...project, fields })}
-        onRenameKey={(i, key) => onChange(renameFieldKey(project, i, key))}
+        onRenameKey={(i, key) => {
+          const old = project.fields[i]?.key;
+          // Mappings only follow a rename onto a free key (see renameFieldKey).
+          if (old !== undefined && old !== key && !project.fields.some((f, j) => j !== i && f.key === key)) onFieldRenamed?.(project.id, old, key);
+          onChange(renameFieldKey(project, i, key));
+        }}
         onDelete={(i) => onChange(deleteField(project, i))}
       />
       <TargetEditor
