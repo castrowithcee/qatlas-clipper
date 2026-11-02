@@ -14,10 +14,12 @@ interface Props {
   actions?: ReactNode;
   /** False: only the actions can end the dialog; Escape, backdrop and the close button do nothing (the latter is hidden). */
   dismissible?: boolean;
+  /** `panel`: side panel at the right window edge, full screen on narrow windows. */
+  variant?: 'dialog' | 'panel';
 }
 
 /** Modal on the native `<dialog>`: the browser inerts the page; Tab wrapping, Escape and focus return are handled here as well. */
-export function Dialog({ open, onClose, title, children, actions, dismissible = true }: Props) {
+export function Dialog({ open, onClose, title, children, actions, dismissible = true, variant = 'dialog' }: Props) {
   const close = () => dismissible && onClose();
   const i18n = useI18n();
   const ref = useRef<HTMLDialogElement>(null);
@@ -56,7 +58,7 @@ export function Dialog({ open, onClose, title, children, actions, dismissible = 
   return (
     <dialog
       ref={ref}
-      className="q-dialog"
+      className={variant === 'panel' ? 'q-dialog q-dialog--panel' : 'q-dialog'}
       aria-labelledby={titleId}
       onKeyDown={onKeyDown}
       onCancel={(e) => {

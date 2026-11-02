@@ -90,6 +90,35 @@
 .q-dialog-title { margin: 0; font-size: 1.15em; }
 .q-dialog-actions { display: flex; justify-content: flex-end; gap: var(--space-2); }
 
+/* Detail panel: the dialog docked to the right edge. Narrow windows get the full screen. */
+.q-dialog--panel {
+  box-sizing: border-box; width: min(36rem, 100vw); height: 100%; max-height: none; max-width: none;
+  margin: 0 0 0 auto; border-width: 0 0 0 1px; border-radius: 0;
+}
+@media (max-width: 48rem) {
+  .q-dialog--panel { width: 100vw; border-width: 0; }
+}
+
+/* Data table: the scroll area is a focusable region so keyboard users can scroll it. */
+.q-table-scroll { overflow-x: auto; max-width: 100%; border: 1px solid var(--color-border); border-radius: var(--radius-md); }
+.q-table-scroll:focus-visible { outline: 3px solid var(--color-focus); outline-offset: 2px; }
+.q-table { width: 100%; border-collapse: collapse; }
+.q-table caption { padding: var(--space-2) var(--space-3); text-align: left; font-weight: 600; }
+.q-table caption.q-table-caption--hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; padding: 0; }
+.q-table th, .q-table td { padding: var(--space-2) var(--space-3); text-align: left; vertical-align: middle; border-top: 1px solid var(--color-border); }
+.q-table thead th { font-size: var(--font-size-small); font-weight: 600; color: var(--color-text-muted); background: var(--color-surface); white-space: nowrap; }
+.q-table tbody tr:hover { background: var(--color-surface); }
+.q-table tr[data-invalid] { box-shadow: inset 4px 0 0 var(--color-danger); }
+.q-table-narrow { width: 1%; white-space: nowrap; }
+.q-sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+/* Row actions keep their space and tab order; only visibility changes. */
+.q-row-actions { display: flex; justify-content: flex-end; gap: var(--space-1); opacity: 0; transition: opacity var(--motion-duration) var(--motion-ease); }
+.q-table tr:hover .q-row-actions, .q-table tr:focus-within .q-row-actions { opacity: 1; }
+@media (hover: none) {
+  .q-row-actions { opacity: 1; }
+}
+.q-row-error { display: inline-flex; align-items: center; gap: var(--space-1); font-size: var(--font-size-small); color: var(--color-danger); }
+
 /* Toast */
 .q-toast {
   display: flex; align-items: flex-start; gap: var(--space-3); max-width: 28rem; padding: var(--space-3) var(--space-4);
