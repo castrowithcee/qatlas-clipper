@@ -36,8 +36,8 @@ function slowServer(): Promise<{ url: string; release(): void; close(): void }> 
   );
 }
 
-async function shot(popup: Page, name: string, tag: string) {
-  await popup.setViewportSize({ width: 384, height: 200 });
+async function shot(popup: Page, name: string, tag: string, height = 200) {
+  await popup.setViewportSize({ width: 384, height });
   await popup.screenshot({ path: join(OUT, `${tag}-${name}.png`), fullPage: true });
 }
 
@@ -63,6 +63,26 @@ for (const lang of ['de', 'en'] as const) {
       await expect(popup.getByRole('textbox').first()).not.toHaveValue('');
       await popup.getByRole('textbox', { name: /Price|Preis/ }).fill('12,50');
       await shot(popup, 'form', tag);
+
+      // Long Markdown value: input capped at five lines with fade and "Show more", then the preview.
+      const longValue = ['## Product details', '**Lightweight** and durable.', '- Water resistant', '- Two year warranty', '- Available in three sizes', '- Free returns within 30 days', '- Made from recycled material', 'See the full description on the product page.'].join('\n');
+      await popup.getByRole('textbox', { name: /Price|Preis/ }).fill(longValue);
+      const more = popup.getByRole('button', { name: /Show more|Mehr anzeigen/ });
+      await expect(more).toBeVisible();
+      // Show the start of the value, as the popup does when it opens.
+      await popup.getByRole('textbox', { name: /Price|Preis/ }).evaluate((el) => {
+        el.scrollTop = 0;
+        el.blur();
+      });
+      await shot(popup, 'long-value', tag);
+      await more.click();
+      await expect(popup.getByRole('dialog')).toBeVisible();
+      await expect(popup.getByRole('dialog').locator('strong')).toBeVisible();
+      await shot(popup, 'long-value-preview', tag, 700);
+      await popup.getByRole('button', { name: /^(Edit|Bearbeiten)$/ }).click();
+      await shot(popup, 'long-value-edit', tag, 700);
+      await popup.keyboard.press('Escape');
+      await expect(more).toBeFocused();
 
       // Sending.
       await popup.close();

@@ -14,9 +14,27 @@ body { font-family: var(--font-sans); font-size: var(--font-size-base); line-hei
 .popup-domain { font-size: var(--font-size-small); color: var(--color-text-muted); }
 
 .popup-control { display: flex; align-items: center; gap: var(--space-1); }
-.popup-control > .q-input { flex: 1; min-width: 0; }
-.popup-value { resize: vertical; align-self: stretch; }
-.popup-source { display: inline-flex; align-items: center; justify-content: center; min-width: 1.75rem; min-height: 1.75rem; color: var(--color-text-muted); border-radius: var(--radius-sm); }
+.popup-control { align-items: flex-start; }
+.popup-control > .q-input, .popup-control > .popup-long { flex: 1; min-width: 0; }
+
+/* Long values: the input grows to five lines (line height unit, so it follows the font), then fades out. */
+.popup-long { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-1); }
+.popup-long-box { position: relative; width: 100%; }
+.popup-value {
+  display: block; width: 100%; resize: none; field-sizing: content;
+  max-height: calc(5lh + 2 * var(--space-2) + 2px);
+}
+.popup-long-fade {
+  position: absolute; inset: auto 1px 1px 1px; height: 2.5lh; pointer-events: none;
+  border-radius: 0 0 var(--radius-md) var(--radius-md);
+  background: linear-gradient(to bottom, transparent, var(--color-bg));
+}
+.popup-long-more { min-height: 1.75rem; padding-block: var(--space-1); padding-inline: var(--space-3); }
+.popup-long-preview { max-height: 60vh; overflow: auto; overflow-wrap: anywhere; }
+.popup-long-text { margin: 0; white-space: pre-wrap; }
+.popup-long-edit { display: block; width: 100%; min-height: 12rem; max-height: 60vh; resize: vertical; field-sizing: fixed; }
+/* Marks sit at the first line of the input, whatever its height. */
+.popup-source { margin-top: 0.25rem; display: inline-flex; align-items: center; justify-content: center; min-width: 1.75rem; min-height: 1.75rem; color: var(--color-text-muted); border-radius: var(--radius-sm); }
 .popup-source:focus-visible { outline: 3px solid var(--color-focus); outline-offset: 2px; }
 
 .popup-error { color: var(--color-danger); margin: var(--space-1) 0; }

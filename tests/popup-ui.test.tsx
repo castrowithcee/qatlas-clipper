@@ -239,3 +239,71 @@ describe.each(['de', 'en'] as const)('popup send texts (%s)', (lang) => {
     expect(screen.getByText('<b>x</b>')).toBeTruthy();
   });
 });
+
+describe('long values', () => {
+  const longValue = ['**Bold** intro', '- one', '- two', '- three', '- four', '- five', '- six'].join('\n');
+  const withFound = (value: string, extra: object = {}) => ({
+    read: async (): Promise<ReadTabResult> => {
+      const base = await okRead();
+      return { ...base, result: { ...(base as { result: object }).result, fields: { ...found, size: { value, source: 'selector' }, ...extra } } } as never;
+    },
+  });
+
+  it('shows no "Show more" for a short value', async () => {
+    setup('en', withFound('line 1\nline 2'));
+    await screen.findByLabelText('Size');
+    expect(screen.queryByRole('button', { name: 'Show more' })).toBeNull();
+  });
+
+  it('offers "Show more" with an aria-hidden fade for a long value; the full text stays in the field', async () => {
+    const { view } = setup('de', withFound(longValue));
+    const button = await screen.findByRole('button', { name: 'Mehr anzeigen' });
+    expect(button.tagName).toBe('BUTTON');
+    const fade = view.container.querySelector('.popup-long-fade')!;
+    expect(fade.getAttribute('aria-hidden')).toBe('true');
+    expect((button.closest('.popup-long')!.querySelector('textarea') as HTMLTextAreaElement).value).toBe(longValue);
+  });
+
+  it('opens a Markdown preview, closes on Escape and returns focus', async () => {
+    const { user } = setup('en', withFound(longValue));
+    const button = await screen.findByRole('button', { name: 'Show more' });
+    await user.click(button);
+    const dialog = await screen.findByRole('dialog', { name: 'Size' });
+    expect(dialog.querySelector('strong')?.textContent).toBe('Bold');
+    expect(dialog.querySelectorAll('li')).toHaveLength(6);
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(document.activeElement).toBe(button);
+  });
+
+  it('shows a text value as plain text with line breaks kept', async () => {
+    const text = Array.from({ length: 7 }, (_, i) => `**row ${i}**`).join('\n');
+    const cfg = config();
+    (cfg[CONFIG_KEY] as { projects: { fields: { key: string; format?: string }[] }[] }).projects[0]!.fields = [{ key: 'size', label: 'Size', required: false, format: 'text', sources: {} } as never];
+    const { user } = setup('en', { ...withFound(text), cfg });
+    await user.click(await screen.findByRole('button', { name: 'Show more' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Size' });
+    expect(dialog.querySelector('strong')).toBeNull();
+    expect(dialog.querySelector('.popup-long-text')!.textContent).toBe(text);
+  });
+
+  it('does not create elements from script or image tags in the preview', async () => {
+    const evil = `<script>window.__x=1</script>\n<img src=x onerror="window.__x=2">\n1\n2\n3\n4\n5\n6`;
+    const { user } = setup('en', withFound(evil));
+    await user.click(await screen.findByRole('button', { name: 'Show more' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Size' });
+    expect(dialog.querySelector('script, img')).toBeNull();
+    expect(dialog.textContent).toContain('<script>');
+  });
+
+  it('edits the value from the preview', async () => {
+    const { user } = setup('en', withFound(longValue));
+    await user.click(await screen.findByRole('button', { name: 'Show more' }));
+    await user.click(screen.getByRole('button', { name: 'Edit' }));
+    const area = screen.getByRole('textbox', { name: 'Edit Size' });
+    await user.type(area, ' END');
+    expect((document.querySelector('.popup-long-more')!.closest('.popup-long')!.querySelector('textarea') as HTMLTextAreaElement).value).toBe(`${longValue} END`);
+    await user.click(screen.getByRole('button', { name: 'Preview' }));
+    expect(screen.getByRole('dialog').textContent).toContain('END');
+  });
+});

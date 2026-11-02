@@ -1,4 +1,6 @@
-import type { Field as FieldConfig } from '../config';
+import { fieldFormatOf, type Field as FieldConfig } from '../config';
+import { valueWay } from '../options/draft';
+import { LongValue } from './LongValue';
 import type { FieldResult } from '../extract';
 import type { IconName } from '../ui/components';
 import { Field, Icon, IconButton, Tooltip } from '../ui/components';
@@ -66,7 +68,13 @@ function FieldRow({ field, value, source, invalid, onChange, onPick }: RowProps)
             </select>
           ) : (
             // Multi-line so line breaks of clicked areas survive viewing, editing and sending.
-            <textarea {...control} className="q-input popup-value" rows={3} value={value} required={field.required} onChange={(e) => onChange(e.target.value)} />
+            <LongValue
+              control={{ ...control, required: field.required }}
+              label={field.label}
+              value={value}
+              onChange={onChange}
+              markdown={valueWay(field) === 'click' && fieldFormatOf(field) === 'markdown'}
+            />
           )}
           <SourceMark {...source} />
           <Tooltip content={t('popup.field.pickTip')}>
