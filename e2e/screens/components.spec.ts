@@ -5,7 +5,7 @@ import { join, resolve } from 'node:path';
 const OUT = resolve(process.env.SCREENS_DIR ?? 'test-results/screens');
 mkdirSync(OUT, { recursive: true });
 
-const SECTIONS = ['buttons', 'fields', 'toggles', 'tooltip', 'toasts', 'states', 'disclosure', 'chips', 'icons'];
+const SECTIONS = ['buttons', 'fields', 'toggles', 'tooltip', 'toasts', 'states', 'disclosure', 'chips', 'tiles', 'icons'];
 
 async function open(page: Page, theme: string, lang = 'en') {
   await page.goto(`/?theme=${theme}&lang=${lang}`);
@@ -33,6 +33,16 @@ for (const theme of ['light', 'dark']) {
         expect(outline, id).toBe('solid');
         await section.screenshot({ path: join(OUT, `${theme}-focus-${id}.png`) });
       }
+    });
+
+    test('tile group focus', async ({ page }) => {
+      await open(page, theme);
+      const tiles = page.getByTestId('tiles');
+      await tiles.getByRole('radio', { name: 'Light' }).focus();
+      await page.keyboard.press('ArrowRight');
+      const outline = await tiles.locator('.q-tile-input:focus-visible + .q-tile-body').evaluate((el) => getComputedStyle(el).outlineStyle);
+      expect(outline).toBe('solid');
+      await tiles.screenshot({ path: join(OUT, `${theme}-focus-tiles.png`) });
     });
 
     test('tooltip open by keyboard and dialog', async ({ page }) => {

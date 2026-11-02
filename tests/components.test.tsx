@@ -3,10 +3,10 @@ import { useState } from 'react';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import {
-  Button, Checkbox, Chip, Dialog, Disclosure, EmptyState, ErrorState, Icon, IconButton, LoadingState, Select, Switch, TextField, Toast, Tooltip, ICON_NAMES,
+  Button, Checkbox, Chip, Dialog, Disclosure, EmptyState, ErrorState, Icon, IconButton, LoadingState, Select, Switch, TextField, Toast, Tooltip, TileGroup, ICON_NAMES, NotificationsProvider, TOAST_DURATION_MS, useNotifications, type ToastKind,
 } from '../src/ui/components';
 import { de, en } from '../src/i18n/catalog';
 
@@ -26,6 +26,75 @@ describe('stylesheet', () => {
     expect(times.length).toBeGreaterThan(0);
     for (const t of times) expect(t, t).toContain('var(--motion-duration)');
     expect(css).not.toMatch(/\d+m?s\b/);
+  });
+});
+
+describe('Notifications', () => {
+  afterEach(() => vi.useRealTimers());
+
+  function Trigger({ kind, text = 'Hello' }: { kind: ToastKind; text?: string }) {
+    const { notify } = useNotifications();
+    return <button onClick={() => notify(kind, text)}>go</button>;
+  }
+  const show = (kind: ToastKind, text?: string) => {
+    vi.useFakeTimers();
+    render(<NotificationsProvider><Trigger kind={kind} text={text} /></NotificationsProvider>);
+    fireEvent.click(screen.getByRole('button', { name: 'go' }));
+  };
+  const wait = (ms: number) => act(() => void vi.advanceTimersByTime(ms));
+
+  it('keeps the duration out of the stylesheet', () => {
+    expect(TOAST_DURATION_MS).toBe(5000);
+    expect(css).not.toMatch(/\b5s\b|5000/);
+  });
+
+  it.each(['success', 'info', 'warning'] as const)('%s closes after 5 seconds', (kind) => {
+    show(kind);
+    expect(screen.getByRole('status').textContent).toBe('Hello');
+    wait(TOAST_DURATION_MS - 1);
+    expect(screen.queryByRole('status')).not.toBeNull();
+    wait(1);
+    expect(screen.queryByRole('status')).toBeNull();
+  });
+
+  it('errors stay until closed with the close button', () => {
+    show('error', 'Broken');
+    wait(TOAST_DURATION_MS * 10);
+    expect(screen.getByRole('alert').textContent).toBe('Broken');
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('pauses while hovered and continues afterwards', () => {
+    show('success');
+    const slot = screen.getByRole('status').parentElement!;
+    wait(3000);
+    fireEvent.mouseEnter(slot);
+    wait(TOAST_DURATION_MS * 3);
+    expect(screen.queryByRole('status')).not.toBeNull();
+    fireEvent.mouseLeave(slot);
+    wait(TOAST_DURATION_MS - 1);
+    expect(screen.queryByRole('status')).not.toBeNull();
+    wait(1);
+    expect(screen.queryByRole('status')).toBeNull();
+  });
+
+  it('pauses while focus is inside and continues after it leaves', () => {
+    show('success');
+    const close = screen.getByRole('button', { name: 'Close' });
+    wait(3000);
+    fireEvent.focus(close);
+    wait(TOAST_DURATION_MS * 3);
+    expect(screen.queryByRole('status')).not.toBeNull();
+    fireEvent.blur(close);
+    wait(TOAST_DURATION_MS);
+    expect(screen.queryByRole('status')).toBeNull();
+  });
+
+  it('replaces an identical message instead of stacking it', () => {
+    show('success');
+    fireEvent.click(screen.getByRole('button', { name: 'go' }));
+    expect(screen.getAllByRole('status')).toHaveLength(1);
   });
 });
 
@@ -264,5 +333,23 @@ describe('Chip', () => {
     expect(screen.getByRole('listitem').textContent).toBe('example.com');
     await userEvent.setup().click(screen.getByRole('button', { name: 'Remove example.com' }));
     expect(onRemove).toHaveBeenCalledOnce();
+  });
+});
+
+describe('TileGroup', () => {
+  function Demo() {
+    const [v, setV] = useState('a');
+    return <TileGroup legend="Mode" value={v} onChange={setV} options={[{ value: 'a', label: 'One', icon: 'sun' }, { value: 'b', label: 'Two', icon: 'moon' }]} />;
+  }
+  it('is a labelled group; click and arrow keys change the selection', async () => {
+    const user = userEvent.setup();
+    render(<Demo />);
+    expect(screen.getByRole('group', { name: 'Mode' })).toBeTruthy();
+    expect((screen.getByRole('radio', { name: 'One' }) as HTMLInputElement).checked).toBe(true);
+    await user.click(screen.getByRole('radio', { name: 'Two' }));
+    expect((screen.getByRole('radio', { name: 'Two' }) as HTMLInputElement).checked).toBe(true);
+    screen.getByRole('radio', { name: 'Two' }).focus();
+    await user.keyboard('{ArrowLeft}');
+    expect((screen.getByRole('radio', { name: 'One' }) as HTMLInputElement).checked).toBe(true);
   });
 });

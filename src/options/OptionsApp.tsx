@@ -25,7 +25,7 @@ import { defaultFocusChannel, takeOptionsFocus, type FocusChannel } from './focu
 import { navigate, parseHash, projectHash, useHash } from './route';
 import { moveItem, newProject, normalize, unmappedIssues, validate } from './draft';
 import { SettingsSection, useI18n } from '../settings';
-import { Button, Dialog, Disclosure, EmptyState, ErrorState, LoadingState, Toast } from '../ui/components';
+import { Button, Dialog, Disclosure, EmptyState, ErrorState, LoadingState, NotificationsProvider, useNotifications } from '../ui/components';
 import './options.css';
 
 type Load = { state: 'loading' } | { state: 'error'; message: string } | { state: 'ready'; saved: Config; values: HeaderValues };
@@ -41,7 +41,16 @@ interface Props {
   stored?: SubscribeStored;
 }
 
-export function OptionsApp({ storage, permissions = defaultPermissions, focus, stored = subscribeStored }: Props) {
+/** The notification area sits above everything that is remounted, so messages survive the reload after an import. */
+export function OptionsApp(props: Props) {
+  return (
+    <NotificationsProvider>
+      <OptionsContent {...props} />
+    </NotificationsProvider>
+  );
+}
+
+function OptionsContent({ storage, permissions = defaultPermissions, focus, stored = subscribeStored }: Props) {
   const { t } = useI18n();
   const [loaded, setLoaded] = useState<Load>({ state: 'loading' });
   const [attempt, setAttempt] = useState(0);
@@ -134,7 +143,13 @@ function Editor({ initial, initialValues, storage, permissions, subscribe, onRel
   // `saved` and `storedValues` are the last known stored state: the base of every merge.
   const [saved, setSaved] = useState(initial);
   const [draft, setDraft] = useState(initial);
-  const [status, setStatus] = useState<{ kind: 'ok' | 'error'; text: string }>();
+  const { notify, dismiss } = useNotifications();
+  // The message of the last save; edits and merges make it obsolete.
+  const statusId = useRef<number | undefined>(undefined);
+  const setStatus = (status: { kind: 'ok' | 'error'; text: string } | undefined) => {
+    if (statusId.current !== undefined) dismiss(statusId.current);
+    statusId.current = status && notify(status.kind === 'ok' ? 'success' : 'error', status.text);
+  };
   const [busy, setBusy] = useState(false);
   // Header values are edited apart from the config draft and stored under their own key.
   const [values, setValues] = useState(initialValues);
@@ -391,13 +406,7 @@ function Editor({ initial, initialValues, storage, permissions, subscribe, onRel
             <Button onClick={discard} disabled={!dirty || busy || conflict !== undefined}>
               {t('options.discard')}
             </Button>
-            {status ? (
-              <Toast kind={status.kind === 'ok' ? 'success' : 'error'} onDismiss={() => setStatus(undefined)}>
-                {status.text}
-              </Toast>
-            ) : (
-              <p role="status" className="q-hint">{dirty ? t('options.status.dirty') : ''}</p>
-            )}
+            <p role="status" className="q-hint">{dirty ? t('options.status.dirty') : ''}</p>
           </div>
           {summary.length > 0 && (
             <div role="alert" className="options-problems">

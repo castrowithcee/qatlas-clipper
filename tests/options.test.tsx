@@ -571,21 +571,73 @@ describe('import and export', () => {
 
   afterEach(() => vi.unstubAllGlobals());
 
+  const exportDone = 'The saved configuration was exported.';
+
   it('exports the saved configuration without header values and says so', async () => {
+    const storage = withHeader();
+    let written = '';
+    const writable = { write: vi.fn(async (t: string) => void (written = t)), close: vi.fn(async () => {}) };
+    let options: unknown;
+    vi.stubGlobal('showSaveFilePicker', async (o: unknown) => ((options = o), { createWritable: async () => writable }));
+    const user = await mount(storage, fakePermissions(), IMPORT_EXPORT);
+    expect(screen.getByText(/Access keys are not included/)).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Export' }));
+    await screen.findByText(exportDone);
+    expect(options).toMatchObject({ suggestedName: 'qatlas-clipper-config.json' });
+    expect(written).toContain('Authorization');
+    expect(written).not.toContain('secret-token');
+    expect(writable.close).toHaveBeenCalledOnce();
+  });
+
+  it('reports the export only after the file is closed', async () => {
+    let finish!: () => void;
+    const writable = { write: vi.fn(async () => {}), close: vi.fn(() => new Promise<void>((r) => (finish = r))) };
+    vi.stubGlobal('showSaveFilePicker', async () => ({ createWritable: async () => writable }));
+    const user = await mount(withHeader(), fakePermissions(), IMPORT_EXPORT);
+    await user.click(screen.getByRole('button', { name: 'Export' }));
+    await waitFor(() => expect(writable.close).toHaveBeenCalled());
+    expect(screen.queryByText(exportDone)).toBeNull();
+    finish();
+    await screen.findByText(exportDone);
+  });
+
+  it('stays silent when the save dialog is cancelled', async () => {
+    const picker = vi.fn(async () => {
+      throw new DOMException('cancelled', 'AbortError');
+    });
+    vi.stubGlobal('showSaveFilePicker', picker);
+    const user = await mount(withHeader(), fakePermissions(), IMPORT_EXPORT);
+    await user.click(screen.getByRole('button', { name: 'Export' }));
+    await waitFor(() => expect(picker).toHaveBeenCalled());
+    await act(async () => {});
+    expect(screen.queryByText(exportDone)).toBeNull();
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('shows other save errors as an error message that stays', async () => {
+    vi.stubGlobal('showSaveFilePicker', async () => ({
+      createWritable: async () => ({ write: async () => { throw new Error('disk full'); }, close: async () => {} }),
+    }));
+    const user = await mount(withHeader(), fakePermissions(), IMPORT_EXPORT);
+    await user.click(screen.getByRole('button', { name: 'Export' }));
+    expect((await screen.findByRole('alert')).textContent).toContain('Export failed: disk full');
+    expect(screen.queryByText(exportDone)).toBeNull();
+  });
+
+  it('falls back to a download without a message when there is no save dialog', async () => {
     const storage = withHeader();
     let blob: Blob | undefined;
     URL.createObjectURL = vi.fn((b: Blob) => ((blob = b), 'blob:x'));
     URL.revokeObjectURL = vi.fn();
     const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
     const user = await mount(storage, fakePermissions(), IMPORT_EXPORT);
-    expect(screen.getByText(/Access keys are not included/)).toBeTruthy();
     await user.click(screen.getByRole('button', { name: 'Export' }));
-    await screen.findByText('The saved configuration was exported.');
+    await waitFor(() => expect(click).toHaveBeenCalledOnce());
     const text = await blob!.text();
     expect(text).toContain('Authorization');
     expect(text).not.toContain('secret-token');
-    expect(click).toHaveBeenCalledOnce();
     expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:x');
+    expect(screen.queryByText(exportDone)).toBeNull();
     click.mockRestore();
   });
 
@@ -621,6 +673,8 @@ describe('import and export', () => {
     await user.upload(screen.getByLabelText('From file'), file);
     await user.click(await screen.findByRole('button', { name: 'Replace' }));
     expect(await screen.findByRole('link', { name: 'Imported 1' })).toBeTruthy();
+    // The message survives the reload that remounts the page content.
+    expect(screen.getByText(/Imported: 2 projects/)).toBeTruthy();
     expect((await loadConfig(storage)).projects.map((p) => p.name)).toEqual(['Imported 1', 'Imported 2']);
   });
 
@@ -718,7 +772,7 @@ describe('options page language', () => {
     expect(document.title).toBe(de['options.title']);
     expect(document.documentElement.dataset.theme).toBe('light');
     await user.click(screen.getByRole('link', { name: de['options.nav.settings'] }));
-    await user.selectOptions(screen.getByLabelText(de['settings.appearance.label']), 'dark');
+    await user.click(screen.getByRole('radio', { name: de['settings.appearance.dark'] }));
     expect(document.documentElement.dataset.theme).toBe('dark');
     await user.selectOptions(screen.getByLabelText(de['settings.language.label']), 'en');
     await user.click(screen.getByRole('link', { name: 'A' }));
