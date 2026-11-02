@@ -40,6 +40,19 @@ export function followIds<T extends { key: string }>(prev: readonly T[], prevIds
   return ids.map((id, i) => id ?? fresh(next[i] as T));
 }
 
+/** Host and the start of the path for a list cell; query and fragment are left out, the full address belongs in a tooltip. */
+export function shortAddress(url: string, max = 36): string {
+  const text = url.trim();
+  let short: string;
+  try {
+    const u = new URL(text);
+    short = u.host + (u.pathname === '/' ? '' : u.pathname);
+  } catch {
+    short = text.replace(/[?#].*$/, '');
+  }
+  return short.length > max ? `${short.slice(0, max - 1)}…` : short;
+}
+
 export function newProject(name: string): Project {
   return { id: newId(), name, scope: { allSites: true, domains: [] }, fields: [], siteMappings: {}, targets: [], content: 'markdown' };
 }

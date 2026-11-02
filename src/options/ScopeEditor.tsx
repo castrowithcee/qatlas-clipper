@@ -109,6 +109,7 @@ export function ScopeEditor({ scope, basePath, issues, onChange }: Props) {
           </div>
         </div>
       )}
+      <Disclosure defaultOpen={Boolean(scope.pageKind || scope.pageType)} forceOpen={errorsAt(issues, `${path}.pageType`).length > 0}>
       <Select
         label={t('options.scope.kind.label')}
         hint={t('options.scope.kind.hint')}
@@ -119,7 +120,6 @@ export function ScopeEditor({ scope, basePath, issues, onChange }: Props) {
         ]}
         onChange={(e) => onChange(setPageKind(scope, (e.target.value || undefined) as PageKind | undefined))}
       />
-      <Disclosure defaultOpen={Boolean(scope.pageType)}>
         <TextField
           label={t('options.scope.custom.label')}
           hint={t('options.scope.custom.hint')}

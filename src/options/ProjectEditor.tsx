@@ -99,7 +99,7 @@ function ProjectHeader({ name, index, count, onMove, onDelete }: HeaderProps) {
             <IconButton icon="arrow-down" label={t('options.projects.moveDown', { name })} disabled={index === count - 1} onClick={() => onMove(1)} {...tip} />
           )}
         </Tooltip>
-        <Button icon="trash" onClick={() => setConfirming(true)}>
+        <Button variant="danger" icon="trash" onClick={() => setConfirming(true)}>
           {t('options.projects.deleteConfirm')}
         </Button>
       </div>

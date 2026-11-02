@@ -60,7 +60,7 @@ a.q-button { text-decoration: none; }
 .options-add { display: flex; flex-wrap: wrap; gap: var(--space-3); align-items: flex-start; }
 .options-add .q-button { margin-top: 1.75rem; }
 
-/* Fields: table, details and mappings. Targets still use the card classes. */
+/* Fields: table, details and mappings. Targets use the same table and details. */
 .options-field { border: 1px solid var(--color-border); border-radius: var(--radius-md); background: var(--color-surface); padding: var(--space-3) var(--space-4); margin-bottom: var(--space-3); }
 .options-field-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); margin-bottom: var(--space-3); }
 .options-field-head h4 { overflow-wrap: anywhere; }
@@ -102,6 +102,9 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .options-perm--ok { color: var(--color-success); }
 .options-perm--missing { color: var(--color-warning); }
 .options-perm .q-button { font-weight: normal; }
+.options-perm--cell { margin: 0; flex-wrap: nowrap; white-space: nowrap; }
+.options-address { display: inline-block; max-width: 20rem; overflow-wrap: anywhere; color: var(--color-text-muted); border-radius: var(--radius-sm); }
+.options-address:focus-visible { outline: 3px solid var(--color-focus); outline-offset: 2px; }
 .options-headers { border: 0; padding: 0; margin: 0 0 var(--space-3); }
 .options-headers legend { font-weight: 600; padding: 0; margin-bottom: var(--space-2); }
 .options-header-row { margin-bottom: var(--space-3); }

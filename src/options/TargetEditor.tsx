@@ -1,9 +1,9 @@
-import { useId, useState } from 'react';
+import { useEffect, useId, useRef, useState, type MouseEvent } from 'react';
 import type { HeaderValues, Target } from '../config';
 import { useI18n } from '../settings';
-import { Button, Checkbox, Disclosure, EmptyState, Icon, IconButton, TextField } from '../ui/components';
+import { Button, Checkbox, DataTable, DetailPanel, Disclosure, EmptyState, Icon, IconButton, RowActions, RowError, TextField, Tooltip } from '../ui/components';
 import { accessKeyState, setAccessKey } from './accessKey';
-import { errorsAt, moveItem, newTarget, type Issue } from './draft';
+import { errorsAt, moveItem, newTarget, shortAddress, type Issue } from './draft';
 import { originPattern, type PermissionStatus } from './permissions';
 
 interface Props {
@@ -22,51 +22,182 @@ interface Props {
 export function TargetEditor({ targets, basePath, issues, values, onValues, status, onRequest, onChange }: Props) {
   const { t } = useI18n();
   const id = useId();
+  const [openId, setOpenId] = useState<string>();
+  // The row whose open button gets the focus back when the details close.
+  const returnTo = useRef<string | undefined>(undefined);
+  // The move button to focus after a move: a moved row can lose the focus when the DOM is reordered.
+  const focusMove = useRef<string | undefined>(undefined);
+  const openIndex = targets.findIndex((x) => x.id === openId);
+  const openTarget = targets[openIndex];
+  const shownId = openTarget?.id;
+  const nameOf = (x: Target) => x.name || t('options.targets.unnamed');
+
+  useEffect(() => {
+    const move = focusMove.current;
+    if (move === undefined) return;
+    focusMove.current = undefined;
+    const button = document.getElementById(`${id}-${move}`) as HTMLButtonElement | null;
+    // At the end of the list the pressed button is disabled; the other one keeps the focus in the row.
+    (button && !button.disabled ? button : document.getElementById(`${id}-${move.startsWith('up') ? 'down' : 'up'}${move.slice(move.indexOf('-'))}`))?.focus();
+  });
+
+  // Runs after the dialog's own focus handling, since the effects of a parent come after those of its children.
+  useEffect(() => {
+    if (shownId !== undefined) {
+      returnTo.current = shownId;
+      document.getElementById(`${id}-details`)?.querySelector<HTMLElement>('[aria-invalid="true"], [data-error-focus]')?.focus();
+      return;
+    }
+    const row = returnTo.current;
+    if (row === undefined) return;
+    returnTo.current = undefined;
+    (document.getElementById(`${id}-open-${row}`) ?? document.getElementById(`${id}-add`))?.focus();
+  }, [shownId, id]);
+
   const set = (i: number, next: Target) => onChange(targets.map((x, j) => (j === i ? next : x)));
+
+  const add = () => {
+    const target = newTarget(t('options.targets.newName'));
+    onChange([...targets, target]);
+    setOpenId(target.id);
+  };
+
+  const move = (i: number, delta: -1 | 1) => {
+    const target = targets[i];
+    if (!target) return;
+    focusMove.current = `${delta < 0 ? 'up' : 'down'}-${target.id}`;
+    onChange(moveItem(targets, i, delta));
+  };
 
   const remove = (i: number) => {
     const target = targets[i];
     if (!target) return;
+    // The focus goes to the row that takes the place of the removed one; without rows to the add button.
+    returnTo.current = targets[i + 1]?.id ?? targets[i - 1]?.id ?? '';
+    setOpenId(undefined);
     const { [target.id]: _gone, ...rest } = values;
     void _gone;
     onValues(rest);
     onChange(targets.filter((_, j) => j !== i));
   };
 
+  const onRowClick = (e: MouseEvent<HTMLTableRowElement>, row: string) => {
+    const control = e.target instanceof Element ? e.target.closest('button, a, input, select, textarea, [tabindex]') : null;
+    if (control && e.currentTarget.contains(control)) return;
+    setOpenId(row);
+  };
+
   return (
     <section aria-labelledby={`${id}-title`} className="options-section">
       <h3 id={`${id}-title`}>{t('options.targets.title')}</h3>
       <p className="q-hint">{t('options.targets.hint')}</p>
-      {targets.length === 0 && <EmptyState title={t('options.targets.empty')} />}
-      {targets.map((target, i) => (
-        <TargetCard
-          key={target.id}
-          target={target}
-          index={i}
-          count={targets.length}
-          path={`${basePath}.targets[${i}]`}
-          issues={issues}
-          values={values}
-          onValues={onValues}
-          status={status(target.url)}
-          canRequest={originPattern(target.url) !== undefined}
-          onRequest={() => onRequest(target.url)}
-          onChange={(next) => set(i, next)}
-          onMove={(d) => onChange(moveItem(targets, i, d))}
-          onRemove={() => remove(i)}
-        />
-      ))}
-      <Button icon="plus" onClick={() => onChange([...targets, newTarget(t('options.targets.newName'))])}>
+      {targets.length === 0 ? (
+        <EmptyState title={t('options.targets.empty')} />
+      ) : (
+        <DataTable
+          caption={t('options.targets.title')}
+          captionHidden
+          columns={[
+            { label: t('options.targets.table.order'), hidden: true, narrow: true },
+            t('options.targets.name'),
+            t('options.targets.url'),
+            { label: t('options.targets.table.access'), narrow: true },
+            { label: t('options.targets.table.actions'), hidden: true, narrow: true },
+          ]}
+        >
+          {targets.map((target, i) => {
+            const name = nameOf(target);
+            const path = `${basePath}.targets[${i}]`;
+            const invalid = target.name.trim() === '' || issues.some((x) => x.path === path || x.path.startsWith(`${path}.`));
+            const granted = status(target.url) === 'granted';
+            return (
+              <tr key={target.id} data-invalid={invalid || undefined} className="options-field-row" onClick={(e) => onRowClick(e, target.id)}>
+                <td>
+                  <span className="options-field-actions">
+                    <IconButton id={`${id}-up-${target.id}`} icon="arrow-up" label={t('options.targets.moveUp', { name })} disabled={i === 0} onClick={() => move(i, -1)} />
+                    <IconButton id={`${id}-down-${target.id}`} icon="arrow-down" label={t('options.targets.moveDown', { name })} disabled={i === targets.length - 1} onClick={() => move(i, 1)} />
+                  </span>
+                </td>
+                <td className="options-field-name">
+                  {name}
+                  {invalid && (
+                    <div>
+                      <RowError>{t('options.targets.rowError')}</RowError>
+                    </div>
+                  )}
+                </td>
+                <td>
+                  <Tooltip content={target.url}>
+                    {(tip) => (
+                      // Focusable so keyboard users reach the full address; it is shown as text only, never as markup.
+                      <span tabIndex={0} className="options-address" {...tip}>
+                        {shortAddress(target.url)}
+                      </span>
+                    )}
+                  </Tooltip>
+                </td>
+                <td>
+                  {originPattern(target.url) !== undefined && (
+                    <span className={`options-perm options-perm--cell options-perm--${granted ? 'ok' : 'missing'}`} data-testid={`permission-${i}`}>
+                      <Icon name={granted ? 'check' : 'alert'} />
+                      {granted ? t('options.targets.permission.granted') : t('options.targets.permission.missing')}
+                    </span>
+                  )}
+                </td>
+                <td>
+                  <RowActions>
+                    <IconButton
+                      id={`${id}-open-${target.id}`}
+                      icon="chevron-right"
+                      label={t('options.targets.open', { name })}
+                      data-error-open={invalid || undefined}
+                      onClick={() => setOpenId(target.id)}
+                    />
+                  </RowActions>
+                </td>
+              </tr>
+            );
+          })}
+        </DataTable>
+      )}
+      <Button id={`${id}-add`} icon="plus" onClick={add}>
         {t('options.targets.add')}
       </Button>
+      <DetailPanel
+        open={openTarget !== undefined}
+        onClose={() => setOpenId(undefined)}
+        title={openTarget ? nameOf(openTarget) : ''}
+        actions={
+          openTarget && (
+            <Button variant="danger" icon="trash" onClick={() => remove(openIndex)}>
+              {t('options.targets.remove')}
+            </Button>
+          )
+        }
+      >
+        {openTarget && (
+          <div id={`${id}-details`}>
+            <TargetDetails
+              key={openTarget.id}
+              target={openTarget}
+              path={`${basePath}.targets[${openIndex}]`}
+              issues={issues}
+              values={values}
+              onValues={onValues}
+              status={status(openTarget.url)}
+              canRequest={originPattern(openTarget.url) !== undefined}
+              onRequest={() => onRequest(openTarget.url)}
+              onChange={(next) => set(openIndex, next)}
+            />
+          </div>
+        )}
+      </DetailPanel>
     </section>
   );
 }
 
-interface CardProps {
+interface DetailsProps {
   target: Target;
-  index: number;
-  count: number;
   path: string;
   issues: Issue[];
   values: HeaderValues;
@@ -75,20 +206,16 @@ interface CardProps {
   canRequest: boolean;
   onRequest: () => void;
   onChange: (target: Target) => void;
-  onMove: (delta: -1 | 1) => void;
-  onRemove: () => void;
 }
 
-function TargetCard({ target, index, count, path, issues, values, onValues, status, canRequest, onRequest, onChange, onMove, onRemove }: CardProps) {
+function TargetDetails({ target, path, issues, values, onValues, status, canRequest, onRequest, onChange }: DetailsProps) {
   const { t } = useI18n();
-  const id = useId();
   const [reveal, setReveal] = useState(false);
-  const name = target.name || t('options.targets.unnamed');
   const auth = accessKeyState(target, values);
   const own = values[target.id] ?? {};
   // The access key header is edited in the simple view; every other header is listed under "Advanced".
   const custom = target.headers.map((header, h) => ({ header, h })).filter(({ h }) => h !== auth.index || auth.custom);
-  const headerErrors = custom.some(({ h }) => errorsAt(issues, `${path}.headers[${h}]`).length > 0);
+  const headerErrors = issues.some((x) => x.path.startsWith(`${path}.headers[`));
 
   const setValue = (header: string, value: string) => onValues({ ...values, [target.id]: { ...own, [header]: value } });
 
@@ -117,14 +244,7 @@ function TargetCard({ target, index, count, path, issues, values, onValues, stat
   const urlError = errorsAt(issues, `${path}.url`)[0];
 
   return (
-    <div role="group" aria-labelledby={`${id}-name`} className="options-field">
-      <div className="options-field-head">
-        <h4 id={`${id}-name`}>{name}</h4>
-        <span className="options-field-actions">
-          <IconButton icon="arrow-up" label={t('options.targets.moveUp', { name })} disabled={index === 0} onClick={() => onMove(-1)} />
-          <IconButton icon="arrow-down" label={t('options.targets.moveDown', { name })} disabled={index === count - 1} onClick={() => onMove(1)} />
-        </span>
-      </div>
+    <>
       <TextField
         label={t('options.targets.name')}
         value={target.name}
@@ -141,7 +261,7 @@ function TargetCard({ target, index, count, path, issues, values, onValues, stat
         onChange={(e) => onChange({ ...target, url: e.target.value })}
       />
       {canRequest && (
-        <div role="status" className={`options-perm options-perm--${status === 'granted' ? 'ok' : 'missing'}`} data-testid={`permission-${index}`}>
+        <div role="status" className={`options-perm options-perm--${status === 'granted' ? 'ok' : 'missing'}`} data-testid="permission-detail">
           <Icon name={status === 'granted' ? 'check' : 'alert'} />
           <span>{status === 'granted' ? t('options.targets.permission.granted') : t('options.targets.permission.missing')}</span>
           {status !== 'granted' && (
@@ -149,6 +269,7 @@ function TargetCard({ target, index, count, path, issues, values, onValues, stat
           )}
         </div>
       )}
+      <Disclosure defaultOpen={auth.key !== '' || target.headers.length > 0} forceOpen={headerErrors}>
       <TextField
         label={t('options.targets.key')}
         hint={auth.custom ? t('options.targets.key.custom') : t('options.targets.key.hint')}
@@ -164,7 +285,6 @@ function TargetCard({ target, index, count, path, issues, values, onValues, stat
         }}
       />
       <Checkbox label={t('options.targets.key.show')} checked={reveal} disabled={auth.custom} onChange={(e) => setReveal(e.target.checked)} />
-      <Disclosure forceOpen={headerErrors}>
         <TextField label={t('options.targets.purpose')} value={target.purpose} onChange={(e) => onChange({ ...target, purpose: e.target.value })} />
         <fieldset className="options-headers">
           <legend>{t('options.targets.headers')}</legend>
@@ -193,9 +313,6 @@ function TargetCard({ target, index, count, path, issues, values, onValues, stat
           </Button>
         </fieldset>
       </Disclosure>
-      <Button icon="trash" onClick={onRemove}>
-        {t('options.targets.remove')}
-      </Button>
-    </div>
+    </>
   );
 }

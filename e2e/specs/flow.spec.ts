@@ -44,12 +44,14 @@ test('configure, map by click, prefill on a second page, send, and show the resp
   await expect(options.getByRole('dialog', { name: 'Replace configuration?' })).toBeVisible();
   await options.getByRole('button', { name: 'Replace', exact: true }).click();
   await options.getByRole('navigation', { name: 'Options' }).getByRole('link').first().click();
-  const target = options.getByRole('group', { name: 'Test hook' });
+  await options.getByRole('button', { name: 'Edit target Test hook' }).click();
+  const target = options.getByRole('dialog', { name: 'Test hook' });
   await expect(target.getByLabel('Name', { exact: true })).toHaveValue('Test hook');
-  // The access key goes through the simple view, the custom header through "Advanced".
+  // The target has a header, so "Advanced" is open: the access key and the custom header sit there.
+  await expect(target.getByRole('button', { name: 'Advanced' })).toHaveAttribute('aria-expanded', 'true');
   await target.getByLabel('Access key (optional)').fill(ACCESS_KEY);
-  await target.getByRole('button', { name: 'Advanced' }).click();
   await target.getByLabel('Header value').fill(HEADER_VALUE);
+  await target.getByRole('button', { name: 'Close' }).click();
   // A field added in the editor gets its key from the label and takes its value from a click on the page.
   await options.getByLabel('Label of the new field').fill('Sub title');
   await options.getByRole('button', { name: 'Add field' }).click();

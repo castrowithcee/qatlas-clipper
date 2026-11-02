@@ -180,17 +180,17 @@ describe('options page', () => {
     expect(screen.queryByText('Add at least one website.')).toBeNull();
   });
 
-  it('keeps the page kind list and the custom type apart, the custom type under Advanced', async () => {
+  it('keeps the page kind list and the custom type together under Advanced', async () => {
     const storage = fakeStorage(stored(project('p1', 'A')));
     const user = await mount(storage);
     const kind = screen.getByLabelText('Only on pages of this kind');
+    expect(screen.getByRole('button', { name: 'Advanced' }).getAttribute('aria-expanded')).toBe('false');
+    expect(kind.closest('[hidden]')).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Advanced' }));
     expect([...(kind as HTMLSelectElement).options].map((o) => o.text)).toEqual([
       'Any kind of page', 'Product', 'Job posting', 'Article', 'Event', 'Recipe', 'Local business',
     ]);
     await user.selectOptions(kind, 'jobPosting');
-    expect(screen.getByRole('button', { name: 'Advanced' }).getAttribute('aria-expanded')).toBe('false');
-    expect(screen.getByLabelText('Custom page type').closest('[hidden]')).toBeTruthy();
-    await user.click(screen.getByRole('button', { name: 'Advanced' }));
     await user.type(screen.getByLabelText('Custom page type'), ' Course ');
     await user.click(screen.getByRole('button', { name: 'Save changes' }));
     await screen.findByText('Saved.');
@@ -199,6 +199,15 @@ describe('options page', () => {
     await user.click(screen.getByRole('button', { name: 'Save changes' }));
     await screen.findByText('Saved.');
     expect((await loadConfig(storage)).projects[0]?.scope).toEqual({ allSites: true, domains: [], pageType: 'Course' });
+  });
+
+  it.each([
+    ['a page kind', { allSites: true, domains: [], pageKind: 'article' }],
+    ['a custom page type', { allSites: true, domains: [], pageType: 'Product' }],
+  ])('opens Advanced in the scope when %s is set', async (_name, scope) => {
+    await mount(fakeStorage(stored(project('p1', 'A', { scope }))));
+    expect(screen.getByRole('button', { name: 'Advanced' }).getAttribute('aria-expanded')).toBe('true');
+    expect(screen.getByLabelText('Only on pages of this kind').closest('[hidden]')).toBeNull();
   });
 
   it('changes scope back to all sites, dropping domains, and clears the page type', async () => {
@@ -560,12 +569,18 @@ describe('options page', () => {
   describe('targets', () => {
     const target = (id: string, url: string, extra: Record<string, unknown> = {}) => ({ id, name: id, url, headers: [], purpose: '', ...extra });
 
+    /** Adds a target; its details open and stay open. */
     async function addTarget(user: ReturnType<typeof userEvent.setup>, url: string) {
       await user.click(screen.getByRole('button', { name: 'Add target' }));
-      const url_ = screen.getByLabelText('Webhook address');
+      const url_ = within(screen.getByRole('dialog')).getByLabelText('Webhook address');
       await user.clear(url_);
       await user.type(url_, url);
     }
+
+    const openTarget = async (user: ReturnType<typeof userEvent.setup>, name: string) => {
+      await user.click(screen.getByRole('button', { name: `Edit target ${name}` }));
+      return within(screen.getByRole('dialog', { name }));
+    };
 
     it('requests the host permission on save and shows the status with text', async () => {
       const storage = fakeStorage(stored(project('p1', 'A')));
@@ -575,7 +590,7 @@ describe('options page', () => {
       expect(screen.getByTestId('permission-0').textContent).toContain('Access missing');
       await user.click(screen.getByRole('button', { name: 'Save changes' }));
       await screen.findByText('Saved.');
-      await screen.findByText('Access allowed');
+      await waitFor(() => expect(screen.getByTestId('permission-0').textContent).toContain('Access allowed'));
       expect(screen.queryByRole('button', { name: 'Allow' })).toBeNull();
       expect(permissions.request).toHaveBeenCalledWith(['https://example.com/*']);
     });
@@ -599,8 +614,10 @@ describe('options page', () => {
 
     it('toggles the visibility of the access key', async () => {
       const user = await mount(fakeStorage(stored(project('p1', 'A', { targets: [target('t1', 'https://example.com/a')] }))));
-      const key = screen.getByLabelText('Access key (optional)');
-      const toggle = screen.getByRole('checkbox', { name: 'Show access key' });
+      const details = await openTarget(user, 't1');
+      await user.click(details.getByRole('button', { name: 'Advanced' }));
+      const key = details.getByLabelText('Access key (optional)');
+      const toggle = details.getByRole('checkbox', { name: 'Show access key' });
       await user.click(toggle);
       expect(key.getAttribute('type')).toBe('text');
       await user.click(toggle);
@@ -613,11 +630,12 @@ describe('options page', () => {
         [HEADER_VALUES_KEY]: { t1: { Authorization: 'Bearer abc', 'X-Extra': 'v' } },
       });
       const user = await mount(storage);
-      const key = screen.getByLabelText('Access key (optional)') as HTMLInputElement;
+      const details = await openTarget(user, 't1');
+      const key = details.getByLabelText('Access key (optional)') as HTMLInputElement;
       expect(key.value).toBe('abc');
       // Only the extra header is listed; the access key is not duplicated.
-      expect(screen.getAllByLabelText('Header name')).toHaveLength(1);
-      expect((screen.getByLabelText('Header name') as HTMLInputElement).value).toBe('X-Extra');
+      expect(details.getAllByLabelText('Header name')).toHaveLength(1);
+      expect((details.getByLabelText('Header name') as HTMLInputElement).value).toBe('X-Extra');
       await user.clear(key);
       await user.click(screen.getByRole('button', { name: 'Save changes' }));
       await screen.findByText('Saved.');
@@ -630,16 +648,17 @@ describe('options page', () => {
         ...stored(project('p1', 'A', { targets: [target('t1', 'https://example.com/a', { headers: ['Authorization'] })] })),
         [HEADER_VALUES_KEY]: { t1: { Authorization: 'Basic xyz' } },
       });
-      await mount(storage);
-      expect((screen.getByLabelText('Access key (optional)') as HTMLInputElement).disabled).toBe(true);
-      expect((screen.getByLabelText('Header name') as HTMLInputElement).value).toBe('Authorization');
+      const user = await mount(storage);
+      const details = await openTarget(user, 't1');
+      expect((details.getByLabelText('Access key (optional)') as HTMLInputElement).disabled).toBe(true);
+      expect((details.getByLabelText('Header name') as HTMLInputElement).value).toBe('Authorization');
     });
 
     it('edits custom headers under Advanced and removes a target with its values', async () => {
       const storage = fakeStorage(stored(project('p1', 'A')));
       const user = await mount(storage);
       await addTarget(user, 'https://example.com/hook');
-      await user.click(within(screen.getByRole('group', { name: 'New target' })).getByRole('button', { name: 'Advanced' }));
+      await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Advanced' }));
       await user.click(screen.getByRole('button', { name: 'Add header' }));
       await user.type(screen.getByLabelText('Header name'), 'X-Token');
       await user.type(screen.getByLabelText('Header value'), 'abc');
@@ -648,6 +667,8 @@ describe('options page', () => {
       const id = (await loadConfig(storage)).projects[0]!.targets[0]!.id;
       expect(storage.data[HEADER_VALUES_KEY]).toEqual({ [id]: { 'X-Token': 'abc' } });
       await user.click(screen.getByRole('button', { name: 'Remove target' }));
+      expect(screen.queryByRole('dialog')).toBeNull();
+      expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Add target' }));
       await user.click(screen.getByRole('button', { name: 'Save changes' }));
       await screen.findByText('Saved.');
       expect((await loadConfig(storage)).projects[0]!.targets).toEqual([]);
@@ -669,8 +690,8 @@ describe('options page', () => {
         o.forEach((x) => permissions.granted.add(x));
         return true;
       });
-      await user.click(within(badge).getByRole('button', { name: 'Allow' }));
-      await screen.findByText('Access allowed');
+      await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Allow' }));
+      await waitFor(() => expect(badge.textContent).toContain('Access allowed'));
       expect(permissions.request).toHaveBeenCalledTimes(2);
       expect(permissions.request).toHaveBeenLastCalledWith(['https://example.com/*']);
     });
@@ -684,8 +705,10 @@ describe('options page', () => {
       );
       const permissions = fakePermissions();
       const user = await mount(storage, permissions);
-      await user.click(within(screen.getByRole('group', { name: 't1' })).getByRole('button', { name: 'Remove target' }));
-      await user.click(within(screen.getByRole('group', { name: 't2' })).getByRole('button', { name: 'Remove target' }));
+      await openTarget(user, 't1');
+      await user.click(screen.getByRole('button', { name: 'Remove target' }));
+      await openTarget(user, 't2');
+      await user.click(screen.getByRole('button', { name: 'Remove target' }));
       await user.click(screen.getByRole('button', { name: 'Save changes' }));
       await screen.findByText('Saved.');
       expect(permissions.remove).toHaveBeenCalledTimes(1);
@@ -708,6 +731,111 @@ describe('options page', () => {
       await user.click(screen.getByRole('button', { name: 'Save changes' }));
       await screen.findByText('Saved.');
       expect((await loadConfig(storage)).projects[0]?.targets[0]?.url).toBe('http://localhost:8080/hook');
+    });
+
+    it('lists the targets with name, shortened address and access status, and keeps the key out of the list', async () => {
+      const long = 'https://hooks.example.com/services/abcdefghijklmnopqrstuvwxyz/0123456789/trailing?token=shh#frag';
+      const storage = fakeStorage({
+        ...stored(project('p1', 'A', { targets: [target('t1', 'https://example.com/hook', { headers: ['Authorization'] }), target('t2', long)] })),
+        [HEADER_VALUES_KEY]: { t1: { Authorization: 'Bearer secret-key' } },
+      });
+      const permissions = fakePermissions();
+      permissions.granted.add('https://example.com/*');
+      await mount(storage, permissions);
+      const table = screen.getByRole('table', { name: 'Targets' });
+      expect(within(table).getAllByRole('columnheader').map((h) => h.textContent)).toEqual(['Order', 'Name', 'Webhook address', 'Access', 'Actions']);
+      const rows = within(table).getAllByRole('row').slice(1);
+      await waitFor(() => expect(rows[0]!.textContent).toContain('Access allowed'));
+      expect(rows[0]!.textContent).toContain('t1');
+      expect(rows[0]!.textContent).toContain('example.com/hook');
+      expect(rows[1]!.textContent).toContain('Access missing');
+      const shown = within(rows[1]!).getByText(/^hooks\.example\.com\/services/);
+      expect(shown.textContent!.length).toBeLessThan(long.length);
+      expect(shown.textContent).toMatch(/…$/);
+      expect(shown.textContent).not.toContain('token');
+      // The full address is the tooltip; the key is nowhere in the list.
+      expect(document.getElementById(shown.getAttribute('aria-describedby')!)?.textContent).toBe(long);
+      expect(table.textContent).not.toContain('secret-key');
+      expect(screen.queryByRole('dialog')).toBeNull();
+    });
+
+    it('opens the details from the row and the button, returns the focus and moves a target with the arrows', async () => {
+      const storage = fakeStorage(stored(project('p1', 'A', { targets: [target('t1', 'https://example.com/a'), target('t2', 'https://example.com/b')] })));
+      const user = await mount(storage);
+      const open = screen.getByRole('button', { name: 'Edit target t1' });
+      await user.click(open);
+      expect(within(screen.getByRole('dialog', { name: 't1' })).getByLabelText('Webhook address')).toHaveProperty('value', 'https://example.com/a');
+      await user.keyboard('{Escape}');
+      expect(screen.queryByRole('dialog')).toBeNull();
+      expect(document.activeElement).toBe(open);
+      await user.click(screen.getByText('t2'));
+      expect(screen.getByRole('dialog', { name: 't2' })).toBeTruthy();
+      await user.keyboard('{Escape}');
+      expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Edit target t2' }));
+      await user.click(screen.getByRole('button', { name: 'Move up target t2' }));
+      const names = () => screen.getAllByRole('row').slice(1).map((r) => r.querySelector('.options-field-name')?.firstChild?.textContent);
+      expect(names()).toEqual(['t2', 't1']);
+      await user.click(screen.getByRole('button', { name: 'Save changes' }));
+      await screen.findByText('Saved.');
+      expect((await loadConfig(storage)).projects[0]!.targets.map((x) => x.id)).toEqual(['t2', 't1']);
+    });
+
+    it('keeps Advanced closed without a key or header and opens it for a key or a header', async () => {
+      const storage = fakeStorage({
+        ...stored(
+          project('p1', 'A', {
+            targets: [
+              target('plain', 'https://example.com/a'),
+              target('keyed', 'https://example.com/b', { headers: ['Authorization'] }),
+              target('custom', 'https://example.com/c', { headers: ['X-Extra'] }),
+            ],
+          }),
+        ),
+        [HEADER_VALUES_KEY]: { keyed: { Authorization: 'Bearer abc' } },
+      });
+      const user = await mount(storage);
+      const expanded: Record<string, string | null> = {};
+      for (const name of ['plain', 'keyed', 'custom']) {
+        const details = await openTarget(user, name);
+        expanded[name] = details.getByRole('button', { name: 'Advanced' }).getAttribute('aria-expanded');
+        await user.keyboard('{Escape}');
+      }
+      expect(expanded).toEqual({ plain: 'false', keyed: 'true', custom: 'true' });
+    });
+
+    it('asks for the access to the origin synchronously in the click inside the details', async () => {
+      const permissions = fakePermissions(false);
+      const user = await mount(fakeStorage(stored(project('p1', 'A', { targets: [target('t1', 'https://example.com/a')] }))), permissions);
+      const details = await openTarget(user, 't1');
+      fireEvent.click(details.getByRole('button', { name: 'Allow' }));
+      // No await between the click and the check: the request has to start inside the user gesture.
+      expect(permissions.request).toHaveBeenCalledWith(['https://example.com/*']);
+    });
+
+    it('marks both destructive buttons with the danger variant', async () => {
+      const user = await mount(fakeStorage(stored(project('p1', 'A', { targets: [target('t1', 'https://example.com/a')] }))));
+      expect(screen.getByRole('button', { name: 'Delete project' }).className).toContain('q-button--danger');
+      const details = await openTarget(user, 't1');
+      expect(details.getByRole('button', { name: 'Remove target' }).className).toContain('q-button--danger');
+    });
+
+    it('marks a row with a check error and opens its details on the first error when saving', async () => {
+      const storage = fakeStorage(stored(project('p1', 'A', { targets: [target('t1', 'https://example.com/a'), target('t2', 'https://example.com/b')] })));
+      const user = await mount(storage);
+      const details = await openTarget(user, 't2');
+      const url = details.getByLabelText('Webhook address');
+      await user.clear(url);
+      await user.type(url, 'http://example.com/hook');
+      await user.keyboard('{Escape}');
+      const rows = screen.getAllByRole('row').slice(1);
+      expect(rows[0]!.hasAttribute('data-invalid')).toBe(false);
+      expect(rows[1]!.hasAttribute('data-invalid')).toBe(true);
+      expect(within(rows[1]!).getByText('Check the inputs')).toBeTruthy();
+      expect(screen.getByRole('button', { name: 'Edit target t2' }).hasAttribute('data-error-open')).toBe(true);
+      await user.click(screen.getByRole('button', { name: 'Save changes' }));
+      await screen.findByText(/Not saved/);
+      const dialog = await screen.findByRole('dialog', { name: 't2' });
+      await waitFor(() => expect(document.activeElement).toBe(within(dialog).getByLabelText('Webhook address')));
     });
   });
 });
@@ -966,17 +1094,21 @@ describe('options page vocabulary', () => {
     const c = language === 'en' ? en : de;
     const heading = await screen.findByRole('heading', { name: c['options.targets.title'], level: 3 });
     const text = visibleText(heading.closest('section') as HTMLElement, () => false);
-    expect(text).toContain(c['options.targets.key']);
-    expect(text).not.toMatch(/\bheader|bearer|authorization/i);
-    // The explanation is reachable through the tooltip of the access key.
-    expect(c['options.targets.key.help']).toMatch(/Authorization: Bearer/);
+    expect(text).toContain('Hook');
+    expect(text).not.toMatch(/\bheader|bearer|authorization|schl|\bkey\b/i);
+    // The access key sits in the details under "Advanced", which a stored key opens.
+    await userEvent.setup().click(screen.getByRole('button', { name: c['options.targets.open'].replace('{name}', 'Hook') }));
+    const dialog = screen.getByRole('dialog');
+    expect(visibleText(dialog, () => false)).toContain(c['options.targets.key']);
+    expect(visibleText(dialog, () => false)).not.toMatch(/bearer|authorization/i);
+    expect(c['options.targets.key.help']).not.toMatch(/bearer/i);
   });
 
   it.each([['en'], ['de']] as const)('keeps technical words out of the normal view in %s', async (language) => {
     const storage = fakeStorage({
       ...stored(
         project('p1', 'Articles', {
-          scope: { allSites: false, domains: ['example.com'], pageKind: 'article' },
+          scope: { allSites: false, domains: ['example.com'] },
           fields: [
             f('title', 'Headline', { detect: 'title', schemaOrgPath: 'Article.headline' }),
             f('status', 'Status', { manual: { type: 'choice', values: ['Draft'] } }),

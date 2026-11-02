@@ -67,15 +67,29 @@ for (const lang of ['de', 'en'] as const) {
       await page.setViewportSize({ width: 1100, height: 900 });
       await closeField('Price');
 
-      // Targets: the first has no permission yet (text, icon and button); the e2e build already holds localhost, so the second one is allowed.
-      const targets = sections.nth(2);
-      const archive = page.getByRole('group', { name: 'Archive' });
-      await expect(archive.getByText(t('Zugriff fehlt', 'Access missing'))).toBeVisible();
-      await expect(archive.getByRole('button', { name: t('Erlauben', 'Allow') })).toBeVisible();
-      await archive.getByLabel(t('Zugangsschlüssel anzeigen', 'Show access key')).check();
-      await expect(archive.getByLabel(t('Zugangsschlüssel (optional)', 'Access key (optional)'))).toHaveValue('example-key');
-      await archive.getByRole('button', { name: t('Erweitert', 'Advanced') }).click();
+      // Targets: the first has no permission yet (text and icon); the e2e build already holds localhost, so the second one is allowed.
+      const targets = sections.filter({ has: page.getByRole('heading', { name: t('Ziele', 'Targets'), level: 3 }) });
+      const row = (name: string) => targets.getByRole('row', { name: new RegExp(name) });
+      await expect(row('Archive').getByText(t('Zugriff fehlt', 'Access missing'))).toBeVisible();
+      await expect(row('Local test').getByText(t('Zugriff erlaubt', 'Access allowed'))).toBeVisible();
       await shot(targets, 'targets', tag);
+      await page.setViewportSize({ width: 360, height: 800 });
+      await shot(targets, 'targets-360', tag);
+      await page.setViewportSize({ width: 1100, height: 900 });
+
+      const target = page.getByRole('dialog', { name: 'Archive' });
+      await page.getByRole('button', { name: t('Ziel Archive bearbeiten', 'Edit target Archive') }).click();
+      await expect(target.getByText(t('Zugriff fehlt', 'Access missing'))).toBeVisible();
+      await expect(target.getByRole('button', { name: t('Erlauben', 'Allow') })).toBeVisible();
+      // The stored header opens "Advanced", where the access key now lives.
+      await expect(target.getByRole('button', { name: t('Erweitert', 'Advanced') })).toHaveAttribute('aria-expanded', 'true');
+      await target.getByLabel(t('Zugangsschlüssel anzeigen', 'Show access key')).check();
+      await expect(target.getByLabel(t('Zugangsschlüssel (optional)', 'Access key (optional)'))).toHaveValue('example-key');
+      await shot(page, 'target-detail', tag);
+      await page.setViewportSize({ width: 360, height: 800 });
+      await shot(page, 'target-detail-360', tag);
+      await page.setViewportSize({ width: 1100, height: 900 });
+      await target.getByRole('button', { name: t('Schließen', 'Close') }).click();
 
       // Settings, import and export, and a project address that does not exist.
       const nav = page.getByRole('navigation', { name: t('Optionen', 'Options') });
