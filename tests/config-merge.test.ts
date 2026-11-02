@@ -310,3 +310,56 @@ describe('mergeConfig header values', () => {
     expect(r.conflicts.map((c) => c.kind)).toEqual(['projectName', 'headerValue']);
   });
 });
+
+describe('mergeConfig project content', () => {
+  const withContent = (s: StoredState, content: Project['content']) =>
+    onA(s, (p) => {
+      const copy = { ...p };
+      delete copy.content;
+      return content === undefined ? copy : { ...copy, content };
+    });
+  const contentOf = (s: StoredState) => s.config.projects[0]!.content;
+
+  it('takes a one-sided change', () => {
+    const changed = withContent(base(), 'html');
+    for (const [mine, theirs] of [[changed, base()], [base(), changed]] as const) {
+      const r = merged(mine, theirs);
+      expect(r.conflicts).toEqual([]);
+      expect(contentOf(r.preferMine)).toBe('html');
+      expect(contentOf(r.preferTheirs)).toBe('html');
+    }
+  });
+
+  it('does not conflict on equal changes', () => {
+    const r = merged(withContent(base(), 'none'), withContent(base(), 'none'));
+    expect(r.conflicts).toEqual([]);
+    expect(contentOf(r.preferTheirs)).toBe('none');
+  });
+
+  it('conflicts on different changes and honours both preferences', () => {
+    const r = merged(withContent(base(), 'html'), withContent(base(), 'none'));
+    expect(r.conflicts).toEqual([{ kind: 'content', projectId: 'a', projectName: 'Project a' }]);
+    expect(contentOf(r.preferMine)).toBe('html');
+    expect(contentOf(r.preferTheirs)).toBe('none');
+  });
+
+  it('treats set against absent as different and keeps the key absent', () => {
+    const b = withContent(base(), 'markdown');
+    const r = merged(withContent(b, undefined), withContent(b, 'html'), undefined, b);
+    expect(r.conflicts).toHaveLength(1);
+    expect(contentOf(r.preferMine)).toBeUndefined();
+    expect('content' in r.preferMine.config.projects[0]!).toBe(false);
+    expect(contentOf(r.preferTheirs)).toBe('html');
+  });
+
+  it('keeps content and unknown project keys on an unchanged merge', () => {
+    const b = withContent(base(), 'html');
+    const extra = onA(b, (p) => ({ ...p, futureKey: { x: 1 } }) as Project);
+    const r = mergeConfig({ base: extra, mine: extra, theirs: extra });
+    expect(r.conflicts).toEqual([]);
+    expect(r.preferMine).toEqual(extra);
+    const r2 = mergeConfig({ base: extra, mine: onA(extra, (p) => ({ ...p, name: 'N' })), theirs: extra });
+    expect((r2.preferTheirs.config.projects[0] as unknown as Record<string, unknown>).futureKey).toEqual({ x: 1 });
+    expect(contentOf(r2.preferTheirs)).toBe('html');
+  });
+});

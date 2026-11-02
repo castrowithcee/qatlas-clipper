@@ -8,6 +8,7 @@ export type MergeConflictKind =
   | 'project' // deleted on one side and changed on the other, or added differently on both
   | 'projectName'
   | 'scope'
+  | 'content'
   | 'projectOrder'
   | 'field'
   | 'fieldOrder'
@@ -193,6 +194,8 @@ function run(input: MergeInput, prefer: MergePreference): { state: StoredState; 
   return { state: { config, headerValues }, conflicts };
 }
 
+const HANDLED_PROJECT_KEYS = new Set(['id', 'name', 'scope', 'content', 'fields', 'siteMappings', 'targets']);
+
 function mergeProject(
   baseOrig: Project,
   mine: Project,
@@ -272,7 +275,23 @@ function mergeProject(
   );
   if (to.conflict) note({ kind: 'targetOrder' });
 
+  const content = pick3(base.content, mine.content, theirs.content, prefer);
+  if (content.conflict) note({ kind: 'content' });
+
+  // Any property without its own handling above is merged per key, so a field added to the schema is never dropped silently.
+  const extra: Record<string, unknown> = {};
+  for (const key of union(Object.keys(base), Object.keys(mine), Object.keys(theirs))) {
+    if (HANDLED_PROJECT_KEYS.has(key)) continue;
+    const get = (p: Project) => (p as unknown as Record<string, unknown>)[key];
+    const r = pick3(get(base), get(mine), get(theirs), prefer);
+    if (r.conflict) note({ kind: 'project' });
+    if (r.value !== undefined) extra[key] = r.value;
+  }
+
   return {
+    ...extra,
+    // An absent value stays absent (it means "markdown"); it is not normalised, so nothing is rewritten silently.
+    ...(content.value !== undefined && { content: content.value }),
     id: mine.id,
     name: name.value as string,
     scope: scope.value as Project['scope'],
