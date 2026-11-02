@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 
 const PAGES_DIR = fileURLToPath(new URL('./pages/', import.meta.url));
 // Fixed allow-list: request paths never reach the file system.
-const PAGE_FILES = new Set(['jsonld.html', 'meta.html', 'plain-1.html', 'plain-2.html', 'picker-light.html', 'picker-dark.html']);
+const PAGE_FILES = new Set(['jsonld.html', 'meta.html', 'plain-1.html', 'plain-2.html', 'contact.html', 'picker-light.html', 'picker-dark.html']);
 
 function listen(server: Server): Promise<number> {
   return new Promise((resolve, reject) => {

@@ -15,6 +15,7 @@ body { font-family: var(--font-sans); font-size: var(--font-size-base); line-hei
 
 .popup-control { display: flex; align-items: center; gap: var(--space-1); }
 .popup-control > .q-input { flex: 1; min-width: 0; }
+.popup-value { resize: vertical; align-self: stretch; }
 .popup-source { display: inline-flex; align-items: center; justify-content: center; min-width: 1.75rem; min-height: 1.75rem; color: var(--color-text-muted); border-radius: var(--radius-sm); }
 .popup-source:focus-visible { outline: 3px solid var(--color-focus); outline-offset: 2px; }
 

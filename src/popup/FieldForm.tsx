@@ -65,7 +65,8 @@ function FieldRow({ field, value, source, invalid, onChange, onPick }: RowProps)
               ))}
             </select>
           ) : (
-            <input {...control} type="text" className="q-input" value={value} required={field.required} onChange={(e) => onChange(e.target.value)} />
+            // Multi-line so line breaks of clicked areas survive viewing, editing and sending.
+            <textarea {...control} className="q-input popup-value" rows={3} value={value} required={field.required} onChange={(e) => onChange(e.target.value)} />
           )}
           <SourceMark {...source} />
           <Tooltip content={t('popup.field.pickTip')}>

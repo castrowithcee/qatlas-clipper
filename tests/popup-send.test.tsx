@@ -80,6 +80,19 @@ describe('popup send', () => {
     expect(screen.queryByRole('button', { name: /^Send to/ })).toBeNull();
   });
 
+  it('keeps line breaks of a multi-line value when shown, edited and sent', async () => {
+    const value = '**Contact**\nErika Example\nhead of purchasing';
+    const { user, deps } = setup({ fields: { title: { value, source: 'selector' } } });
+    const area = (await screen.findByLabelText(/^Headline/)) as HTMLTextAreaElement;
+    expect(area.tagName).toBe('TEXTAREA');
+    expect(area.value).toBe(value);
+    await user.type(area, '{Enter}info@example.com');
+    await user.click(screen.getByRole('button', { name: 'Send to Hook' }));
+    await screen.findByText(SENT);
+    const req = (deps.send as ReturnType<typeof vi.fn>).mock.calls[0]![0];
+    expect(req.payload.fields.title).toBe(`${value}\ninfo@example.com`);
+  });
+
   it('blocks an empty required field and marks it invalid', async () => {
     const { user, deps } = setup({ fields: {} });
     await user.click(await sendButton());
