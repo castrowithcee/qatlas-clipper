@@ -107,6 +107,8 @@ export function PopupApp({
   const [draft, setDraft] = useState<Draft | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const requestId = useRef(0);
+  // Set on selection: state.projectId follows only after the tab re-read, too late for the options handoff.
+  const chosenProject = useRef<string | null>(null);
   const writes = useRef<Promise<void>>(Promise.resolve());
 
   const persist = useCallback(
@@ -119,6 +121,7 @@ export function PopupApp({
 
   useEffect(() => {
     const id = ++requestId.current;
+    chosenProject.current = null;
     const stale = () => id !== requestId.current;
     (async () => {
       try {
@@ -167,7 +170,8 @@ export function PopupApp({
   const readyProjectId = state.phase === 'ready' ? state.projectId : null;
   const openOpts = () =>
     void (async () => {
-      if (readyProjectId) await requestOptionsFocus(draftStorage, readyProjectId).catch(() => undefined);
+      const focusId = readyProjectId === null ? null : (chosenProject.current ?? readyProjectId);
+      if (focusId) await requestOptionsFocus(draftStorage, focusId).catch(() => undefined);
       await openOptions();
     })();
   if (state.phase === 'loading') return <main className="popup"><LoadingView /></main>;
@@ -202,6 +206,7 @@ export function PopupApp({
   const changeProject = async (id: string) => {
     setActionError(null);
     const rid = ++requestId.current;
+    chosenProject.current = id;
     persist({ ...current, projectId: id });
     void Promise.resolve(storage.set({ [LAST_PROJECT_KEY]: id })).catch(() => undefined);
     const result = await read(tabId, config.projects, id);
