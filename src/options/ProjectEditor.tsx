@@ -1,11 +1,11 @@
 import { useState } from 'react';
-import type { HeaderValues, Project } from '../config';
+import { contentFormatOf, type ContentFormat, type HeaderValues, type Project } from '../config';
 import { FieldEditor } from './FieldEditor';
 import { SiteMappings } from './SiteMappings';
 import { ScopeEditor } from './ScopeEditor';
 import { deleteDomain, deleteField, deleteMapping, errorsAt, renameFieldKey, type Issue } from './draft';
 import { useI18n } from '../settings';
-import { Button, Dialog, IconButton, TextField, Tooltip } from '../ui/components';
+import { Button, Dialog, IconButton, Select, TextField, Tooltip } from '../ui/components';
 import { TargetEditor } from './TargetEditor';
 import type { PermissionStatus } from './permissions';
 
@@ -47,6 +47,19 @@ export function ProjectEditor({ project, index, count, onMove, onDelete, issues,
         }}
         onDelete={(i) => onChange(deleteField(project, i))}
       />
+      <section className="options-section">
+        <Select
+          label={t('options.project.content.label')}
+          help={t('options.project.content.help')}
+          value={contentFormatOf(project)}
+          options={[
+            { value: 'none', label: t('options.project.content.none') },
+            { value: 'markdown', label: t('options.project.content.markdown') },
+            { value: 'html', label: t('options.project.content.html') },
+          ]}
+          onChange={(e) => onChange({ ...project, content: e.target.value as ContentFormat })}
+        />
+      </section>
       <TargetEditor
         targets={project.targets}
         basePath={base}

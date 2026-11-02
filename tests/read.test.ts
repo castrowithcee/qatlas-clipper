@@ -1,7 +1,12 @@
 // @vitest-environment happy-dom
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { createMarkdownContent } from 'defuddle/full';
 import type { Project } from '../src/config/schema';
 
+vi.mock('defuddle/full', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('defuddle/full')>();
+  return { ...actual, createMarkdownContent: vi.fn(actual.createMarkdownContent) };
+});
 const executeScript = vi.hoisted(() => vi.fn<(opts: unknown) => Promise<unknown[]>>(async () => []));
 const tabsGet = vi.hoisted(() => vi.fn<(id: number) => Promise<{ url?: string }>>(async () => ({ url: 'https://example.com/a' })));
 vi.mock('wxt/browser', () => ({ browser: { scripting: { executeScript }, tabs: { get: tabsGet } } }));
@@ -39,7 +44,8 @@ describe('buildReadResult', () => {
     const r = buildReadResult(URL_, d, [project('a'), project('b', { scope: { allSites: false, domains: ['other.test'] } })]);
     expect(r.title).toBe('Hello Headline');
     expect(r.url).toBe(URL_);
-    expect(r.contentMarkdown).toContain('First paragraph');
+    expect(r.contentFormat).toBe('markdown');
+    expect(r.content).toContain('First paragraph');
     expect(r.contentTruncated).toBe(false);
     expect(r.jsonLdTypes).toEqual(['Article']);
     expect(r.matchingProjects).toEqual([{ id: 'a', name: 'a' }]);
@@ -65,9 +71,70 @@ describe('buildReadResult', () => {
   it('truncates long content and flags it', () => {
     const r = buildReadResult(URL_, doc(), [], undefined, 100);
     expect(r.contentTruncated).toBe(true);
-    expect(r.contentMarkdown.endsWith('[… truncated]')).toBe(true);
-    expect(r.contentMarkdown.length).toBeLessThan(100 + 20);
+    expect(r.content.endsWith('[… truncated]')).toBe(true);
+    expect(r.content.length).toBeLessThan(100 + 20);
     expect(MAX_CONTENT_CHARS).toBeGreaterThan(1000);
+    const h = buildReadResult(URL_, doc(), [project('h', { content: 'html' })], undefined, 100);
+    expect(h.contentTruncated).toBe(true);
+    expect(h.content.endsWith('[… truncated]')).toBe(true);
+    expect(h.content.length).toBeLessThan(100 + 20);
+  });
+});
+
+const RICH = `<!doctype html><html><head><title>Rich</title></head><body><nav>Menu</nav><article>
+<h1>Rich Title</h1>
+<p>${'Intro paragraph with a <a href="/docs/start" onclick="x()">relative link</a> and enough words to count as content. '.repeat(6)}</p>
+<ul><li>First item in the list with enough words to stay</li><li>Second item in the list with enough words to stay</li></ul>
+<p style="color:red" onmouseover="x()">Styled <img src="/img/a.png" srcset="/img/a.png 1x, /img/b.png 2x" alt="A"> paragraph. <a href="javascript:alert(1)">bad</a></p>
+<iframe title="x"></iframe><script>alert(1)</script><style>p{}</style><noscript>ns</noscript><template><p>t</p></template>
+<form action="/f"><label>Name <input name="n"></label><select><option>o</option></select><textarea>t</textarea><button>Go</button></form>
+<p>${'More body text to make this the main content of the page. '.repeat(10)}</p>
+</article><footer>Footer</footer></body></html>`;
+
+describe('content formats', () => {
+  it('markdown is real Markdown without HTML tags', () => {
+    const r = buildReadResult(URL_, doc(RICH), [project('a')]);
+    expect(r.contentFormat).toBe('markdown');
+    expect(r.content).not.toMatch(/<(p|div|body|ul|li|h1|a)[\s>]/);
+    expect(r.content).toMatch(/^#+ /m);
+    expect(r.content).toMatch(/^[-*] First item/m);
+    expect(r.content).toMatch(/\[relative link\]\(https:\/\/www\.example\.com\/docs\/start\)/);
+    expect(r.content).not.toContain('<iframe');
+    expect(r.content).not.toContain('Menu');
+    expect(r.content).not.toContain('Footer');
+  });
+
+  it('missing content setting means markdown; explicit values are used', () => {
+    expect(buildReadResult(URL_, doc(RICH), [project('a')]).contentFormat).toBe('markdown');
+    expect(buildReadResult(URL_, doc(RICH), [project('a', { content: 'html' })]).contentFormat).toBe('html');
+  });
+
+  it('html is sanitized and has only absolute links', () => {
+    const r = buildReadResult(URL_, doc(RICH), [project('a', { content: 'html' })]);
+    expect(r.contentFormat).toBe('html');
+    expect(r.content).toContain('<p');
+    expect(r.content).toContain('relative link');
+    expect(r.content).not.toMatch(/<(iframe|frame|object|embed|script|style|noscript|template|form|input|button|select|textarea|option|label)[\s>]/i);
+    expect(r.content).not.toMatch(/\son[a-z]+\s*=/i);
+    expect(r.content).not.toMatch(/\sstyle\s*=/i);
+    expect(r.content).not.toContain('javascript:');
+    expect(r.content).toContain('href="https://www.example.com/docs/start"');
+    expect(r.content).toContain('src="https://www.example.com/img/a.png"');
+    expect(r.content).toContain('https://www.example.com/img/b.png 2x');
+    const links = [...r.content.matchAll(/\b(?:href|src)="([^"]*)"/g)].map((m) => m[1]!);
+    expect(links.length).toBeGreaterThan(0);
+    for (const l of links) expect(l).toMatch(/^https?:\/\//);
+  });
+
+  it('none sends empty content and never converts', () => {
+    const convert = vi.mocked(createMarkdownContent);
+    convert.mockClear();
+    const r = buildReadResult(URL_, doc(RICH), [project('a', { content: 'none' })]);
+    expect(r.content).toBe('');
+    expect(r.contentFormat).toBe('none');
+    expect(r.contentTruncated).toBe(false);
+    expect(convert).not.toHaveBeenCalled();
+    expect(r.fields.headline).toBeDefined();
   });
 });
 

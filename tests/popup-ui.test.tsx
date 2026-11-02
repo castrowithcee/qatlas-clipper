@@ -54,7 +54,7 @@ const found = {
 const okRead = async (): Promise<ReadTabResult> => ({
   ok: true,
   result: {
-    title: 'Article', url: URL_A, contentMarkdown: '', contentTruncated: false, jsonLdTypes: [],
+    title: 'Article', url: URL_A, content: '', contentFormat: 'markdown', contentTruncated: false, jsonLdTypes: [],
     matchingProjects: [{ id: 'p0', name: 'Alpha0' }], selectedProjectId: 'p0', fields: found,
   } as never,
 });

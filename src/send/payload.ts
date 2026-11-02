@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { CONTENT_FORMATS, type ContentFormat } from '../config/schema';
 
 export const PAYLOAD_VERSION = 1;
 
@@ -8,7 +9,8 @@ export const payloadSchema = z.strictObject({
   url: z.string(),
   title: z.string(),
   fields: z.record(z.string(), z.string()),
-  content_markdown: z.string(),
+  content: z.string(),
+  content_format: z.enum(CONTENT_FORMATS),
   note: z.string(),
   captured_at: z.string(),
   version: z.literal(PAYLOAD_VERSION),
@@ -23,7 +25,8 @@ export interface PayloadInput {
   title: string;
   /** Edited or read values by field key; keys that are not project fields are dropped. */
   values: Record<string, string>;
-  contentMarkdown: string;
+  content: string;
+  contentFormat: ContentFormat;
   note: string;
   now?: () => Date;
 }
@@ -38,7 +41,9 @@ export function buildPayload(input: PayloadInput): Payload {
     url: input.url,
     title: input.title,
     fields,
-    content_markdown: input.contentMarkdown,
+    // Format "none" never carries content, whatever the caller passes.
+    content: input.contentFormat === 'none' ? '' : input.content,
+    content_format: input.contentFormat,
     note: input.note,
     captured_at: (input.now ?? (() => new Date()))().toISOString(),
     version: PAYLOAD_VERSION,

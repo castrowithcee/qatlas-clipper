@@ -16,7 +16,8 @@ qatlas-clipper sends one HTTP request per click on a send button to the URL of t
 | `url` | string | Address of the page that was read. |
 | `title` | string | Title of the page. |
 | `fields` | object, string to string | Every field of the project by its key. The value is what the user sees in the popup (read value, possibly edited); an empty string if there is none. |
-| `content_markdown` | string | Page content as Markdown, cut at 100,000 characters (`[… truncated]` marks a cut). |
+| `content` | string | Main content of the page (header, navigation and footer are left out), in the format named by `content_format`, cut at 100,000 characters (`[… truncated]` marks a cut). Empty string if `content_format` is `none`. |
+| `content_format` | string | `markdown` (default), `html` or `none`; set per project in the options page. `html` is cleaned: no `iframe`, `script`, `style`, form elements, event handler or `style` attributes, and all links and image addresses are absolute. |
 | `note` | string | Free note typed by the user; may be empty. |
 | `captured_at` | string | Time of sending, ISO 8601 in UTC. |
 | `version` | number | Payload format version, currently `1`. Changes to the format increase it. |
@@ -30,7 +31,8 @@ Example:
   "url": "https://example.com/article",
   "title": "Article",
   "fields": { "title": "Article", "price": "" },
-  "content_markdown": "# Article\n\nBody text.",
+  "content": "# Article\n\nBody text.",
+  "content_format": "markdown",
   "note": "",
   "captured_at": "2026-01-02T03:04:05.000Z",
   "version": 1

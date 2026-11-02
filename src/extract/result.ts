@@ -1,15 +1,19 @@
-import Defuddle from 'defuddle';
-import type { Project } from '../config/schema';
+// The full build carries the Markdown conversion; the base package only returns HTML.
+import Defuddle, { createMarkdownContent } from 'defuddle/full';
+import { contentFormatOf, type ContentFormat, type Project } from '../config/schema';
+import { sanitizeHtml } from './sanitize';
 import { matchProjects, readPage, resolveFields, nodeTypes, type FieldResult } from './index';
 
-/** Upper bound for contentMarkdown in characters; longer content is cut and flagged. */
+/** Upper bound for content in characters; longer content is cut and flagged. */
 export const MAX_CONTENT_CHARS = 100_000;
 export const TRUNCATION_MARKER = '\n\n[… truncated]';
 
 export interface ReadResult {
   title: string;
   url: string;
-  contentMarkdown: string;
+  content: string;
+  /** Format of `content`; `none` means no conversion ran and content is empty. */
+  contentFormat: ContentFormat;
   contentTruncated: boolean;
   jsonLdTypes: string[];
   matchingProjects: { id: string; name: string }[];
@@ -37,13 +41,19 @@ export function buildReadResult(url: string, doc: Document, projects: Project[],
   const matching = matchProjects(projects, page);
   const selected = projectId === undefined ? matching[0] : matching.find((p) => p.id === projectId);
 
-  const parsed = new Defuddle(doc.cloneNode(true) as Document, { url, markdown: true }).parse();
-  const { text, truncated } = truncate(parsed.content ?? '', maxChars);
+  const contentFormat = selected ? contentFormatOf(selected) : 'markdown';
+  // Defuddle returns cleaned HTML here. Markdown is converted from the sanitized HTML, because Defuddle's own
+  // conversion passes elements such as iframes through as raw HTML. "none" skips the conversion entirely.
+  const parsed = new Defuddle(doc.cloneNode(true) as Document, { url }).parse();
+  const html = contentFormat === 'none' ? '' : sanitizeHtml(parsed.content ?? '', url);
+  const raw = contentFormat === 'markdown' ? createMarkdownContent(html, url).trim() : html;
+  const { text, truncated } = truncate(raw, maxChars);
 
   return {
     title: parsed.title || doc.title.trim(),
     url,
-    contentMarkdown: text,
+    content: text,
+    contentFormat,
     contentTruncated: truncated,
     jsonLdTypes: [...new Set(page.nodes.flatMap((n) => nodeTypes(n)))],
     matchingProjects: matching.map((p) => ({ id: p.id, name: p.name })),

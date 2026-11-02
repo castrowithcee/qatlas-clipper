@@ -103,6 +103,24 @@ describe('options page', () => {
     });
   });
 
+  it('offers the content format with Markdown as the default for new projects and saves the choice', async () => {
+    const storage = fakeStorage();
+    const user = await mount(storage);
+    await user.click(addButton());
+    const select = screen.getByLabelText('Send page content') as HTMLSelectElement;
+    expect(select.value).toBe('markdown');
+    expect(within(select).getAllByRole('option').map((o) => o.textContent)).toEqual(['Off', 'Markdown', 'HTML']);
+    await user.selectOptions(select, 'html');
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+    await screen.findByText('Saved.');
+    expect((await loadConfig(storage)).projects[0]?.content).toBe('html');
+  });
+
+  it('shows a stored project without the setting as Markdown', async () => {
+    await mount(fakeStorage(stored(project('a', 'Alpha'))), undefined, projectHash('a'));
+    expect((screen.getByLabelText('Send page content') as HTMLSelectElement).value).toBe('markdown');
+  });
+
   it('renames a project in the list and the project view', async () => {
     const storage = fakeStorage(stored(project('p1', 'A')));
     const user = await mount(storage);

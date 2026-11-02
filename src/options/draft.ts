@@ -12,7 +12,7 @@ export function moveItem<T>(items: T[], index: number, delta: -1 | 1): T[] {
 }
 
 export function newProject(name: string): Project {
-  return { id: newId(), name, scope: { allSites: true, domains: [] }, fields: [], siteMappings: {}, targets: [] };
+  return { id: newId(), name, scope: { allSites: true, domains: [] }, fields: [], siteMappings: {}, targets: [], content: 'markdown' };
 }
 
 export function newTarget(name: string): Target {
