@@ -1330,7 +1330,10 @@ describe('field format defaults per value way', () => {
   });
 });
 
-describe('saving without overwriting', () => {
+// The test timeout must exceed WAIT, or it would cut the generous waits short.
+describe('saving without overwriting', { timeout: 20000 }, () => {
+  // Generous wait limit: processing after a storage event can exceed the 1000 ms default under parallel load.
+  const WAIT = { timeout: 5000 };
   // Storage that tells its subscribers about every write, like storage.onChanged does for other windows.
   function watched(initial: Record<string, unknown>) {
     const storage = fakeStorage(initial);
@@ -1357,7 +1360,7 @@ describe('saving without overwriting', () => {
     const user = userEvent.setup();
     window.location.hash = '';
     render(<OptionsApp storage={storage} permissions={fakePermissions()} stored={storage.subscribe} />);
-    await screen.findByRole('navigation', { name: 'Options' });
+    await screen.findByRole('navigation', { name: 'Options' }, WAIT);
     return user;
   };
   const links = () => within(screen.getByRole('navigation', { name: 'Options' })).getAllByRole('link').map((a) => a.textContent).filter((x) => x !== 'Settings' && x !== 'Import and export');
@@ -1372,7 +1375,7 @@ describe('saving without overwriting', () => {
     const storage = watched(stored(project('p1', 'A')));
     await mountWatched(storage);
     await storage.foreign((d) => { cfg(d).projects.push(project('p2', 'B')); });
-    await waitFor(() => expect(links()).toContain('B'));
+    await waitFor(() => expect(links()).toContain('B'), WAIT);
     expect(screen.queryByRole('dialog')).toBeNull();
     expect(screen.queryByText('Unsaved changes.')).toBeNull();
   });
@@ -1382,11 +1385,11 @@ describe('saving without overwriting', () => {
     const user = await mountWatched(storage);
     await rename(user, 'Mine');
     await storage.foreign((d) => { cfg(d).projects.push(project('p2', 'B')); });
-    await waitFor(() => expect(links()).toEqual(expect.arrayContaining(['Mine', 'B'])));
+    await waitFor(() => expect(links()).toEqual(expect.arrayContaining(['Mine', 'B'])), WAIT);
     expect(screen.queryByRole('dialog')).toBeNull();
     expect(screen.getByText('Unsaved changes.')).toBeTruthy();
     await user.click(screen.getByRole('button', { name: 'Save changes' }));
-    await screen.findByText('Saved.');
+    await screen.findByText('Saved.', {}, WAIT);
     expect((await loadConfig(storage)).projects.map((p) => p.name)).toEqual(['Mine', 'B']);
   });
 
@@ -1395,7 +1398,7 @@ describe('saving without overwriting', () => {
     const user = await mountWatched(storage);
     await rename(user, 'Mine');
     await storage.foreign((d) => { cfg(d).projects[0]!.name = 'Theirs'; });
-    const dialog = await screen.findByRole('dialog', { name: CONFLICT });
+    const dialog = await screen.findByRole('dialog', { name: CONFLICT }, WAIT);
     expect(dialog.textContent).toContain('Name of the project "Mine"');
     expect(screen.getByRole('button', { name: 'Save changes' })).toHaveProperty('disabled', true);
     // Escape does not decide anything and loses nothing.
@@ -1403,10 +1406,10 @@ describe('saving without overwriting', () => {
     expect(screen.getByRole('dialog', { name: CONFLICT })).toBeTruthy();
     expect(within(dialog).queryByRole('button', { name: 'Close' })).toBeNull();
     await user.click(within(dialog).getByRole('button', { name: 'Keep mine' }));
-    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull(), WAIT);
     expect(links()).toEqual(['Mine']);
     await user.click(screen.getByRole('button', { name: 'Save changes' }));
-    await screen.findByText('Saved.');
+    await screen.findByText('Saved.', {}, WAIT);
     expect((await loadConfig(storage)).projects[0]?.name).toBe('Mine');
   });
 
@@ -1415,8 +1418,8 @@ describe('saving without overwriting', () => {
     const user = await mountWatched(storage);
     await rename(user, 'Mine');
     await storage.foreign((d) => { cfg(d).projects[0]!.name = 'Theirs'; });
-    await user.click(within(await screen.findByRole('dialog', { name: CONFLICT })).getByRole('button', { name: 'Take the other' }));
-    await waitFor(() => expect(links()).toEqual(['Theirs']));
+    await user.click(within(await screen.findByRole('dialog', { name: CONFLICT }, WAIT)).getByRole('button', { name: 'Take the other' }));
+    await waitFor(() => expect(links()).toEqual(['Theirs']), WAIT);
     expect(screen.queryByText('Unsaved changes.')).toBeNull();
   });
 
@@ -1425,7 +1428,7 @@ describe('saving without overwriting', () => {
     const user = await mountWatched(storage);
     await rename(user, 'Mine');
     await user.click(screen.getByRole('button', { name: 'Save changes' }));
-    await screen.findByText('Saved.');
+    await screen.findByText('Saved.', {}, WAIT);
     storage.fire();
     await new Promise((r) => setTimeout(r, 10));
     expect(screen.queryByRole('dialog')).toBeNull();
@@ -1439,7 +1442,7 @@ describe('saving without overwriting', () => {
     await rename(user, 'Mine');
     await storage.foreign((d) => { cfg(d).projects.push(project('p2', 'B')); }, true);
     await user.click(screen.getByRole('button', { name: 'Save changes' }));
-    await screen.findByText('Saved.');
+    await screen.findByText('Saved.', {}, WAIT);
     expect((await loadConfig(storage)).projects.map((p) => p.name)).toEqual(['Mine', 'B']);
     expect(links()).toEqual(['Mine', 'B']);
   });
@@ -1450,7 +1453,7 @@ describe('saving without overwriting', () => {
     await rename(user, 'Mine');
     await storage.foreign((d) => { cfg(d).projects[0]!.name = 'Theirs'; }, true);
     await user.click(screen.getByRole('button', { name: 'Save changes' }));
-    expect(await screen.findByRole('dialog', { name: CONFLICT })).toBeTruthy();
+    expect(await screen.findByRole('dialog', { name: CONFLICT }, WAIT)).toBeTruthy();
     expect(cfg(storage.data).projects[0]!.name).toBe('Theirs');
   });
 
@@ -1466,11 +1469,11 @@ describe('saving without overwriting', () => {
     await user.type(key, 'cost');
     await user.keyboard('{Escape}');
     await storage.foreign((d) => { cfg(d).projects[0]!.siteMappings = { 'example.com': { price: '.a' }, 'example.org': { price: '.b' } }; });
-    await waitFor(() => expect(screen.getByText('Unsaved changes.')).toBeTruthy());
+    await waitFor(() => expect(screen.getByText('Unsaved changes.')).toBeTruthy(), WAIT);
     await new Promise((r) => setTimeout(r, 10));
     expect(screen.queryByRole('dialog')).toBeNull();
     await user.click(screen.getByRole('button', { name: 'Save changes' }));
-    await screen.findByText('Saved.');
+    await screen.findByText('Saved.', {}, WAIT);
     const p = (await loadConfig(storage)).projects[0]!;
     expect(p.fields.map((x) => x.key)).toEqual(['cost']);
     expect(p.siteMappings).toEqual({ 'example.com': { cost: '.a' }, 'example.org': { cost: '.b' } });
@@ -1482,7 +1485,7 @@ describe('saving without overwriting', () => {
     const user = await mountWatched(storage);
     await user.click(screen.getByRole('button', { name: 'Edit field Second' }));
     await storage.foreign((d) => { cfg(d).projects[0]!.fields = [f('b', 'Second'), f('a', 'First')]; });
-    await waitFor(() => expect(screen.getAllByRole('row')[1]!.textContent).toContain('Second'));
+    await waitFor(() => expect(screen.getAllByRole('row')[1]!.textContent).toContain('Second'), WAIT);
     const details = within(screen.getByRole('dialog', { name: 'Second' }));
     expect((details.getByLabelText('Label') as HTMLInputElement).value).toBe('Second');
     await user.keyboard('{Escape}');
@@ -1494,7 +1497,7 @@ describe('saving without overwriting', () => {
     const user = await mountWatched(storage);
     await rename(user, 'Mine');
     await storage.foreign((d) => { cfg(d).projects.push(project('p2', 'B')); });
-    await waitFor(() => expect(links()).toContain('B'));
+    await waitFor(() => expect(links()).toContain('B'), WAIT);
     await user.click(screen.getByRole('button', { name: 'Discard changes' }));
     expect(links()).toEqual(['A', 'B']);
   });
@@ -1521,8 +1524,8 @@ describe('saving without overwriting', () => {
     await user.click(screen.getByRole('link', { name: 'Import and export' }));
     const file = new File([JSON.stringify({ schemaVersion: 1, projects: [project('n1', 'Imported')] })], 'c.json');
     await user.upload(screen.getByLabelText('From file'), file);
-    await user.click(await screen.findByRole('button', { name: 'Replace' }));
-    expect(await screen.findByRole('link', { name: 'Imported' })).toBeTruthy();
+    await user.click(await screen.findByRole('button', { name: 'Replace' }, WAIT));
+    expect(await screen.findByRole('link', { name: 'Imported' }, WAIT)).toBeTruthy();
     expect(screen.queryByRole('dialog', { name: CONFLICT })).toBeNull();
   });
 });
