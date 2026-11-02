@@ -37,21 +37,27 @@ export interface PopupDeps {
   storage?: StorageArea;
   /** Per-tab-URL user edits (chrome.storage.session). */
   draftStorage?: StorageArea;
-  getActiveTab?: () => Promise<{ id?: number; url?: string } | undefined>;
+  getActiveTab?: () => Promise<{ id?: number; url?: string; pendingUrl?: string } | undefined>;
   read?: (tabId: number, projects: Config['projects'], projectId?: string) => Promise<ReadTabResult>;
   pick?: (tabId: number, projectId: string, fieldKey: string) => Promise<void>;
   openOptions?: () => Promise<void>;
   /** Host permission check before sending. */
   permissions?: Pick<PermissionsApi, 'contains'>;
+  /** Asks the browser for host access; called straight from a click (user gesture). Defaults to permissions.request. */
+  requestOrigins?: (origins: string[]) => Promise<boolean>;
   /** Per-tab-URL send results and running sends (chrome.storage.session). */
   resultStorage?: StorageArea;
   send?: (req: SendRequest) => Promise<SendOutcome>;
   /** Re-read interval for the send state while a send is running. */
   pollMs?: number;
   close?: () => void;
+  /** 'sidepanel' fills the panel width and stays open while the picker runs (no close). */
+  variant?: 'popup' | 'sidepanel';
+  /** Increasing this number reads the active tab and the configuration again. */
+  reloadToken?: number;
 }
 
-type TabRef = { id?: number; url?: string } | undefined;
+type TabRef = { id?: number; url?: string; pendingUrl?: string } | undefined;
 
 /**
  * Playwright cannot open the real action popup bound to a page tab, so the e2e build accepts `?tabId=<n>`.
@@ -79,7 +85,7 @@ const defaultTab = () =>
 
 type State =
   | { phase: 'loading' }
-  | { phase: 'blocked'; reason: BlockReason }
+  | { phase: 'blocked'; reason: BlockReason; origin?: string }
   | { phase: 'ready'; config: Config; tabId: number; tabUrl: string; read: ReadResult; projectId: string | null };
 
 export function PopupApp({
@@ -90,11 +96,15 @@ export function PopupApp({
   pick = startPicker,
   openOptions = () => browser.runtime.openOptionsPage(),
   permissions = defaultPermissions,
+  requestOrigins = defaultPermissions.request,
   resultStorage: resultProp,
   send = requestSend,
   pollMs = 1000,
   close = () => window.close(),
+  variant = 'popup',
+  reloadToken = 0,
 }: PopupDeps) {
+  const rootClass = variant === 'sidepanel' ? 'popup popup-panel' : 'popup';
   // Resolved once: default areas are new objects per call and must not retrigger the load effect.
   const [storage] = useState(() => storageProp ?? defaultStorage());
   const [draftStorage] = useState(() => draftProp ?? defaultDraftStorage());
@@ -109,6 +119,7 @@ export function PopupApp({
   const [sendingIds, setSendingIds] = useState<string[]>([]);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [accessDenied, setAccessDenied] = useState(false);
   const requestId = useRef(0);
   // Set on selection: state.projectId follows only after the tab re-read, too late for the options handoff.
   const chosenProject = useRef<string | null>(null);
@@ -134,11 +145,17 @@ export function PopupApp({
         if (tab?.id === undefined) return setState({ phase: 'blocked', reason: 'no-tab' });
         const config = await loadConfig(storage);
         const url = tab.url ?? '';
+        // A reload while the user types must not read a draft older than the edit.
+        await writes.current;
         const [saved, last] = await Promise.all([loadDraft(draftStorage, url), storage.get([LAST_PROJECT_KEY])]);
         const lastId = typeof last[LAST_PROJECT_KEY] === 'string' ? (last[LAST_PROJECT_KEY] as string) : undefined;
         let result = await read(tab.id, config.projects);
         if (stale()) return;
-        if (!result.ok) return setState({ phase: 'blocked', reason: result.kind });
+        if (!result.ok) {
+          // Without access the browser hides the URL; only a still visible one names an origin we may ask for.
+          const origin = result.kind === 'no-access' ? originPattern(tab.url ?? tab.pendingUrl ?? '') : undefined;
+          return setState({ phase: 'blocked', reason: result.kind, origin });
+        }
         const projectId = pickProject(config.projects, result.result.matchingProjects.map((p) => p.id), saved.projectId, lastId);
         if (projectId && projectId !== result.result.selectedProjectId) {
           const again = await read(tab.id, config.projects, projectId);
@@ -147,6 +164,7 @@ export function PopupApp({
           result = again;
         }
         setDraft(saved);
+        setAccessDenied(false);
         const stored = await loadSendState(url, resultStorage).catch(() => undefined);
         if (stale()) return;
         if (stored) setSendState(stored);
@@ -159,7 +177,7 @@ export function PopupApp({
     return () => {
       requestId.current = -1;
     };
-  }, [storage, draftStorage, resultStorage, getActiveTab, read, reload]);
+  }, [storage, draftStorage, resultStorage, getActiveTab, read, reload, reloadToken]);
 
   const tabUrl = state.phase === 'ready' ? state.tabUrl : '';
   const anyInFlight = sendState.inFlight.length > 0;
@@ -179,13 +197,29 @@ export function PopupApp({
       if (focusId) await requestOptionsFocus(draftStorage, focusId).catch(() => undefined);
       await openOptions();
     })();
-  if (state.phase === 'loading') return <main className="popup"><LoadingView /></main>;
+  // Must run synchronously inside the click handler: permissions.request needs the user gesture.
+  const allow = (origin: string) => {
+    const asked = requestOrigins([origin]).catch(() => false);
+    void asked.then((granted) => {
+      setAccessDenied(!granted);
+      if (granted) {
+        setState({ phase: 'loading' });
+        setReload((n) => n + 1);
+      }
+    });
+  };
+  if (state.phase === 'loading') return <main className={rootClass}><LoadingView /></main>;
   if (state.phase === 'blocked') {
     return (
-      <main className="popup">
+      <main className={rootClass}>
         <BlockedView
           reason={state.reason}
           onOpenOptions={openOpts}
+          access={
+            variant === 'sidepanel' && state.reason === 'no-access'
+              ? { origin: state.origin, denied: accessDenied, onAllow: () => allow(state.origin!) }
+              : undefined
+          }
           onRetry={() => {
             setState({ phase: 'loading' });
             setReload((n) => n + 1);
@@ -198,7 +232,7 @@ export function PopupApp({
   const { config, tabId, tabUrl: stateUrl, read: page, projectId } = state;
   if (config.projects.length === 0 || projectId === null) {
     return (
-      <main className="popup">
+      <main className={rootClass}>
         <NoProjectsView onOpenOptions={openOpts} />
       </main>
     );
@@ -224,9 +258,9 @@ export function PopupApp({
     setActionError(null);
     try {
       await pick(tabId, projectId, field.key);
-      // Closing ends the popup's context; pending draft writes must land first.
+      // Closing ends the popup's context; pending draft writes must land first. The side panel stays open.
       await writes.current;
-      close();
+      if (variant === 'popup') close();
     } catch {
       setActionError(t('popup.field.pickFailed'));
     }
@@ -342,7 +376,7 @@ export function PopupApp({
 
   if (project.targets.length === 0) {
     return (
-      <main className="popup">
+      <main className={rootClass}>
         {header}
         <NoTargetView onOpenOptions={openOpts} />
       </main>
@@ -350,7 +384,7 @@ export function PopupApp({
   }
 
   return (
-    <main className="popup">
+    <main className={rootClass}>
       {header}
       {actionError && <p role="alert" className="popup-error">{actionError}</p>}
       <FieldForm

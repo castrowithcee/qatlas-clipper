@@ -73,3 +73,11 @@ export async function openPopup(context: BrowserContext, worker: Worker, extensi
   await popup.goto(`chrome-extension://${extensionId}/popup.html?tabId=${tabId}`);
   return popup;
 }
+
+/** Open the side panel page in its own tab, bound to the tab of `target` (works only in the e2e build). */
+export async function openSidePanel(context: BrowserContext, worker: Worker, extensionId: string, target: Page): Promise<Page> {
+  const tabId = await tabIdOf(worker, target);
+  const panel = await context.newPage();
+  await panel.goto(`chrome-extension://${extensionId}/sidepanel.html?tabId=${tabId}`);
+  return panel;
+}

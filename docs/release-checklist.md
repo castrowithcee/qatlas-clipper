@@ -18,6 +18,9 @@ Manual check per release in **Brave** and **Edge**. Chrome is covered by the E2E
 - [ ] Popup on a page with only meta tags: the fields are prefilled from the meta tags.
 - [ ] Map a field by click: start the picker from the popup, click an element, confirm the mapping.
 - [ ] Open a second page of the same site: the mapped field is prefilled.
+- [ ] Side panel: in the options page set "Open as" to side panel (Brave: note whether the setting is visible); the toolbar button opens the panel, and switching back to popup restores the popup.
+- [ ] Side panel with the picker: start the picker from the panel; the panel stays open and shows the saved mapping without reopening.
+- [ ] Side panel tab switch: switch to another tab and navigate to another site; the panel reads the new page, or offers "Allow reading this website" (or asks to click the toolbar button), and reads after the permission prompt is accepted.
 - [ ] Send to the test webhook: the success response is shown and the webhook received the expected payload.
 - [ ] Error case: point the target at a URL that answers with an error status; the error is shown and nothing is reported as sent.
 - [ ] Remove the extension; it disappears from the extensions page.
