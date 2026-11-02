@@ -1,6 +1,6 @@
 {
   "name": "qatlas-clipper",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "Browser extension that reads page content and sends it to your own webhooks",
   "license": "MIT",
