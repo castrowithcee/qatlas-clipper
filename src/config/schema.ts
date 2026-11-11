@@ -53,14 +53,14 @@ export const scopeSchema = z
 
 // Source order is fixed by priority: site-mapping selector (implicit, from siteMappings), detect value,
 // schema.org path, meta tag, manual input. Absent keys mean "not used".
-export const FIELD_FORMATS = ['text', 'markdown'] as const;
+export const FIELD_FORMATS = ['text', 'markdown', 'html'] as const;
 export type FieldFormat = (typeof FIELD_FORMATS)[number];
 
 export const fieldSchema = z.strictObject({
   key: id,
   label: nonEmpty,
   required: z.boolean(),
-  // Only applies to values read from a clicked element; an absent value means "markdown" (see fieldFormatOf).
+  // An absent value means "markdown" for clicked elements and "text" for all other values (see fieldFormatOf).
   format: z.enum(FIELD_FORMATS).optional(),
   sources: z.strictObject({
     detect: z.enum(DETECT_VALUES).optional(),
@@ -144,8 +144,8 @@ export type Project = z.infer<typeof projectSchema>;
 
 /** Effective content format of a project; projects without the setting send Markdown. */
 export const contentFormatOf = (project: Pick<Project, 'content'>): ContentFormat => project.content ?? 'markdown';
-/** Effective format of a field; fields without the setting read clicked elements as Markdown. */
-export const fieldFormatOf = (field: Pick<Field, 'format'>): FieldFormat => field.format ?? 'markdown';
+/** Effective format of a field; fields without the setting read clicked elements as Markdown and other values as text. */
+export const fieldFormatOf = (field: Pick<Field, 'format'>, clicked: boolean): FieldFormat => field.format ?? (clicked ? 'markdown' : 'text');
 export type Config = z.infer<typeof configSchema>;
 /** targetId -> header name -> value. Never exported. */
 export type HeaderValues = Record<string, Record<string, string>>;

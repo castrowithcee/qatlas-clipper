@@ -1,5 +1,6 @@
 import { fieldFormatOf, type Field, type FieldFormat, type Project } from '../config/schema';
-import { elementMarkdown, elementText } from './element';
+import { elementHtml, elementMarkdown, elementText } from './element';
+import { convertValue } from './convert';
 import { detectValue } from './detect';
 import { readMeta } from './meta';
 import { PAGE_TYPES } from './pageTypes';
@@ -76,7 +77,7 @@ export function findSelector(siteMappings: Project['siteMappings'], url: string,
 }
 
 /**
- * Visible content of the first match: one line for "text", structured Markdown for "markdown".
+ * Visible content of the first match: one line for "text", structured Markdown for "markdown", sanitized HTML for "html".
  * An invalid selector or no match yields ''.
  */
 export function readSelector(doc: Document, selector: string, format: FieldFormat = 'text', baseUrl: string = doc.URL): string {
@@ -87,7 +88,8 @@ export function readSelector(doc: Document, selector: string, format: FieldForma
     return '';
   }
   if (!el) return '';
-  return format === 'markdown' ? elementMarkdown(el, baseUrl) : elementText(el);
+  if (format === 'markdown') return elementMarkdown(el, baseUrl);
+  return format === 'html' ? elementHtml(el, baseUrl) : elementText(el);
 }
 
 /**
@@ -99,20 +101,22 @@ export function resolveField(field: Field, project: Pick<Project, 'siteMappings'
   const { detect, schemaOrgPath, metaTag } = field.sources;
   const selector = findSelector(project.siteMappings, page.url, field.key);
   if (selector) {
-    const value = readSelector(page.doc, selector, fieldFormatOf(field), page.url);
+    const value = readSelector(page.doc, selector, fieldFormatOf(field, true), page.url);
     if (value) return { value, source: 'selector' };
   }
+  const format = fieldFormatOf(field, false);
   if (detect) {
     const value = detectValue(detect, page);
-    if (value) return { value, source: 'detect' };
+    // Addresses are not markup; they stay as read.
+    if (value) return { value: detect === 'image' ? value : convertValue(value, format, page.url), source: 'detect' };
   }
   if (schemaOrgPath) {
     const value = resolveSchemaOrgPath(page.nodes, schemaOrgPath);
-    if (value) return { value, source: 'schemaOrg' };
+    if (value) return { value: convertValue(value, format, page.url), source: 'schemaOrg' };
   }
   if (metaTag) {
     const value = readMeta(page.doc, metaTag.attribute, metaTag.name);
-    if (value) return { value, source: 'meta' };
+    if (value) return { value: convertValue(value, format, page.url), source: 'meta' };
   }
   return { value: '', source: 'manual' };
 }

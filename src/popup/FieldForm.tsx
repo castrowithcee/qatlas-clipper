@@ -69,7 +69,7 @@ function FieldRow({ field, value, source, invalid, onChange, onPick, mapped, onU
           kind: 'radio',
           group: t('popup.menu.format'),
           label: t(format === 'text' ? 'popup.menu.formatText' : 'popup.menu.formatMarkdown'),
-          checked: fieldFormatOf(field) === format,
+          checked: fieldFormatOf(field, true) === format,
           onSelect: () => onUpdate({ format }),
         });
       }
@@ -98,7 +98,7 @@ function FieldRow({ field, value, source, invalid, onChange, onPick, mapped, onU
               label={field.label}
               value={value}
               onChange={onChange}
-              markdown={valueWay(field) === 'click' && fieldFormatOf(field) === 'markdown'}
+              markdown={valueWay(field) === 'click' && fieldFormatOf(field, true) === 'markdown'}
             />
           )}
           <SourceMark {...source} />

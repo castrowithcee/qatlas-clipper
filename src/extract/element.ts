@@ -161,6 +161,41 @@ export function elementText(el: Element): string {
   return (out.body.textContent ?? '').replace(/\s+/g, ' ').trim();
 }
 
+/**
+ * Copies the visible nodes of `el` into `parent` (a node of a detached document), keeping the original elements and
+ * attributes. Visibility follows the rules of `walk` and is read from the live element, not from the copy.
+ */
+function cloneVisible(el: Element, parent: Node, out: Document, inherited: boolean, isRoot: boolean): void {
+  const tag = el.localName.toLowerCase();
+  if (SKIP.has(tag) || hiddenByAttribute(el)) return;
+  const cs = styleOf(el);
+  if (cs?.display === 'none') return;
+  const visibility = cs?.visibility ?? '';
+  const visible = visibility === 'hidden' || visibility === 'collapse' ? false : visibility === 'visible' ? true : inherited;
+  // A hidden element is dropped but its visible descendants stay, as in a text walk.
+  let target: Node = parent;
+  if (visible && !isRoot) {
+    const copy = out.importNode(el, false);
+    parent.appendChild(copy);
+    target = copy;
+  }
+  for (const c of Array.from(el.childNodes)) {
+    if (c.nodeType === 3) {
+      if (visible) target.appendChild(out.importNode(c, false));
+    } else if (c.nodeType === 1) {
+      cloneVisible(c as Element, target, out, visible, false);
+    }
+  }
+}
+
+/** Visible content of the element (not the element itself) as sanitized HTML; structure is kept, links and sources are absolute. */
+export function elementHtml(el: Element, baseUrl: string): string {
+  // Detached, inert document: nothing runs and nothing is attached to the live page.
+  const out = new DOMParser().parseFromString('<!doctype html><body>', 'text/html');
+  cloneVisible(el, out.body, out, true, true);
+  return sanitizeHtml(out.body.innerHTML, baseUrl);
+}
+
 /** Visible content of the element as Markdown: paragraphs, line breaks, headings, lists, absolute links, bold and italic. */
 export function elementMarkdown(el: Element, baseUrl: string): string {
   const out = build(el, baseUrl);

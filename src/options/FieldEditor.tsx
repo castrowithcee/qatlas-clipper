@@ -266,7 +266,7 @@ export function FieldEditor({ fields, siteMappings, basePath, issues, onChange, 
                   </Tooltip>
                 </td>
                 {/* The format only applies to clicked elements; every other way gives plain text, as the popup shows it. */}
-                <td>{t(`options.fields.format.${valueWay(f) === 'click' ? fieldFormatOf(f) : 'text'}` as MessageKey)}</td>
+                <td>{t(`options.fields.format.${fieldFormatOf(f, valueWay(f) === 'click')}` as MessageKey)}</td>
                 <td>{f.required ? t('options.fields.yes') : t('options.fields.no')}</td>
                 <td>{sites.length}</td>
                 <td>
@@ -378,7 +378,7 @@ function FieldDetails({ field, errors, sites, onChange, onRenameKey, onDeleteMap
         <Select
           label={t('options.fields.format.label')}
           help={t('options.fields.format.help')}
-          value={fieldFormatOf(field)}
+          value={fieldFormatOf(field, valueWay(field) === 'click')}
           options={FIELD_FORMATS.map((f) => ({ value: f, label: t(`options.fields.format.${f}` as MessageKey) }))}
           onChange={(e) => onChange({ ...field, format: e.target.value as FieldFormat })}
         />

@@ -257,3 +257,75 @@ describe('field format of clicked elements', () => {
     }
   });
 });
+
+describe('field format of detected values', () => {
+  const DESC = '<p>Intro &amp; more</p><ul><li>One</li><li>Two</li></ul>';
+  const doc = () => html(ld(JSON.stringify({ '@type': 'JobPosting', description: DESC })));
+  const read = (format: Field['format'], sources: Field['sources'] = { detect: 'description' }, d: Document = doc()) => {
+    const f: Field = { ...field('f', sources), ...(format ? { format } : {}) };
+    return resolveField(f, project('p', { allSites: true, domains: [] }), page(d)).value;
+  };
+
+  it('converts a description with markup into the field format', () => {
+    expect(read('text')).toBe('Intro & more One Two');
+    const md = read('markdown').split('\n').map((l) => l.trim()).filter(Boolean);
+    expect(md).toEqual(['Intro & more', expect.stringMatching(/^-\s+One$/), expect.stringMatching(/^-\s+Two$/)]);
+    expect(read('html')).toBe('<p>Intro &amp; more</p><ul><li>One</li><li>Two</li></ul>');
+    expect(read('text', { schemaOrgPath: 'JobPosting.description' })).toBe('Intro & more One Two');
+    const meta = html('', `<meta name="d" content="${DESC.replace(/"/g, '&quot;')}">`);
+    expect(read('text', { metaTag: { attribute: 'name', name: 'd' } }, meta)).toBe('Intro & more One Two');
+  });
+
+  it('leaves a missing format as text and values without markup unchanged', () => {
+    expect(read(undefined)).toBe('Intro & more One Two');
+    const plain = html(ld('{"@type":"Article","description":"A *b* [c](d) a < b R&D"}'));
+    for (const format of ['text', 'markdown', 'html'] as const) expect(read(format, { detect: 'description' }, plain)).toBe('A *b* [c](d) a < b R&D');
+  });
+
+  it('removes scripts, frames and event attributes in every format', () => {
+    const bad = '<p onclick="x()">Hi <a href="/a" onclick="y()">link</a></p><script>alert(1)</script><iframe src="https://e.example"></iframe><form><input></form>';
+    const d = html(ld(JSON.stringify({ '@type': 'Article', description: bad }).replace(/</g, '\\u003c')));
+    const out = read('html', { detect: 'description' }, d);
+    expect(out).toBe('<p>Hi <a href="https://www.example.com/a">link</a></p>');
+    for (const format of ['text', 'markdown'] as const) expect(read(format, { detect: 'description' }, d)).not.toMatch(/alert|iframe|onclick/);
+  });
+
+  it('does not change addresses of the image value', () => {
+    const d = html('', '<meta property="og:image" content="https://cdn.example.com/a.png?x=1&amp;y=2">');
+    for (const format of ['text', 'markdown', 'html'] as const) expect(read(format, { detect: 'image' }, d)).toBe('https://cdn.example.com/a.png?x=1&y=2');
+  });
+});
+
+describe('html format of clicked elements', () => {
+  const body = '<div id="c"><h2>Title</h2><p>See <a href="/docs/a" onclick="x()">docs</a> <b>now</b><span hidden>secret</span></p><script>alert(1)</script><p style="display:none">gone</p></div>';
+  const pick = (format: Field['format']) =>
+    resolveField({ ...field('f', {}), format }, project('p', { allSites: true, domains: [] }, { siteMappings: { 'example.com': { f: '#c' } } }), page(html(body))).value;
+
+  it('returns visible content with absolute links in all formats', () => {
+    expect(pick('html')).toBe('<h2>Title</h2><p>See <a href="https://www.example.com/docs/a">docs</a> <b>now</b></p>');
+    for (const format of ['text', 'markdown'] as const) expect(pick(format)).not.toMatch(/secret|gone|alert/);
+    expect(pick('text')).toBe('Title See docs now');
+  });
+});
+
+describe('html format keeps the structure of clicked elements', () => {
+  const body =
+    '<div id="c" onclick="x()" style="color:red"><table><tbody><tr><th>Name</th><td>Ann</td></tr></tbody></table><img src="/p/a.png" alt="A" onerror="y()">' +
+    '<p style="display:none">gone</p><p hidden>secret</p><p>Shown <em>this</em></p><span style="visibility:hidden">ghost <b style="visibility:visible">back</b></span></div>';
+  const out = resolveField(
+    { ...field('f', {}), format: 'html' },
+    project('p', { allSites: true, domains: [] }, { siteMappings: { 'example.com': { f: '#c' } } }),
+    page(html(body)),
+  ).value;
+
+  it('keeps tables and images with absolute sources', () => {
+    expect(out).toContain('<table><tbody><tr><th>Name</th><td>Ann</td></tr></tbody></table>');
+    expect(out).toContain('<img src="https://www.example.com/p/a.png" alt="A">');
+    expect(out).toContain('<p>Shown <em>this</em></p>');
+  });
+
+  it('omits invisible nodes, event attributes and styles', () => {
+    expect(out).not.toMatch(/gone|secret|ghost|onclick|onerror|style=|<div/);
+    expect(out).toContain('<b>back</b>');
+  });
+});

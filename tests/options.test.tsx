@@ -421,11 +421,11 @@ describe('options page', () => {
       const user = await mount(storage);
       await addField(user, 'Contact');
       const field = within(screen.getByRole('dialog', { name: 'Contact' }));
-      expect((field.getByLabelText('Format') as HTMLSelectElement).value).toBe('markdown');
-      await user.selectOptions(field.getByLabelText('Format'), 'text');
+      expect((field.getByLabelText('Format') as HTMLSelectElement).value).toBe('text');
+      await user.selectOptions(field.getByLabelText('Format'), 'markdown');
       await user.click(screen.getByRole('button', { name: 'Save changes' }));
       await screen.findByText('Saved.');
-      expect((await loadConfig(storage)).projects[0]?.fields[0]?.format).toBe('text');
+      expect((await loadConfig(storage)).projects[0]?.fields[0]?.format).toBe('markdown');
       await user.selectOptions(field.getByLabelText('Where does the value come from?'), 'manual');
       expect(field.queryByLabelText('Format')).toBeNull();
     });
@@ -1318,15 +1318,12 @@ describe('row ids of fields', () => {
 });
 
 describe('field format defaults per value way', () => {
-  it('sets the format for new fields and when switching the way', async () => {
+  it('starts new fields with text and keeps the format when switching the way', async () => {
     const { newField, setValueWay } = await import('../src/options/draft');
     const created = newField([], 'Price');
-    expect(created.format).toBe('markdown');
-    const detect = setValueWay(created, 'detect');
-    expect(detect.format).toBe('text');
-    const manual = setValueWay(detect, 'manual');
-    expect(manual.format).toBe('text');
-    expect(setValueWay(manual, 'click').format).toBe('markdown');
+    expect(created.format).toBe('text');
+    const html = { ...created, format: 'html' as const };
+    for (const way of ['detect', 'manual', 'click'] as const) expect(setValueWay(html, way).format).toBe('html');
   });
 });
 

@@ -278,7 +278,7 @@ describe('popup: add field while capturing', () => {
     await user.keyboard('{Enter}');
     await waitFor(() => expect(deps.close).toHaveBeenCalled());
     expect(pick).toHaveBeenCalledWith(7, 'b', 'best_before');
-    expect(seen[0]).toEqual({ key: 'best_before', label: 'Best Before', required: false, format: 'markdown', sources: {} });
+    expect(seen[0]).toEqual({ key: 'best_before', label: 'Best Before', required: false, format: 'text', sources: {} });
     expect(storedProject(storage, 'b').fields.map((f: { key: string }) => f.key)).toEqual(['price', 'best_before']);
   });
 
