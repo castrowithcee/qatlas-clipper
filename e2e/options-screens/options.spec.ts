@@ -136,6 +136,23 @@ for (const lang of ['de', 'en'] as const) {
       await nav.getByRole('link', { name: t('Import und Export', 'Import and export') }).click();
       await expect(page.getByLabel(t('Aus Datei', 'From file'))).toBeVisible();
       await shot(page, 'import-export', tag);
+      // Export manager: mixed folder state, the shared export dialog and the targets warning.
+      const tree = page.getByRole('list', { name: t('Ordner und Projekte', 'Folders and projects') });
+      await tree.getByRole('checkbox', { name: 'Articles' }).check();
+      await tree.getByRole('checkbox', { name: 'Shop orders' }).check();
+      await shot(page, 'export-manager', tag);
+      await page.getByRole('button', { name: t('Exportieren…', 'Export…') }).click();
+      const share = page.getByRole('dialog', { name: t('Auswahl exportieren', 'Export selection') });
+      const targetsSwitch = share.getByRole('switch', { name: t('Ziele mitexportieren', 'Export targets too') });
+      await expect(targetsSwitch).not.toBeChecked();
+      await shot(share, 'export-dialog', tag);
+      await targetsSwitch.click();
+      const warning = page.getByRole('dialog', { name: t('Ziele mitexportieren?', 'Export targets too?') });
+      await expect(warning).toBeVisible();
+      await shot(warning, 'export-warning', tag);
+      await warning.getByRole('button', { name: t('Abbrechen', 'Cancel') }).click();
+      await expect(targetsSwitch).not.toBeChecked();
+      await share.getByRole('button', { name: t('Abbrechen', 'Cancel') }).click();
       await page.getByLabel(t('Aus Datei', 'From file')).setInputFiles({
         name: 'config.json',
         mimeType: 'application/json',

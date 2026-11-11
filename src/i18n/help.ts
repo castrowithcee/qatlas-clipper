@@ -91,6 +91,8 @@ export const helpDe = {
   'help.io.p1': 'Der Export speichert die gespeicherte Konfiguration als JSON-Datei: Projekte, Ordner, Tags, Felder, Ziele und Zuordnungen per Klick. Ungespeicherte Änderungen sind nicht enthalten. Die Einstellungen dieses Geräts (Sprache, Darstellung, Öffnen als, Rahmen) gehören nicht dazu.',
   'help.io.p2': 'Zugangsschlüssel und Werte eigener Header werden nie exportiert. Sie bleiben auf diesem Gerät; nach einem Import trägst du sie neu ein.',
   'help.io.p3': 'Importieren kannst du aus einer Datei oder von einer Adresse. Vor dem Ersetzen siehst du eine Vorschau und musst bestätigen. Der Import ersetzt die gesamte Konfiguration.',
+  'help.io.p4': 'Sicherung und Teilen sind verschieden: Der Export oben ist die Sicherung der ganzen Konfiguration samt Zielen. Zum Weitergeben exportierst du einzelne Projekte oder Ordner: mit „Exportieren“ am Projekt, im Menü des Ordners oder unter „Auswahl exportieren“, wo du beliebige Ordner und Projekte ankreuzt.',
+  'help.io.p5': 'Beim Teilen gehen die Ziele nur mit, wenn du „Ziele mitexportieren“ einschaltest und die Warnung bestätigst: Wer die Datei hat, kann an diese Adressen senden. Zugangsschlüssel und Werte eigener Header sind nie enthalten. Exportiert wird immer der gespeicherte Stand.',
 } as const;
 
 export const helpEn: Record<keyof typeof helpDe, string> = {
@@ -185,4 +187,6 @@ export const helpEn: Record<keyof typeof helpDe, string> = {
   'help.io.p1': 'The export saves the stored configuration as a JSON file: projects, folders, tags, fields, targets and mappings by click. Unsaved changes are not included. The settings of this device (language, appearance, open as, frames) are not part of it.',
   'help.io.p2': 'Access keys and values of custom headers are never exported. They stay on this device; after an import you enter them again.',
   'help.io.p3': 'You can import from a file or from an address. Before replacing, you see a preview and must confirm. The import replaces the whole configuration.',
+  'help.io.p4': 'Backup and sharing are different: the export above is the backup of the whole configuration including targets. To pass something on, export single projects or folders: with "Export" on the project, in the folder menu or under "Export selection", where you tick any folders and projects.',
+  'help.io.p5': 'When sharing, targets are only included if you switch on "Export targets too" and confirm the warning: anyone with the file can send to these addresses. Access keys and values of custom headers are never included. The saved state is always what is exported.',
 };

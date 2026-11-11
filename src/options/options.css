@@ -164,3 +164,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .options-tag-toggle:focus-visible { outline: 3px solid var(--color-focus); outline-offset: 2px; }
 .options-filter-hint { margin: 0 0 var(--space-2); }
 .options-filter-active { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); margin-bottom: var(--space-2); padding: var(--space-2) var(--space-3); border: 1px solid var(--color-accent); border-radius: var(--radius-md); background: var(--color-bg); font-size: var(--font-size-small); }
+.options-share-tools { display: flex; gap: var(--space-2); margin-bottom: var(--space-3); }
+.options-share-tree { list-style: none; margin: 0 0 var(--space-3); padding: 0; display: flex; flex-direction: column; gap: var(--space-2); }
+.options-share-children { margin: var(--space-2) 0 0 var(--space-5); }
+.options-share { display: flex; flex-direction: column; gap: var(--space-3); }
