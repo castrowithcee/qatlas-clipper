@@ -1,4 +1,4 @@
-import { useId, type ReactNode } from 'react';
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { Icon } from './Icon';
 import './components.css';
 
@@ -16,8 +16,32 @@ interface Props {
 /** Semantic table that scrolls horizontally inside its own area on narrow screens. */
 export function DataTable({ caption, captionHidden, columns, children }: Props) {
   const captionId = useId();
+  const scroller = useRef<HTMLDivElement>(null);
+  // Which edges still hide content; drives the fade strips that tell the user the table scrolls sideways.
+  const [more, setMore] = useState({ start: false, end: false });
+  useEffect(() => {
+    const el = scroller.current;
+    if (!el) return;
+    const update = () => {
+      // scrollLeft is negative in right-to-left layouts, so compare absolute offsets.
+      const offset = Math.abs(el.scrollLeft);
+      const start = offset > 1;
+      const end = offset + el.clientWidth < el.scrollWidth - 1;
+      setMore((m) => (m.start === start && m.end === end ? m : { start, end }));
+    };
+    update();
+    el.addEventListener('scroll', update, { passive: true });
+    const observer = typeof ResizeObserver === 'function' ? new ResizeObserver(update) : undefined;
+    observer?.observe(el);
+    if (el.firstElementChild) observer?.observe(el.firstElementChild);
+    return () => {
+      el.removeEventListener('scroll', update);
+      observer?.disconnect();
+    };
+  }, []);
   return (
-    <div className="q-table-scroll" role="region" aria-labelledby={captionId} tabIndex={0}>
+    <div className="q-table-frame" data-more-start={more.start || undefined} data-more-end={more.end || undefined}>
+    <div ref={scroller} className="q-table-scroll" role="region" aria-labelledby={captionId} tabIndex={0}>
       <table className="q-table">
         <caption id={captionId} className={captionHidden ? 'q-table-caption--hidden' : undefined}>
           {caption}
@@ -36,6 +60,7 @@ export function DataTable({ caption, captionHidden, columns, children }: Props) 
         </thead>
         <tbody>{children}</tbody>
       </table>
+    </div>
     </div>
   );
 }

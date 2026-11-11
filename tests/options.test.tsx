@@ -808,7 +808,10 @@ describe('options page', () => {
       expect(shown.textContent).toMatch(/…$/);
       expect(shown.textContent).not.toContain('token');
       // The full address is the tooltip; the key is nowhere in the list.
-      expect(document.getElementById(shown.getAttribute('aria-describedby')!)?.textContent).toBe(long);
+      const address = shown.closest('.options-address')!;
+      expect(document.getElementById(address.getAttribute('aria-describedby')!)?.textContent).toBe(long);
+      // The accessible name carries the full address as text.
+      expect(address.querySelector('.q-sr-only')?.textContent).toBe(long);
       expect(table.textContent).not.toContain('secret-key');
       expect(screen.queryByRole('dialog')).toBeNull();
     });

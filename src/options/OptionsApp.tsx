@@ -26,6 +26,7 @@ import { ProjectEditor } from './ProjectEditor';
 import { TagsSection } from './TagsSection';
 import { ShareExportDialog, type ShareRequest } from './ShareExportDialog';
 import { ShareImportDialog, readShareFile } from './ShareImportDialog';
+import { NavDrawer } from './NavDrawer';
 import { Brand, Sidebar, type NavTarget } from './Sidebar';
 import { defaultFocusChannel, takeOptionsFocus, type FocusChannel } from './focus';
 import { navigate, parseHash, projectHash, useHash } from './route';
@@ -88,11 +89,11 @@ function OptionsContent({ storage, permissions = defaultPermissions, focus, stor
     setAttempt((n) => n + 1);
   };
 
-  if (loaded.state === 'loading') return <Shell sidebar={<aside className="options-sidebar"><Brand /></aside>}><LoadingState /></Shell>;
+  if (loaded.state === 'loading') return <Shell title={t('options.title')} sidebar={<aside className="options-sidebar"><Brand /></aside>}><LoadingState /></Shell>;
   if (loaded.state === 'error') {
     // The stored config is left untouched; nothing can be saved from this state.
     return (
-      <Shell sidebar={<aside className="options-sidebar"><Brand /></aside>}>
+      <Shell title={t('options.title')} sidebar={<aside className="options-sidebar"><Brand /></aside>}>
         <ErrorState title={t('options.loadError.title')} message={t('options.loadError.text')} onRetry={reload} />
         <Disclosure title={t('options.loadError.details')}>
           <pre className="options-details">{loaded.message}</pre>
@@ -103,13 +104,8 @@ function OptionsContent({ storage, permissions = defaultPermissions, focus, stor
   return <Editor key={attempt} initial={loaded.saved} initialValues={loaded.values} storage={storage} permissions={permissions} subscribe={stored} onReload={reload} />;
 }
 
-function Shell({ sidebar, children }: { sidebar: ReactNode; children: ReactNode }) {
-  return (
-    <div className="options-shell">
-      {sidebar}
-      <main className="options-main">{children}</main>
-    </div>
-  );
+function Shell({ sidebar, title, children }: { sidebar: ReactNode; title: string; children: ReactNode }) {
+  return <NavDrawer sidebar={sidebar} title={title}>{children}</NavDrawer>;
 }
 
 // Empty per-target maps carry no value, so they must not count as changes.
@@ -428,8 +424,16 @@ function Editor({ initial, initialValues, storage, permissions, subscribe, onRel
   const summary = unmappedIssues(issues, route.view === 'tags' ? -1 : selectedIndex).filter((i) => route.view !== 'tags' || !/^tags\[\d+\]\.name$/.test(i.path));
   const projectName = (i: number) => draft.projects[i]?.name || t('options.projects.fallbackName', { n: i + 1 });
 
+  const viewTitle =
+    route.view === 'tags' ? t('options.nav.tags')
+    : route.view === 'settings' ? t('options.nav.settings')
+    : route.view === 'import-export' ? t('options.nav.importExport')
+    : route.view === 'help' ? t('options.nav.help')
+    : selected ? projectName(selectedIndex)
+    : t('options.projects.title');
+
   return (
-    <Shell sidebar={(
+    <Shell title={viewTitle} sidebar={(
       <Sidebar
         projects={draft.projects}
         folders={draft.folders}

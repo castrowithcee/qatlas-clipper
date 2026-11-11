@@ -9,6 +9,13 @@ const PATHS = {
       <path d="m6 6 12 12" />
     </>
   ),
+  menu: (
+    <>
+      <path d="M4 5h16" />
+      <path d="M4 12h16" />
+      <path d="M4 19h16" />
+    </>
+  ),
   'chevron-down': <path d="m6 9 6 6 6-6" />,
   'chevron-right': <path d="m9 18 6-6-6-6" />,
   'grip-vertical': (
