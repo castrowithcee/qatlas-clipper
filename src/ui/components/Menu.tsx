@@ -1,15 +1,41 @@
-import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type ButtonHTMLAttributes, type KeyboardEvent, type ReactNode } from 'react';
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type ButtonHTMLAttributes, type KeyboardEvent, type ReactNode, type Ref, type ComponentType } from 'react';
 import { IconButton } from './Button';
 import type { IconName } from './Icon';
 import { Icon } from './Icon';
 import { placeTooltip } from './placeTooltip';
 import './components.css';
 
+/** Shared by all selectable entries; labels are rendered as text only. */
+interface EntryBase {
+  label: string;
+  /** Leading icon. */
+  icon?: IconName;
+  /** Shown but not selectable and skipped by the arrow keys. */
+  disabled?: boolean;
+  onSelect: () => void;
+}
+
 export type MenuEntry =
-  | { kind: 'action'; label: string; onSelect: () => void }
-  | { kind: 'checkbox'; label: string; checked: boolean; onSelect: () => void }
+  /** `danger` is for deleting and removing only. */
+  | (EntryBase & { kind: 'action'; danger?: boolean })
+  /** Shows a check when on and an empty box when off. */
+  | (EntryBase & { kind: 'checkbox'; checked: boolean })
   /** Mutually exclusive choice; entries with the same `group` label form one labelled group. */
-  | { kind: 'radio'; label: string; group: string; checked: boolean; onSelect: () => void };
+  | (EntryBase & { kind: 'radio'; group: string; checked: boolean })
+  /** Free divider between any two entries. */
+  | { kind: 'separator' };
+
+type SelectableEntry = Exclude<MenuEntry, { kind: 'separator' }>;
+
+/** What a custom trigger must spread onto its focusable element, together with the ref. */
+export interface MenuTriggerProps {
+  ref: Ref<HTMLElement>;
+  'aria-haspopup': 'menu';
+  'aria-expanded': boolean;
+  'aria-controls': string | undefined;
+  onClick(): void;
+  onKeyDown(e: KeyboardEvent): void;
+}
 
 interface Props {
   /** Accessible name of the menu button. */
@@ -18,20 +44,25 @@ interface Props {
   entries: MenuEntry[];
   /** Tooltip of the menu button; the label is the default. */
   tooltip?: string;
-  /** Extra props for the menu button. */
+  /** Extra props for the default menu button. */
   buttonProps?: ButtonHTMLAttributes<HTMLButtonElement>;
+  /** Replaces the default icon button; a component defined outside any render that puts the given props and ref on one focusable element. */
+  trigger?: ComponentType<MenuTriggerProps>;
 }
 
-const ITEM = '[role="menuitem"],[role="menuitemcheckbox"],[role="menuitemradio"]';
+const ITEM = ['menuitem', 'menuitemcheckbox', 'menuitemradio'].map((r) => `[role="${r}"]:not([aria-disabled="true"])`).join(',');
 
 /**
  * Menu button following the WAI-ARIA menu button pattern. Selecting an entry closes the menu and returns focus to the
  * button; Escape and a click outside close it. The menu is fixed and clamped into the window.
  */
-export function Menu({ label, icon = 'ellipsis-vertical', tooltip, entries, buttonProps }: Props) {
+export function Menu({ label, icon = 'ellipsis-vertical', tooltip, entries, buttonProps, trigger: Trigger }: Props) {
   const id = useId();
   const [open, setOpen] = useState(false);
-  const buttonRef = useRef<HTMLButtonElement>(null);
+  const buttonRef = useRef<HTMLElement | null>(null);
+  const setButton = useCallback((node: HTMLElement | null) => {
+    buttonRef.current = node;
+  }, []);
   const menuRef = useRef<HTMLDivElement>(null);
   // Which item gets focus once the menu is shown: 'first' | 'last'.
   const focusOnOpen = useRef<'first' | 'last'>('first');
@@ -115,24 +146,28 @@ export function Menu({ label, icon = 'ellipsis-vertical', tooltip, entries, butt
     }
   };
 
-  const renderItem = (entry: MenuEntry, i: number) => {
+  const renderItem = (entry: SelectableEntry, i: number) => {
     const role = entry.kind === 'action' ? 'menuitem' : entry.kind === 'checkbox' ? 'menuitemcheckbox' : 'menuitemradio';
+    const danger = entry.kind === 'action' && entry.danger;
+    const mark =
+      entry.kind === 'action' ? (entry.icon && <Icon name={entry.icon} />) : entry.checked ? <Icon name="check" /> : entry.kind === 'checkbox' ? <Icon name="square" /> : null;
     return (
       <button
         key={i}
         type="button"
         role={role}
         tabIndex={-1}
-        className="q-menu-item"
+        className={['q-menu-item', danger && 'q-menu-item--danger'].filter(Boolean).join(' ')}
         aria-checked={entry.kind === 'action' ? undefined : entry.checked}
+        aria-disabled={entry.disabled || undefined}
         onClick={() => {
+          if (entry.disabled) return;
           close(true);
           entry.onSelect();
         }}
       >
-        <span className="q-menu-mark" aria-hidden="true">
-          {entry.kind !== 'action' && entry.checked && <Icon name="check" />}
-        </span>
+        <span className="q-menu-mark" aria-hidden="true">{mark}</span>
+        {entry.kind !== 'action' && entry.icon && <Icon name={entry.icon} />}
         {entry.label}
       </button>
     );
@@ -142,35 +177,48 @@ export function Menu({ label, icon = 'ellipsis-vertical', tooltip, entries, butt
   const nodes: ReactNode[] = [];
   for (let i = 0; i < entries.length; i++) {
     const entry = entries[i]!;
+    if (entry.kind === 'separator') {
+      nodes.push(<div key={i} role="separator" className="q-menu-sep" />);
+      continue;
+    }
     if (entry.kind !== 'radio') {
       nodes.push(renderItem(entry, i));
       continue;
     }
     const start = i;
     while (i + 1 < entries.length && entries[i + 1]!.kind === 'radio' && (entries[i + 1] as { group: string }).group === entry.group) i++;
-    if (start > 0) nodes.push(<div key={`sep-${start}`} role="separator" className="q-menu-sep" />);
+    if (start > 0 && entries[start - 1]!.kind !== 'separator') nodes.push(<div key={`sep-${start}`} role="separator" className="q-menu-sep" />);
     nodes.push(
       <div key={`group-${start}`} role="group" aria-labelledby={`${id}-g${start}`}>
         <div id={`${id}-g${start}`} className="q-menu-heading">{entry.group}</div>
-        {entries.slice(start, i + 1).map((e, k) => renderItem(e, start + k))}
+        {entries.slice(start, i + 1).map((e, k) => renderItem(e as SelectableEntry, start + k))}
       </div>,
     );
   }
 
+  const triggerProps: MenuTriggerProps = {
+    ref: setButton,
+    'aria-haspopup': 'menu',
+    'aria-expanded': open,
+    'aria-controls': open ? id : undefined,
+    onClick: () => (open ? close(true) : openWith('first')),
+    onKeyDown: onButtonKey,
+  };
+
   return (
     <span className="q-menu-wrap">
-      <IconButton
-        {...buttonProps}
-        ref={buttonRef}
-        icon={icon}
-        label={label}
-        tooltip={tooltip}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        aria-controls={open ? id : undefined}
-        onClick={() => (open ? close(true) : openWith('first'))}
-        onKeyDown={onButtonKey}
-      />
+      {Trigger ? (
+        <Trigger {...triggerProps} />
+      ) : (
+        <IconButton
+          {...buttonProps}
+          {...(triggerProps as Omit<MenuTriggerProps, 'ref'>)}
+          ref={setButton}
+          icon={icon}
+          label={label}
+          tooltip={tooltip}
+        />
+      )}
       {open && (
         <div ref={menuRef} id={id} role="menu" aria-label={label} className="q-menu" onKeyDown={onMenuKey}>
           {nodes}

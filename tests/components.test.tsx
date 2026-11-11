@@ -1,12 +1,12 @@
 // @vitest-environment happy-dom
-import { useState } from 'react';
+import { useState, type Ref } from 'react';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import {
-  Button, Checkbox, Chip, DataTable, DetailPanel, Dialog, Disclosure, EmptyState, ErrorState, Icon, IconButton, LoadingState, Select, Switch, TextField, Toast, Tooltip, TileGroup, ICON_NAMES, type IconName, NotificationsProvider, TOAST_DURATION_MS, useNotifications, type ToastKind,
+  Button, Checkbox, Chip, DataTable, DetailPanel, Dialog, Disclosure, EmptyState, ErrorState, Icon, IconButton, LoadingState, Menu, type MenuEntry, type MenuTriggerProps, Select, Switch, TextField, Toast, Tooltip, TileGroup, ICON_NAMES, type IconName, NotificationsProvider, TOAST_DURATION_MS, useNotifications, type ToastKind,
 } from '../src/ui/components';
 import { de, en } from '../src/i18n/catalog';
 
@@ -276,6 +276,131 @@ describe('IconButton tooltip', () => {
     await user.tab();
     expect(tips[0]!.hidden).toBe(true);
     expect(onBlur).toHaveBeenCalledTimes(1);
+  });
+});
+
+function OwnTrigger({ ref, ...props }: MenuTriggerProps) {
+  return <button type="button" ref={ref as Ref<HTMLButtonElement>} data-testid="own" {...props}>More</button>;
+}
+
+describe('Menu', () => {
+  const entries = (onSelect = vi.fn(), onDisabled = vi.fn(), onDanger = vi.fn()): MenuEntry[] => [
+    { kind: 'action', label: 'Rename', icon: 'pencil', onSelect },
+    { kind: 'action', label: 'Locked', icon: 'folder', disabled: true, onSelect: onDisabled },
+    { kind: 'separator' },
+    { kind: 'checkbox', label: 'Required', checked: true, onSelect },
+    { kind: 'checkbox', label: 'Hidden', checked: false, onSelect },
+    { kind: 'separator' },
+    { kind: 'action', label: 'Delete', icon: 'trash', danger: true, onSelect: onDanger },
+  ];
+  const menuItems = () => [...screen.getAllByRole('menuitem'), ...screen.getAllByRole('menuitemcheckbox')];
+
+  it('renders icons, separators, danger entry and both checkbox states', async () => {
+    const user = userEvent.setup();
+    render(<Menu label="Options" entries={entries()} />);
+    await user.click(screen.getByRole('button', { name: 'Options' }));
+    expect(screen.getAllByRole('separator')).toHaveLength(2);
+    expect(screen.getByRole('menuitem', { name: 'Rename' }).querySelector('svg')).not.toBeNull();
+    expect(screen.getByRole('menuitem', { name: 'Delete' }).className).toContain('q-menu-item--danger');
+    expect(screen.getByRole('menuitem', { name: 'Rename' }).className).not.toContain('danger');
+    const on = screen.getByRole('menuitemcheckbox', { name: 'Required' });
+    const off = screen.getByRole('menuitemcheckbox', { name: 'Hidden' });
+    expect(on.getAttribute('aria-checked')).toBe('true');
+    expect(off.getAttribute('aria-checked')).toBe('false');
+    expect(on.querySelector('svg')).not.toBeNull();
+    expect(off.querySelector('svg')).not.toBeNull();
+    expect(on.querySelector('svg')!.innerHTML).not.toBe(off.querySelector('svg')!.innerHTML);
+  });
+
+  it('skips disabled entries with arrows, Home and End and ignores their click', async () => {
+    const user = userEvent.setup();
+    const onDisabled = vi.fn();
+    render(<Menu label="Options" entries={entries(vi.fn(), onDisabled)} />);
+    await user.click(screen.getByRole('button', { name: 'Options' }));
+    const locked = screen.getByRole('menuitem', { name: 'Locked' });
+    expect(locked.getAttribute('aria-disabled')).toBe('true');
+    expect(document.activeElement).toBe(screen.getByRole('menuitem', { name: 'Rename' }));
+    await user.keyboard('{ArrowDown}');
+    expect(document.activeElement).toBe(screen.getByRole('menuitemcheckbox', { name: 'Required' }));
+    await user.keyboard('{ArrowUp}');
+    expect(document.activeElement).toBe(screen.getByRole('menuitem', { name: 'Rename' }));
+    await user.keyboard('{End}');
+    expect(document.activeElement).toBe(screen.getByRole('menuitem', { name: 'Delete' }));
+    await user.keyboard('{Home}');
+    expect(document.activeElement).toBe(screen.getByRole('menuitem', { name: 'Rename' }));
+    await user.click(locked);
+    expect(onDisabled).not.toHaveBeenCalled();
+    expect(screen.getByRole('menu')).toBeTruthy();
+    expect(menuItems()).toHaveLength(5);
+  });
+
+  it('focuses the first enabled entry, selects, and Escape returns focus to the trigger', async () => {
+    const user = userEvent.setup();
+    const onSelect = vi.fn();
+    const list: MenuEntry[] = [{ kind: 'action', label: 'Off', disabled: true, onSelect: vi.fn() }, { kind: 'action', label: 'On', onSelect }];
+    render(<Menu label="Options" entries={list} />);
+    const button = screen.getByRole('button', { name: 'Options' });
+    await user.click(button);
+    expect(document.activeElement).toBe(screen.getByRole('menuitem', { name: 'On' }));
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('menu')).toBeNull();
+    expect(document.activeElement).toBe(button);
+    await user.click(button);
+    await user.keyboard('{Enter}');
+    expect(onSelect).toHaveBeenCalledTimes(1);
+    expect(document.activeElement).toBe(button);
+  });
+
+  it('keeps radio groups with heading and a single separator before them', async () => {
+    const user = userEvent.setup();
+    const list: MenuEntry[] = [
+      { kind: 'action', label: 'A', onSelect: vi.fn() },
+      { kind: 'radio', label: 'Text', group: 'Format', checked: true, onSelect: vi.fn() },
+      { kind: 'radio', label: 'HTML', group: 'Format', checked: false, onSelect: vi.fn() },
+      { kind: 'separator' },
+      { kind: 'radio', label: 'One', group: 'Size', checked: false, onSelect: vi.fn() },
+    ];
+    render(<Menu label="Options" entries={list} />);
+    await user.click(screen.getByRole('button', { name: 'Options' }));
+    expect(screen.getByRole('group', { name: 'Format' })).toBeTruthy();
+    expect(screen.getByRole('group', { name: 'Size' })).toBeTruthy();
+    expect(screen.getAllByRole('separator')).toHaveLength(2);
+    expect(screen.getByRole('menuitemradio', { name: 'Text' }).getAttribute('aria-checked')).toBe('true');
+  });
+
+  it('renders labels as text, never as HTML', async () => {
+    const user = userEvent.setup();
+    render(<Menu label="Options" entries={[{ kind: 'action', label: '<b>x</b>', onSelect: vi.fn() }]} />);
+    await user.click(screen.getByRole('button', { name: 'Options' }));
+    expect(screen.getByRole('menuitem').textContent).toBe('<b>x</b>');
+    expect(document.querySelector('b')).toBeNull();
+  });
+
+  it('works with a custom trigger', async () => {
+    const user = userEvent.setup();
+    const onSelect = vi.fn();
+    render(
+      <Menu
+        label="Actions"
+        entries={[{ kind: 'action', label: 'Go', onSelect }]}
+        trigger={OwnTrigger}
+      />,
+    );
+    const own = screen.getByTestId('own');
+    expect(own.getAttribute('aria-haspopup')).toBe('menu');
+    expect(own.getAttribute('aria-expanded')).toBe('false');
+    await user.click(own);
+    expect(own.getAttribute('aria-expanded')).toBe('true');
+    expect(own.getAttribute('aria-controls')).toBe(screen.getByRole('menu').id);
+    expect(document.activeElement).toBe(screen.getByRole('menuitem', { name: 'Go' }));
+    await user.keyboard('{Escape}');
+    expect(document.activeElement).toBe(own);
+    own.focus();
+    await user.keyboard('{ArrowUp}');
+    expect(screen.getByRole('menu')).toBeTruthy();
+    await user.keyboard('{Enter}');
+    expect(onSelect).toHaveBeenCalledTimes(1);
+    expect(document.activeElement).toBe(own);
   });
 });
 

@@ -1,7 +1,7 @@
-import { useState, type ReactNode } from 'react';
+import { useState, type ReactNode, type Ref } from 'react';
 import { useI18n } from '../../src/settings';
 import {
-  Button, Checkbox, Chip, DataTable, DetailPanel, Dialog, Disclosure, EmptyState, ErrorState, ICON_NAMES, Icon, IconButton, LoadingState, NotificationsProvider, RowActions, RowError, Select, Switch, TextField, Toast, TileGroup, useNotifications,
+  Button, Checkbox, Chip, DataTable, DetailPanel, Dialog, Disclosure, EmptyState, ErrorState, ICON_NAMES, Icon, IconButton, LoadingState, Menu, type MenuEntry, type MenuTriggerProps, NotificationsProvider, RowActions, RowError, Select, Switch, TextField, Toast, TileGroup, useNotifications,
 } from '../../src/ui/components';
 import '../../src/ui/components/components.css';
 
@@ -84,6 +84,24 @@ function TableDemo() {
         <Button onClick={() => setOpen(null)}>{i18n.t('ui.close')}</Button>
       </DetailPanel>
     </>
+  );
+}
+
+const MENU_ENTRIES: MenuEntry[] = [
+  { kind: 'action', label: 'Rename', icon: 'pencil', onSelect: () => {} },
+  { kind: 'action', label: 'Move up', icon: 'arrow-up', disabled: true, onSelect: () => {} },
+  { kind: 'separator' },
+  { kind: 'checkbox', label: 'Required', checked: true, onSelect: () => {} },
+  { kind: 'checkbox', label: 'Hidden', checked: false, onSelect: () => {} },
+  { kind: 'separator' },
+  { kind: 'action', label: 'Delete', icon: 'trash', danger: true, onSelect: () => {} },
+];
+
+function ActionsTrigger({ ref, ...props }: MenuTriggerProps) {
+  return (
+    <button type="button" ref={ref as Ref<HTMLButtonElement>} className="q-button q-button--secondary" data-testid="menu-custom" {...props}>
+      Actions <Icon name="chevron-down" />
+    </button>
   );
 }
 
@@ -170,6 +188,16 @@ export function Gallery() {
       </Section>
       <Section id="table" title="Table and detail panel">
         <div style={{ width: '100%' }}><TableDemo /></div>
+      </Section>
+      <Section id="menu" title="Menu">
+        <div style={{ minHeight: '16rem' }} className="gallery-row">
+          <Menu label="Options" entries={MENU_ENTRIES} buttonProps={{ 'data-testid': 'menu-default' } as Record<string, string>} />
+          <Menu
+            label="Actions"
+            entries={MENU_ENTRIES}
+            trigger={ActionsTrigger}
+          />
+        </div>
       </Section>
       <Section id="chips" title="Chips">
         <ul className="gallery-chips">

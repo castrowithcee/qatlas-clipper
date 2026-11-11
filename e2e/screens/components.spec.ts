@@ -5,7 +5,7 @@ import { join, resolve } from 'node:path';
 const OUT = resolve(process.env.SCREENS_DIR ?? 'test-results/screens');
 mkdirSync(OUT, { recursive: true });
 
-const SECTIONS = ['buttons', 'fields', 'toggles', 'tooltip', 'toasts', 'states', 'disclosure', 'table', 'chips', 'tiles', 'icons'];
+const SECTIONS = ['buttons', 'fields', 'toggles', 'tooltip', 'toasts', 'states', 'disclosure', 'table', 'chips', 'tiles', 'menu', 'icons'];
 
 async function open(page: Page, theme: string, lang = 'en') {
   await page.goto(`/?theme=${theme}&lang=${lang}`);
@@ -60,6 +60,22 @@ for (const theme of ['light', 'dark']) {
         await page.keyboard.press('Escape');
         await expect(page.getByRole('dialog')).toBeHidden();
         await expect(open1).toBeFocused();
+      }
+    });
+
+    test('menu open', async ({ page }) => {
+      await open(page, theme);
+      for (const id of ['menu-default', 'menu-custom']) {
+        await page.getByTestId(id).focus();
+        await page.keyboard.press('ArrowDown');
+        await expect(page.getByRole('menu')).toBeVisible();
+        await expect(page.getByRole('menuitem', { name: 'Rename' })).toBeFocused();
+        await page.keyboard.press('ArrowDown');
+        await expect(page.getByRole('menuitemcheckbox', { name: 'Required' })).toBeFocused();
+        await page.screenshot({ clip: { x: 0, y: (await page.getByTestId('menu').boundingBox())!.y, width: 400, height: 330 }, path: join(OUT, `${theme}-${id}-open.png`) });
+        await page.keyboard.press('Escape');
+        await expect(page.getByRole('menu')).toBeHidden();
+        await expect(page.getByTestId(id)).toBeFocused();
       }
     });
 
