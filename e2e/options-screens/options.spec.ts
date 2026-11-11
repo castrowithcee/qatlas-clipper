@@ -35,7 +35,7 @@ const config = {
 };
 
 async function shot(target: Page | Locator, name: string, tag: string) {
-  // The sticky save bar would otherwise sit in the middle of a full-page capture.
+  // The fixed save bar would otherwise sit in the middle of a full-page capture.
   if ('setViewportSize' in target) await target.evaluate(() => window.scrollTo(0, 0));
   await target.screenshot({ path: join(OUT, `${tag}-${name}.png`), ...('setViewportSize' in target ? { fullPage: true } : {}) });
 }
@@ -170,6 +170,20 @@ for (const lang of ['de', 'en'] as const) {
       await expect(nav.getByRole('link', { name: 'Tags' })).toHaveAttribute('aria-current', 'page');
       await expect(page.getByTestId('options-tag')).toHaveCount(3);
       await shot(page, 'tags', tag);
+      // Row menu, rename in the row with a field error, then the save bar over the content after a change.
+      await page.getByRole('button', { name: t('Optionen für Tag Urgent', 'Options for tag Urgent') }).click();
+      await expect(page.getByRole('menu')).toBeVisible();
+      await shot(page, 'tags-menu', tag);
+      await page.getByRole('menuitem', { name: t('Umbenennen', 'Rename') }).click();
+      const tagName = page.getByRole('textbox', { name: t('Tag Urgent umbenennen', 'Rename tag Urgent') });
+      await tagName.fill('internal');
+      await expect(tagName).toHaveAttribute('aria-invalid', 'true');
+      await shot(page, 'tags-rename-error', tag);
+      await tagName.fill('Important');
+      await page.keyboard.press('Enter');
+      await expect(page.locator('.options-tag-name', { hasText: 'Important' })).toBeVisible();
+      await expect(page.getByRole('button', { name: t('Änderungen speichern', 'Save changes') })).toBeVisible();
+      await page.screenshot({ path: join(OUT, `${tag}-save-bar.png`) });
       await nav.getByRole('link', { name: t('Einstellungen', 'Settings') }).click();
       await expect(nav.getByRole('link', { name: t('Einstellungen', 'Settings') })).toHaveAttribute('aria-current', 'page');
       await shot(page, 'settings', tag);
