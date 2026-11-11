@@ -84,39 +84,83 @@ function setup(lang: 'de' | 'en', over: Partial<PopupDeps> & { cfg?: unknown; se
 }
 
 const text = {
-  de: { detected: 'Automatisch erkannt: Titel', auto: 'Automatisch erkannt', click: 'Per Klick zugeordnet', manual: 'Selbst eingeben', required: 'Headline (Pflicht)', pick: 'Price auf der Seite anklicken' },
-  en: { detected: 'Detected automatically: Title', auto: 'Detected automatically', click: 'Assigned by click', manual: 'Enter it yourself', required: 'Headline (required)', pick: 'Click Price on the page' },
+  de: {
+    required: 'Headline (Pflicht)', tipNone: 'Element anklicken', tipClick: 'Per Klick zugeordnet – Element neu wählen',
+    tipDetect: 'Automatisch erkannt: Titel – Element anklicken', tipAuto: 'Automatisch erkannt – Element anklicken',
+    optionsFor: 'Optionen für', requiredItem: 'Pflichtfeld', add: 'Feld hinzufügen',
+  },
+  en: {
+    required: 'Headline (required)', tipNone: 'Click an element', tipClick: 'Assigned by click – pick the element again',
+    tipDetect: 'Detected automatically: Title – click an element', tipAuto: 'Detected automatically – click an element',
+    optionsFor: 'Options for', requiredItem: 'Required', add: 'Add field',
+  },
 } as const;
 
 describe.each(['de', 'en'] as const)('popup form (%s)', (lang) => {
   const tx = text[lang];
 
-  it('shows the origin of every field as an icon with accessible name and tooltip', async () => {
+  it('has no origin mark in the field row, only picker and menu', async () => {
     setup(lang);
     await screen.findByLabelText(tx.required);
-    for (const name of [tx.detected, tx.auto, tx.click, tx.manual]) {
-      const mark = screen.getAllByRole('img', { name })[0]!;
-      expect(mark.getAttribute('tabindex')).toBe('0');
-      const tip = document.getElementById(mark.getAttribute('aria-describedby')!)!;
-      expect(tip.getAttribute('role')).toBe('tooltip');
-      expect(tip.textContent).toBe(name);
+    expect(screen.queryAllByRole('img')).toHaveLength(0);
+    const row = screen.getByLabelText('Author').closest('.popup-control') as HTMLElement;
+    expect(within(row).getAllByRole('button')).toHaveLength(2);
+  });
+
+  it('shows origin and action in the picker tooltip and accessible name, with a motif per mapping', async () => {
+    setup(lang);
+    await screen.findByLabelText(tx.required);
+    const cases: [string, string, string][] = [
+      ['Headline', tx.tipDetect, 'pick-element'],
+      ['Author', tx.tipAuto, 'pick-element'],
+      ['Price', tx.tipAuto, 'pick-element'],
+      ['Size', tx.tipClick, 'click-mapped'],
+      ['Free', tx.tipNone, 'pick-element'],
+    ];
+    const motifs: Record<string, string> = {};
+    for (const [label, tip, motif] of cases) {
+      const button = screen.getByRole('button', { name: `${label}: ${tip}` });
+      const described = document.getElementById(button.getAttribute('aria-describedby')!)!;
+      expect(described.getAttribute('role')).toBe('tooltip');
+      expect(described.textContent).toBe(tip);
+      const svg = button.querySelector('svg')!.innerHTML;
+      motifs[motif] ??= svg;
+      expect(svg).toBe(motifs[motif]);
     }
-    // Own schema path and meta tag are both only "detected automatically".
-    expect(screen.getAllByRole('img', { name: tx.auto })).toHaveLength(2);
+    expect(motifs['click-mapped']).not.toBe(motifs['pick-element']);
   });
 
-  it('shows the user edit as entered by hand', async () => {
+  it('keeps the mapped motif when the value is edited', async () => {
     const { user } = setup(lang);
-    const input = await screen.findByLabelText(tx.required);
+    const input = await screen.findByLabelText('Size');
     await user.type(input, 'x');
-    expect(within(input.closest('.q-field') as HTMLElement).getByRole('img', { name: tx.manual })).toBeTruthy();
+    expect(screen.getByRole('button', { name: `Size: ${tx.tipClick}` })).toBeTruthy();
   });
 
-  it('has the pick button with accessible name and tooltip and starts the picker', async () => {
+  it('shows required in the field menu as checkbox in both states', async () => {
+    const { user } = setup(lang);
+    await screen.findByLabelText(tx.required);
+    for (const [label, checked] of [['Headline', 'true'], ['Author', 'false']] as const) {
+      await user.click(screen.getByRole('button', { name: `${tx.optionsFor} ${label}` }));
+      const item = screen.getByRole('menuitemcheckbox', { name: tx.requiredItem });
+      expect(item.getAttribute('aria-checked')).toBe(checked);
+      expect(item.querySelector('svg')).toBeTruthy();
+      await user.keyboard('{Escape}');
+    }
+  });
+
+  it('adds a field with an icon button that has a tooltip', async () => {
+    setup(lang);
+    await screen.findByLabelText(tx.required);
+    const button = screen.getByRole('button', { name: tx.add });
+    expect(button.textContent).toBe('');
+    expect(button.querySelector('svg')).toBeTruthy();
+    expect((button as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('has the pick button start the picker', async () => {
     const { user, deps } = setup(lang);
-    const button = await screen.findByRole('button', { name: tx.pick });
-    expect(document.getElementById(button.getAttribute('aria-describedby')!)!.textContent).toBe(lang === 'de' ? 'Auf der Seite anklicken' : 'Click on the page');
-    await user.click(button);
+    await user.click(await screen.findByRole('button', { name: `Price: ${tx.tipAuto}` }));
     expect(deps.pick).toHaveBeenCalledWith(7, 'p0', 'price');
   });
 

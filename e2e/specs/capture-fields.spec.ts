@@ -21,7 +21,7 @@ test('a field added in the popup is picked on the page, read on reopening and sh
   await page.goto(`${pages.origin}/plain-1.html`);
   let popup = await openPopup(context, serviceWorker, extensionId, page);
   await popup.getByLabel('New field').fill('Cost');
-  await popup.getByRole('button', { name: 'Add' }).click();
+  await popup.getByRole('button', { name: 'Add field' }).click();
   await popup.waitForEvent('close');
 
   await expect(page.getByText('Choose element for "Cost"')).toBeVisible();

@@ -1,5 +1,5 @@
 import { useRef, useState, type KeyboardEvent } from 'react';
-import { Button, Field } from '../ui/components';
+import { Field, IconButton } from '../ui/components';
 import { useI18n } from '../settings';
 
 interface Props {
@@ -56,9 +56,7 @@ export function AddFieldRow({ onAdd }: Props) {
             onChange={(e) => setLabel(e.target.value)}
             onKeyDown={onKeyDown}
           />
-          <Button variant="secondary" icon="plus" disabled={empty || busy} onClick={() => void submit()}>
-            {t('popup.add.button')}
-          </Button>
+          <IconButton icon="plus" label={t('popup.add.button')} disabled={empty || busy} onClick={() => void submit()} />
         </div>
       )}
     </Field>
