@@ -13,6 +13,7 @@ import {
   type MergeConflict,
   type MergeResult,
   type Project,
+  type ShareFile,
   type StorageArea,
   type StoredState,
   type SubscribeStored,
@@ -22,6 +23,7 @@ import { HelpSection } from './HelpSection';
 import { ImportExport } from './ImportExport';
 import { ProjectEditor } from './ProjectEditor';
 import { ShareExportDialog, type ShareRequest } from './ShareExportDialog';
+import { ShareImportDialog, readShareFile } from './ShareImportDialog';
 import { Brand, Sidebar, type NavTarget } from './Sidebar';
 import { defaultFocusChannel, takeOptionsFocus, type FocusChannel } from './focus';
 import { navigate, parseHash, projectHash, useHash } from './route';
@@ -159,6 +161,7 @@ function Editor({ initial, initialValues, storage, permissions, subscribe, onRel
   const [perm, setPerm] = useState<Record<string, PermissionStatus>>({});
   const [conflict, setConflictState] = useState<PendingConflict>();
   const [shareRequest, setShareRequest] = useState<ShareRequest>();
+  const [shareImport, setShareImport] = useState<ShareFile>();
   // Mirror of the state for async handlers (storage events, save), which must not see stale closures.
   const live = useRef<Live>({ saved: initial, storedValues: initialValues, draft: initial, values: initialValues });
   const conflictRef = useRef<PendingConflict | undefined>(undefined);
@@ -406,6 +409,14 @@ function Editor({ initial, initialValues, storage, permissions, subscribe, onRel
     }
   };
 
+  // The import wrote the fresh stored state; the editor takes it like a change from another window, so unsaved edits stay.
+  const importedShare = (state: StoredState, firstId: string | undefined) => {
+    reconcile(state);
+    if (firstId) navigate(projectHash(firstId));
+  };
+  const openShareFile = async (file: File) => setShareImport(await readShareFile(file, t));
+  const openShareFileFromSidebar = (file: File) => openShareFile(file).catch((e: unknown) => notify('error', e instanceof Error ? e.message : String(e)));
+
   const summary = unmappedIssues(issues, selectedIndex);
   const projectName = (i: number) => draft.projects[i]?.name || t('options.projects.fallbackName', { n: i + 1 });
 
@@ -423,6 +434,7 @@ function Editor({ initial, initialValues, storage, permissions, subscribe, onRel
         onMoveFolder={(index, delta) => editConfig((c) => moveFolder(c, index, index + delta))}
         onDeleteFolder={(id) => editConfig((c) => deleteFolder(c, id))}
         onExportFolder={(id) => setShareRequest({ projectIds: [], folderIds: [id] })}
+        onImportFile={openShareFileFromSidebar}
       />
     )}>
       {projectView && (
@@ -487,8 +499,9 @@ function Editor({ initial, initialValues, storage, permissions, subscribe, onRel
       )}
       {route.view === 'settings' && <SettingsSection />}
       {route.view === 'help' && <HelpSection />}
-      {route.view === 'import-export' && <ImportExport storage={storage} permissions={permissions} dirty={dirty} onImported={onReload} onImporting={(active) => { importing.current = active; }} />}
+      {route.view === 'import-export' && <ImportExport storage={storage} permissions={permissions} dirty={dirty} onImported={onReload} onImporting={(active) => { importing.current = active; }} onShareFile={openShareFile} />}
       <ShareExportDialog request={shareRequest} storage={storage} dirty={dirty} onClose={() => setShareRequest(undefined)} />
+      <ShareImportDialog share={shareImport} storage={storage} dirty={dirty} onClose={() => setShareImport(undefined)} onImported={importedShare} />
       <ConflictDialog conflict={conflict} onResolve={resolve} />
     </Shell>
   );

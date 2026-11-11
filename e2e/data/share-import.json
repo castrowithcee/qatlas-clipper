@@ -1,0 +1,19 @@
+{
+  "format": "qatlas-clipper-share",
+  "schemaVersion": 1,
+  "targetsIncluded": true,
+  "folders": [{ "id": "shop", "name": "Shop" }],
+  "tags": [{ "id": "orders", "name": "Orders" }],
+  "projects": [
+    {
+      "id": "order-notes",
+      "name": "Order notes",
+      "folderId": "shop",
+      "tagIds": ["orders"],
+      "scope": { "allSites": true, "domains": [] },
+      "fields": [],
+      "siteMappings": {},
+      "targets": [{ "id": "inbox", "name": "Inbox", "url": "https://hooks.example.com/inbox", "headers": [], "purpose": "" }]
+    }
+  ]
+}

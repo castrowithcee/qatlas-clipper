@@ -3,6 +3,7 @@ import type { Config, Folder, Project } from '../config';
 import { useI18n } from '../settings';
 import { Button, Dialog, Icon, Menu, TextField, type MenuEntry } from '../ui/components';
 import { folderNameError } from './draft';
+import { ShareFileButton } from './ShareImportDialog';
 import { HELP_HASH, IMPORT_EXPORT_HASH, projectHash, SETTINGS_HASH } from './route';
 
 export type NavTarget = { view: 'project'; id: string } | { view: 'settings' } | { view: 'import-export' } | { view: 'help' };
@@ -20,6 +21,7 @@ interface Props {
   onMoveFolder: (index: number, delta: -1 | 1) => void;
   onDeleteFolder: (id: string) => void;
   onExportFolder: (id: string) => void;
+  onImportFile: (file: File) => void;
 }
 
 type FolderDialog = { kind: 'add' } | { kind: 'rename'; id: string } | { kind: 'delete'; id: string };
@@ -34,7 +36,7 @@ export function Brand() {
   );
 }
 
-export function Sidebar({ projects, folders = [], config, current, dirty, onAdd, onAddFolder, onRenameFolder, onMoveFolder, onDeleteFolder, onExportFolder }: Props) {
+export function Sidebar({ projects, folders = [], config, current, dirty, onAdd, onAddFolder, onRenameFolder, onMoveFolder, onDeleteFolder, onExportFolder, onImportFile }: Props) {
   const { t } = useI18n();
   const [dialog, setDialog] = useState<FolderDialog>();
   // Expansion is view state only; it is never part of the configuration.
@@ -111,12 +113,18 @@ export function Sidebar({ projects, folders = [], config, current, dirty, onAdd,
             })}
           </ul>
         </div>
-        <Button icon="plus" className="options-nav-add" onClick={onAdd}>
-          {t('options.projects.add')}
-        </Button>
-        <Button icon="plus" className="options-nav-add" onClick={() => setDialog({ kind: 'add' })}>
-          {t('options.folders.add')}
-        </Button>
+        <div className="options-nav-pair">
+          <Button icon="plus" className="options-nav-add" onClick={onAdd}>
+            {t('options.projects.add')}
+          </Button>
+          <ShareFileButton className="options-nav-add" label={t('options.shareImport.fromFile')} ariaLabel={t('options.shareImport.fromFileProject')} onFile={onImportFile} />
+        </div>
+        <div className="options-nav-pair">
+          <Button icon="plus" className="options-nav-add" onClick={() => setDialog({ kind: 'add' })}>
+            {t('options.folders.add')}
+          </Button>
+          <ShareFileButton className="options-nav-add" label={t('options.shareImport.fromFile')} ariaLabel={t('options.shareImport.fromFileFolder')} onFile={onImportFile} />
+        </div>
         <ul className="options-nav-areas">
           <li>{link(SETTINGS_HASH, isCurrent('settings'), t('options.nav.settings'))}</li>
           <li>{link(IMPORT_EXPORT_HASH, isCurrent('import-export'), t('options.nav.importExport'))}</li>

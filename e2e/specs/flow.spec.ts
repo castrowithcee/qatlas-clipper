@@ -36,7 +36,7 @@ test('configure, map by click, prefill on a second page, send, and show the resp
   // 1. Configuration through the options UI: file import, then a header value in the target editor.
   const options = await context.newPage();
   await options.goto(`chrome-extension://${extensionId}/options.html#/import-export`);
-  await options.locator('input[type=file]').setInputFiles({
+  await options.locator('.options-io input[type=file]').setInputFiles({
     name: 'config.json',
     mimeType: 'application/json',
     buffer: Buffer.from(projectJson(webhook.url)),

@@ -112,7 +112,7 @@ for (const lang of ['de', 'en'] as const) {
       await expect(nav.getByRole('link', { name: t('Einstellungen', 'Settings') })).toHaveAttribute('aria-current', 'page');
       await shot(page, 'settings', tag);
       await nav.getByRole('link', { name: t('Import und Export', 'Import and export') }).click();
-      await expect(page.getByLabel(t('Aus Datei', 'From file'))).toBeVisible();
+      await expect(page.getByLabel(t('Aus Datei', 'From file'), { exact: true })).toBeVisible();
       await shot(page, 'import-export', tag);
       // Export manager: mixed folder state, the shared export dialog and the targets warning.
       const tree = page.getByRole('list', { name: t('Ordner und Projekte', 'Folders and projects') });
@@ -131,7 +131,27 @@ for (const lang of ['de', 'en'] as const) {
       await warning.getByRole('button', { name: t('Abbrechen', 'Cancel') }).click();
       await expect(targetsSwitch).not.toBeChecked();
       await share.getByRole('button', { name: t('Abbrechen', 'Cancel') }).click();
-      await page.getByLabel(t('Aus Datei', 'From file')).setInputFiles({
+      // Import dialog with the targets warning (existing project offered as copy or replace).
+      await page.getByRole('button', { name: t('Aus Datei: Projekt', 'From file: project') }).locator('xpath=following-sibling::input').setInputFiles({
+        name: 'share.json',
+        mimeType: 'application/json',
+        buffer: Buffer.from(JSON.stringify({
+          format: 'qatlas-clipper-share',
+          schemaVersion: 1,
+          targetsIncluded: true,
+          folders: [{ id: 'shop-new', name: 'Shop' }],
+          tags: [{ id: 'orders', name: 'Orders' }],
+          projects: [
+            { id: 'products', name: 'Products', scope: { allSites: true, domains: [] }, fields: [], siteMappings: {}, targets: [] },
+            { id: 'order-notes', name: 'Order notes', folderId: 'shop-new', tagIds: ['orders'], scope: { allSites: true, domains: [] }, fields: [], siteMappings: {}, targets: [{ id: 'inbox', name: 'Inbox', url: 'https://hooks.example.com/inbox', headers: [], purpose: '' }] },
+          ],
+        })),
+      });
+      const importDialog = page.getByRole('dialog', { name: t('Aus Datei importieren', 'Import from file') });
+      await expect(importDialog.getByRole('alert')).toContainText('https://hooks.example.com');
+      await shot(importDialog, 'import-dialog', tag);
+      await importDialog.getByRole('button', { name: t('Abbrechen', 'Cancel') }).click();
+      await page.getByLabel(t('Aus Datei', 'From file'), { exact: true }).setInputFiles({
         name: 'config.json',
         mimeType: 'application/json',
         buffer: Buffer.from(JSON.stringify({ schemaVersion: 1, projects: [] })),

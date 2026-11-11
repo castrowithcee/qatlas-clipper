@@ -54,7 +54,7 @@ export const HELP_SECTIONS: HelpSectionDef[] = [
     ],
   },
   { id: 'openAs', title: 'help.openAs.title', blocks: [p('help.openAs.p1'), p('help.openAs.p2'), p('help.openAs.p3'), p('help.openAs.p4')] },
-  { id: 'io', title: 'help.io.title', blocks: [p('help.io.p1'), p('help.io.p2'), p('help.io.p3'), p('help.io.p4'), p('help.io.p5')] },
+  { id: 'io', title: 'help.io.title', blocks: [p('help.io.p1'), p('help.io.p2'), p('help.io.p3'), p('help.io.p4'), p('help.io.p5'), p('help.io.p6'), p('help.io.p7')] },
 ];
 
 /** Keys of the sent object in documentation order; each has a description under `help.payload.k.<key>`. */

@@ -3,6 +3,7 @@ import { exportConfig, checkImportUrl, fetchImportText, MAX_IMPORT_CHARS, parseI
 import { useI18n } from '../settings';
 import { Button, Dialog, Field, IconButton, TextField, Tooltip, useNotifications } from '../ui/components';
 import type { PermissionsApi } from './permissions';
+import { ShareImportSection } from './ShareImportDialog';
 import { ShareManager } from './ShareManager';
 import { saveText } from './saveText';
 
@@ -16,11 +17,13 @@ interface Props {
   onImported: () => void;
   /** Brackets the replacing write, so the page does not treat its own import as a foreign change. */
   onImporting?: (active: boolean) => void;
+  /** Opens the import dialog for a chosen share file; rejects with a message for an invalid file. */
+  onShareFile: (file: File) => Promise<void>;
 }
 
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
-export function ImportExport({ storage, permissions, dirty, onImported, onImporting }: Props) {
+export function ImportExport({ storage, permissions, dirty, onImported, onImporting, onShareFile }: Props) {
   const { t, tn } = useI18n();
   const id = useId();
   const [url, setUrl] = useState('');
@@ -187,8 +190,9 @@ export function ImportExport({ storage, permissions, dirty, onImported, onImport
         )}
       </Dialog>
     </section>
-    {/* Next to the backup, not inside it: the backup section keeps its own headings. A later import of a selection joins here. */}
+    {/* Next to the backup, not inside it: the backup section keeps its own headings. */}
     <ShareManager storage={storage} dirty={dirty} />
+    <ShareImportSection onFile={onShareFile} />
     </>
   );
 }
