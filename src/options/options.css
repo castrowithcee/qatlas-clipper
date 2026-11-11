@@ -66,11 +66,24 @@ h4 { font-size: 1em; margin: 0; }
 .options-folder-projects { list-style: none; margin: 0 0 0 var(--space-4); padding: 0; display: flex; flex-direction: column; gap: var(--space-1); }
 .options-folder-projects[hidden] { display: none; }
 .options-folder-empty { padding: var(--space-1) var(--space-3); margin: 0; }
+/* Wide: the slot disappears from the layout and the sidebar is a grid column. */
+.options-nav-slot { display: contents; }
+.options-topbar { display: none; }
 @media (max-width: 48rem) {
   .options-shell { grid-template-columns: minmax(0, 1fr); }
-  .options-sidebar { position: static; height: auto; border-right: 0; border-bottom: 1px solid var(--color-border); }
-  .options-nav-projects { max-height: 11rem; }
-  .options-nav-areas { margin-top: 0; }
+  .options-topbar {
+    position: sticky; top: 0; z-index: 4; display: flex; align-items: center; gap: var(--space-3); padding: var(--space-2) var(--space-4);
+    background: var(--color-surface); border-bottom: 1px solid var(--color-border);
+  }
+  .options-topbar-title { margin: 0; min-width: 0; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* Above the save bar (z-index 5) while open; closed, the slot is hidden and the bar stays reachable. */
+  .options-nav-slot { display: block; position: fixed; top: 0; bottom: 0; left: 0; z-index: 20; width: min(20rem, calc(100vw - 3rem)); box-shadow: 0 0 2rem color-mix(in srgb, var(--color-text) 30%, transparent); }
+  .options-nav-slot[hidden] { display: none; }
+  .options-nav-slot:focus { outline: none; }
+  .options-nav-slot .options-sidebar { position: static; height: 100%; overflow-y: auto; border-right: 0; }
+  .options-nav-slot .options-nav-projects { overflow-y: visible; flex: none; }
+  .options-nav-slot nav { flex: 1 0 auto; }
+  .options-scrim { position: fixed; inset: 0; z-index: 19; background: color-mix(in srgb, var(--color-text) 45%, transparent); }
   .options-main { padding: var(--space-4) var(--space-4) calc(var(--space-4) + 6rem); }
 }
 /* The bar floats over the bottom of the content, so showing and hiding it moves nothing; the main area always keeps room for it. */
@@ -115,7 +128,7 @@ a.q-button { text-decoration: none; }
 .options-field-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); margin-bottom: var(--space-3); }
 .options-field-head h4 { overflow-wrap: anywhere; }
 .options-values { margin-bottom: var(--space-3); }
-.options-section > .q-table-scroll { margin-bottom: var(--space-3); }
+.options-section > .q-table-frame { margin-bottom: var(--space-3); }
 .options-field-row { cursor: pointer; }
 .options-field-row.is-dragged { opacity: 0.5; }
 .options-field-row.is-drop-before td { box-shadow: inset 0 3px 0 var(--color-accent); }
@@ -152,7 +165,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .options-perm--missing { color: var(--color-warning); }
 .options-perm .q-button { font-weight: normal; }
 .options-perm--cell { margin: 0; flex-wrap: nowrap; white-space: nowrap; }
-.options-address { display: inline-block; max-width: 20rem; overflow-wrap: anywhere; color: var(--color-text-muted); border-radius: var(--radius-sm); }
+.options-address { display: inline-block; max-width: 20rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: bottom; color: var(--color-text-muted); border-radius: var(--radius-sm); }
 .options-address:focus-visible { outline: 3px solid var(--color-focus); outline-offset: 2px; }
 .options-headers { border: 0; padding: 0; margin: 0 0 var(--space-3); }
 .options-headers legend { font-weight: 600; padding: 0; margin-bottom: var(--space-2); }

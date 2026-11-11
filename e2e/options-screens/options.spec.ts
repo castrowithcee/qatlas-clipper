@@ -35,9 +35,13 @@ const config = {
 };
 
 async function shot(target: Page | Locator, name: string, tag: string) {
+  // The floating save bar would cover the part of the page that is photographed.
+  const page = 'setViewportSize' in target ? target : target.page();
+  await page.evaluate(() => document.querySelectorAll<HTMLElement>('.options-bar-dock').forEach((el) => (el.style.visibility = 'hidden')));
   // The fixed save bar would otherwise sit in the middle of a full-page capture.
   if ('setViewportSize' in target) await target.evaluate(() => window.scrollTo(0, 0));
   await target.screenshot({ path: join(OUT, `${tag}-${name}.png`), ...('setViewportSize' in target ? { fullPage: true } : {}) });
+  await page.evaluate(() => document.querySelectorAll<HTMLElement>('.options-bar-dock').forEach((el) => (el.style.visibility = '')));
 }
 
 for (const lang of ['de', 'en'] as const) {
@@ -265,14 +269,43 @@ for (const lang of ['de', 'en'] as const) {
       await nav.getByRole('link', { name: 'Articles' }).click();
       await expect(page.getByLabel(t('Projektname', 'Project name'))).toBeVisible();
 
-      // Narrow window: the sidebar stacks above the content, every entry stays reachable, the page does not scroll sideways.
+      // Narrow window: the content comes first, a menu button opens the whole navigation as a panel, the page does not scroll sideways.
       await page.setViewportSize({ width: 360, height: 800 });
+      const menuButton = page.getByRole('button', { name: t('Navigation öffnen', 'Open navigation') });
+      await expect(menuButton).toBeVisible();
+      await expect(menuButton).toHaveAttribute('aria-expanded', 'false');
+      await expect(nav).toBeHidden();
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+      await shot(page, 'project-360', tag);
+      await menuButton.click();
+      await expect(menuButton).toHaveAttribute('aria-expanded', 'true');
       for (const name of ['Articles', 'Products', t('Projekte', 'Projects'), t('Einstellungen', 'Settings'), t('Import und Export', 'Import and export')]) {
         await nav.getByText(name, { exact: true }).scrollIntoViewIfNeeded();
         await expect(nav.getByText(name, { exact: true })).toBeVisible();
       }
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
-      await shot(page, 'project-360', tag);
+      await page.screenshot({ path: join(OUT, `${tag}-drawer-360.png`) });
+      await page.keyboard.press('Escape');
+      await expect(nav).toBeHidden();
+      await expect(menuButton).toBeFocused();
+      await menuButton.click();
+      await nav.getByRole('link', { name: t('Hilfe', 'Help') }).click();
+      await expect(nav).toBeHidden();
+      await expect(page.getByRole('heading', { name: t('Gesendete Daten und Antwort', 'Sent data and response'), level: 3 })).toBeVisible();
+      // Target addresses stay on one line and end in an ellipsis; the table scrolls inside its own area.
+      await page.goto(`chrome-extension://${extensionId}/options.html#/projects/articles`);
+      const address = page.locator('.options-address').first();
+      await expect(address).toBeVisible();
+      expect(await address.evaluate((el) => getComputedStyle(el).whiteSpace)).toBe('nowrap');
+      expect(await address.evaluate((el) => el.getBoundingClientRect().height < 2 * parseFloat(getComputedStyle(el).lineHeight))).toBe(true);
+      await expect(address).toContainText('https://example.com/hook');
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+      const scroller = page.locator('.q-table-scroll').filter({ has: page.locator('.options-address') });
+      expect(await scroller.evaluate((el) => el.scrollWidth > el.clientWidth)).toBe(true);
+      await expect(scroller.locator('xpath=..')).toHaveAttribute('data-more-end', 'true');
+      await scroller.evaluate((el) => el.scrollTo({ left: el.scrollWidth }));
+      await expect(scroller.locator('xpath=..')).toHaveAttribute('data-more-start', 'true');
+      await expect(scroller.locator('xpath=..')).not.toHaveAttribute('data-more-end', 'true');
       await page.setViewportSize({ width: 1100, height: 900 });
 
       // Error feedback: an empty label and an empty project name block saving.

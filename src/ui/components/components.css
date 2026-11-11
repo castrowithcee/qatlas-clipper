@@ -101,6 +101,15 @@
 
 /* Data table: the scroll area is a focusable region so keyboard users can scroll it. */
 /* Relative, so visually hidden headers stay inside the scroll area instead of widening the page. */
+.q-table-frame { position: relative; max-width: 100%; }
+/* Fade strips at the edges that still hide content; they sit over the scroll area and never take clicks. */
+.q-table-frame::before, .q-table-frame::after {
+  content: ''; position: absolute; top: 1px; bottom: 1px; width: 1.5rem; z-index: 1; pointer-events: none; opacity: 0;
+  transition: opacity var(--motion-duration) var(--motion-ease);
+}
+.q-table-frame::before { left: 1px; background: linear-gradient(to right, color-mix(in srgb, var(--color-text) 22%, transparent), transparent); border-radius: var(--radius-md) 0 0 var(--radius-md); }
+.q-table-frame::after { right: 1px; background: linear-gradient(to left, color-mix(in srgb, var(--color-text) 22%, transparent), transparent); border-radius: 0 var(--radius-md) var(--radius-md) 0; }
+.q-table-frame[data-more-start]::before, .q-table-frame[data-more-end]::after { opacity: 1; }
 .q-table-scroll { position: relative; overflow-x: auto; max-width: 100%; border: 1px solid var(--color-border); border-radius: var(--radius-md); }
 .q-table-scroll:focus-visible { outline: 3px solid var(--color-focus); outline-offset: 2px; }
 .q-table { width: 100%; border-collapse: collapse; }

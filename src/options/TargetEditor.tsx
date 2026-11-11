@@ -120,7 +120,8 @@ export function TargetEditor({ targets, basePath, issues, values, onValues, stat
                     {(tip) => (
                       // Focusable so keyboard users reach the full address; it is shown as text only, never as markup.
                       <span tabIndex={0} className="options-address" {...tip}>
-                        {shortAddress(target.url)}
+                        <span aria-hidden="true">{shortAddress(target.url)}</span>
+                        <span className="q-sr-only">{target.url}</span>
                       </span>
                     )}
                   </Tooltip>
