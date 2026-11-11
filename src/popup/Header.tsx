@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from 'react';
 import { Combobox, IconButton, type ComboboxGroup } from '../ui/components';
-import { useI18n } from '../settings';
+import { sortByLabel } from '../config';
+import { useI18n, useSettings } from '../settings';
 
 interface Props {
   projects: { id: string; name: string; folderId?: string; tagIds?: string[] }[];
@@ -23,6 +24,7 @@ interface Props {
 
 export function Header({ projects, folders = [], tags = [], matchingIds, value, onChange, onOpenOptions, highlight, onToggleHighlight, switchTo, onSwitchView, send }: Props) {
   const { t } = useI18n();
+  const { settings, language } = useSettings();
   const [text, setText] = useState('');
   const needle = text.trim().toLowerCase();
   const known = new Map(folders.map((f) => [f.id, f.name]));
@@ -36,12 +38,14 @@ export function Header({ projects, folders = [], tags = [], matchingIds, value, 
   const fits = (p: Entry) =>
     needle === '' || [p.name, folderOf(p) ?? '', ...tagNames(p)].some((n) => n.toLowerCase().includes(needle));
   const toOption = (p: Entry) => ({ value: p.id, label: named(p) });
+  // The device sort only changes the display order; `projects` and `matchingIds` keep the manual order.
+  const byName = <T extends { name: string }>(items: T[]) => sortByLabel(items, settings.projectSort, language, (x) => x.name);
   const visible = projects.filter(fits);
   const rest = visible.filter((p) => !matchingIds.includes(p.id));
   const sections: ComboboxGroup[] = [
-    { id: 'matching', label: t('popup.project.matching'), options: visible.filter((p) => matchingIds.includes(p.id)).map(toOption) },
-    { id: 'loose', label: t('popup.project.noFolder'), options: rest.filter((p) => !folderOf(p)).map(toOption) },
-    ...folders.map((f): ComboboxGroup => ({ id: `f-${f.id}`, label: f.name, icon: 'folder', options: rest.filter((p) => p.folderId === f.id).map(toOption) })),
+    { id: 'matching', label: t('popup.project.matching'), options: byName(visible.filter((p) => matchingIds.includes(p.id))).map(toOption) },
+    { id: 'loose', label: t('popup.project.noFolder'), options: byName(rest.filter((p) => !folderOf(p))).map(toOption) },
+    ...byName(folders).map((f): ComboboxGroup => ({ id: `f-${f.id}`, label: f.name, icon: 'folder', options: byName(rest.filter((p) => p.folderId === f.id)).map(toOption) })),
   ].filter((g) => g.options.length > 0);
   // A single unlabeled section needs no heading.
   const groups = sections.length === 1 && !sections[0]!.icon ? [{ ...sections[0]!, label: undefined }] : sections;

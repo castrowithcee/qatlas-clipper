@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { loadConfig, type Config, type StorageArea } from '../config';
-import { useI18n } from '../settings';
+import { loadConfig, sortByLabel, type Config, type StorageArea } from '../config';
+import { useI18n, useSettings } from '../settings';
 import { Button, Icon, type IconName } from '../ui/components';
 import { ShareExportDialog, type ShareRequest } from './ShareExportDialog';
 
@@ -40,6 +40,7 @@ function Row({ icon, label, state, onChange, className }: RowProps) {
 /** Export manager: a compact tree of folders and projects with a three-state head checkbox, exporting through the shared dialog. */
 export function ShareManager({ storage, dirty }: Props) {
   const { t } = useI18n();
+  const { settings, language } = useSettings();
   const [config, setConfig] = useState<Config>();
   const [projectIds, setProjectIds] = useState<Set<string>>(new Set());
   const [emptyFolders, setEmptyFolders] = useState<Set<string>>(new Set());
@@ -60,10 +61,13 @@ export function ShareManager({ storage, dirty }: Props) {
     };
   }, [storage]);
 
+  // `projects` and `folders` keep the stored order (the export follows it); only the tree is shown sorted.
   const projects = config?.projects ?? [];
   const folders = config?.folders ?? [];
+  const byName = <T extends { name: string }>(items: T[], unnamedKey: 'options.projects.unnamed' | 'options.folders.unnamed') =>
+    sortByLabel(items, settings.projectSort, language, (x) => x.name || t(unnamedKey));
   const known = new Set(folders.map((f) => f.id));
-  const loose = projects.filter((p) => !p.folderId || !known.has(p.folderId));
+  const loose = byName(projects.filter((p) => !p.folderId || !known.has(p.folderId)), 'options.projects.unnamed');
   const idsIn = (folderId: string) => projects.filter((p) => p.folderId === folderId).map((p) => p.id);
 
   const flip = <T,>(set: Set<T>, value: T, on: boolean) => {
@@ -116,8 +120,8 @@ export function ShareManager({ storage, dirty }: Props) {
             <Row className="options-share-head" label={t('options.share.manager.selectAll')} state={head} onChange={setAll} />
             <ul className="options-share-tree options-share-compact" aria-label={t('options.share.manager.tree')}>
               {loose.map(projectRow)}
-              {folders.map((f) => {
-                const inside = projects.filter((p) => p.folderId === f.id);
+              {byName(folders, 'options.folders.unnamed').map((f) => {
+                const inside = byName(projects.filter((p) => p.folderId === f.id), 'options.projects.unnamed');
                 return (
                   <li key={f.id} data-testid="share-folder">
                     <Row

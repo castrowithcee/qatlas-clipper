@@ -6,3 +6,4 @@ export * from './importExport';
 export * from './merge';
 export * from './id';
 export * from './share';
+export * from './sort';

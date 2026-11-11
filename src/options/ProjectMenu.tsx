@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useI18n } from '../settings';
+import { useI18n, useSettings } from '../settings';
 import { Button, Dialog, Menu, type MenuEntry } from '../ui/components';
 
 interface Props {
@@ -19,10 +19,13 @@ interface Props {
 /** Options menu of one project, shared by the sidebar rows and the project title. Deleting asks first. */
 export function ProjectMenu({ name, canMoveUp, canMoveDown, onMove, folders = [], currentFolder = '', onMoveToFolder, onExport, onDelete }: Props) {
   const { t } = useI18n();
+  // Reordering is off while the list is shown sorted by name; moving to a folder stays.
+  const sorted = useSettings().settings.projectSort !== 'manual';
+  const hint = sorted ? t('options.sort.locked') : undefined;
   const [confirming, setConfirming] = useState(false);
   const entries: MenuEntry[] = [
-    { kind: 'action', icon: 'arrow-up', label: t('options.menu.moveUp'), disabled: !canMoveUp, onSelect: () => onMove(-1) },
-    { kind: 'action', icon: 'arrow-down', label: t('options.menu.moveDown'), disabled: !canMoveDown, onSelect: () => onMove(1) },
+    { kind: 'action', icon: 'arrow-up', label: t('options.menu.moveUp'), disabled: sorted || !canMoveUp, hint, onSelect: () => onMove(-1) },
+    { kind: 'action', icon: 'arrow-down', label: t('options.menu.moveDown'), disabled: sorted || !canMoveDown, hint, onSelect: () => onMove(1) },
     ...(onMoveToFolder && folders.length > 0
       ? ([
           { kind: 'separator' },

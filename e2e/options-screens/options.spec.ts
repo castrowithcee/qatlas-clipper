@@ -65,6 +65,15 @@ for (const lang of ['de', 'en'] as const) {
       await shot(page, 'sidebar-menu', tag);
       await page.keyboard.press('Escape');
       await expect(page.getByRole('menu')).toHaveCount(0);
+      // Sorted A–Z (device setting), then back to manual: the sort menu entries and the sorted sidebar.
+      const pickSort = async (name: string) => {
+        await titleMenuButton.click();
+        await page.getByRole('menuitemradio', { name }).click();
+      };
+      await pickSort('A–Z');
+      await expect(page.getByRole('navigation', { name: t('Optionen', 'Options') }).locator('ul.options-nav-projects > li').first()).toBeVisible();
+      await shot(page.getByRole('complementary'), 'sidebar-sorted', tag);
+      await pickSort(t('Manuell', 'Manual'));
       // Sidebar with folders: projects without a folder first, one folder expanded, one collapsed.
       const folderRows = page.locator('ul.options-nav-projects li[data-testid="options-folder"]');
       await expect(folderRows).toHaveCount(2);

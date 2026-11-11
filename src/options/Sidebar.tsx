@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import type { Config, Folder, Project } from '../config';
-import { useI18n } from '../settings';
+import { sortByLabel, type Config, type Folder, type Project } from '../config';
+import { useI18n, useSettings } from '../settings';
 import { Button, Dialog, Icon, IconButton, Menu, type IconName, type MenuEntry } from '../ui/components';
 import { folderNameError, groupNeighbor, projectGroup } from './draft';
 import { ProjectMenu } from './ProjectMenu';
@@ -47,6 +47,10 @@ export function Brand() {
 
 export function Sidebar({ projects, folders = [], config, current, dirty, onAdd, onAddFolder, onRenameFolder, onMoveFolderTo, onDeleteFolder, onExportFolder, onMoveProjectTo, onExportProject, onDeleteProject, onImportFile }: Props) {
   const { t, tn } = useI18n();
+  const { settings, language, update } = useSettings();
+  // Display order only: the arrays in the draft keep the manual order, which the moves below are counted in.
+  const sort = settings.projectSort;
+  const sorted = sort !== 'manual';
   // Delete confirmation, and the folder whose name is being edited in its row.
   const [dialog, setDialog] = useState<FolderDialog>();
   const [editing, setEditing] = useState<string>();
@@ -80,24 +84,36 @@ export function Sidebar({ projects, folders = [], config, current, dirty, onAdd,
   const groups: Record<string, Project[]> = { '': [] };
   for (const f of folders) groups[f.id] = [];
   for (const p of projects) groups[projectGroup(folders, p)]!.push(p);
+  const projectLabel = (p: Project) => p.name || t('options.projects.unnamed');
+  const folderLabel = (f: Folder) => f.name || t('options.folders.unnamed');
+  for (const g of Object.keys(groups)) groups[g] = sortByLabel(groups[g]!, sort, language, projectLabel);
+  const shownFolders = sortByLabel(folders, sort, language, folderLabel);
   const groupName = (g: string) => (g === '' ? noFolder : folders.find((f) => f.id === g)?.name || t('options.folders.unnamed'));
   const sizeOf = (g: string) => groups[g]?.length ?? 0;
   const projectReorder = useReorder({
     sizeOf,
+    // Sorted: the place inside a group is not up to the user, so only a change of group is a move.
+    locked: ({ from, to }) => sorted && from.group === to.group,
     onMove: ({ from, to }) => {
       const p = groups[from.group]?.[from.index];
-      if (p) onMoveProjectTo(p.id, to.group || undefined, to.index);
+      // Sorted: the position shown is not a position of the manual order, so the project goes to its end.
+      if (p) onMoveProjectTo(p.id, to.group || undefined, sorted ? sizeOf(to.group) : to.index);
     },
-    announce: ({ from, to }) =>
-      t('options.sidebar.moved', {
-        name: groups[from.group]?.[from.index]?.name || t('options.projects.unnamed'),
-        position: to.index + 1,
+    announce: ({ from, to }) => {
+      const p = groups[from.group]?.[from.index];
+      // Sorted: the position the project takes in the sorted target group.
+      const position = sorted && p ? sortByLabel([...(groups[to.group] ?? []), p], sort, language, projectLabel).indexOf(p) + 1 : to.index + 1;
+      return t('options.sidebar.moved', {
+        name: p ? projectLabel(p) : t('options.projects.unnamed'),
+        position,
         count: sizeOf(to.group) + (from.group === to.group ? 0 : 1),
         group: groupName(to.group),
-      }),
+      });
+    },
   });
   const folderReorder = useReorder({
     sizeOf: () => folders.length,
+    locked: () => sorted,
     onMove: ({ from, to }) => onMoveFolderTo(from.index, to.index),
     announce: ({ from, to }) => t('options.sidebar.folderMoved', { name: folders[from.index]?.name || t('options.folders.unnamed'), position: to.index + 1, count: folders.length }),
   });
@@ -143,7 +159,7 @@ export function Sidebar({ projects, folders = [], config, current, dirty, onAdd,
         onDragOver={sorting ? row.onDragOver : undefined}
         onDrop={sorting ? row.onDrop : undefined}
       >
-        {sorting && <IconButton {...grip} icon="grip-vertical" label={t('options.projects.grip', { name })} tooltip={t('options.projects.grip.help')} className="options-grip" />}
+        {sorting && <IconButton {...grip} icon="grip-vertical" label={t('options.projects.grip', { name })} tooltip={t(sorted ? 'options.projects.grip.helpSorted' : 'options.projects.grip.help')} className="options-grip" />}
         {link(projectHash(p.id), isCurrent('project', p.id), name, 'project', p.id)}
         <ProjectMenu
           name={name}
@@ -173,7 +189,17 @@ export function Sidebar({ projects, folders = [], config, current, dirty, onAdd,
     { kind: 'separator' },
     { kind: 'action', icon: 'folder-plus', label: t('options.folders.add'), onSelect: addFolderInline },
     { kind: 'action', icon: 'file-import', label: t('options.shareImport.fromFileFolder'), onSelect: () => fileInput.current?.click() },
+    { kind: 'separator' },
+    ...(['manual', 'nameAsc', 'nameDesc'] as const).map((value) => ({
+      kind: 'radio' as const,
+      group: t('options.sort.label'),
+      icon: (value === 'manual' ? 'grip-vertical' : value === 'nameAsc' ? 'sort-asc' : 'sort-desc') as IconName,
+      label: t(`options.sort.${value}`),
+      checked: sort === value,
+      onSelect: () => void update({ projectSort: value }),
+    })),
   ];
+  const lockHint = sorted ? t('options.sort.locked') : undefined;
   const titleId = 'options-nav-projects';
   const filterId = 'options-nav-filter';
   return (
@@ -236,21 +262,21 @@ export function Sidebar({ projects, folders = [], config, current, dirty, onAdd,
                 {noFolder}
               </li>
             )}
-            {folders.map((f, index) => {
+            {shownFolders.map((f, index) => {
               const inside = groups[f.id]!.filter(visible);
               const renaming = editing === f.id;
               if (filtering && inside.length === 0 && !renaming) return null;
               const expanded = filtering ? !shut[f.id] : (open[f.id] ?? f.id === currentFolder);
               const listId = `options-folder-${f.id}`;
-              const name = f.name || t('options.folders.unnamed');
+              const name = folderLabel(f);
               const sorting = !filtering;
               const slot = { group: f.id, index: sizeOf(f.id) };
               const { row: folderRow, grip: folderGrip } = folderReorder.item(f.id, name, index);
               const moveFolder = (delta: -1 | 1) => folderReorder.apply({ from: { group: '', index }, to: { group: '', index: index + delta } });
               const entries: MenuEntry[] = [
                 { kind: 'action', icon: 'pencil', label: t('options.folders.rename'), onSelect: () => setEditing(f.id) },
-                { kind: 'action', icon: 'arrow-up', label: t('options.menu.moveUp'), disabled: index === 0, onSelect: () => moveFolder(-1) },
-                { kind: 'action', icon: 'arrow-down', label: t('options.menu.moveDown'), disabled: index === folders.length - 1, onSelect: () => moveFolder(1) },
+                { kind: 'action', icon: 'arrow-up', label: t('options.menu.moveUp'), disabled: sorted || index === 0, hint: lockHint, onSelect: () => moveFolder(-1) },
+                { kind: 'action', icon: 'arrow-down', label: t('options.menu.moveDown'), disabled: sorted || index === folders.length - 1, hint: lockHint, onSelect: () => moveFolder(1) },
                 { kind: 'action', icon: 'file-export', label: t('options.share.export'), onSelect: () => onExportFolder(f.id) },
                 { kind: 'separator' },
                 { kind: 'action', icon: 'trash', danger: true, label: t('options.folders.delete'), onSelect: () => setDialog({ id: f.id }) },
@@ -279,7 +305,7 @@ export function Sidebar({ projects, folders = [], config, current, dirty, onAdd,
                       onDragOver={sorting ? projectReorder.dropProps(slot).onDragOver : undefined}
                       onDrop={sorting ? projectReorder.dropProps(slot).onDrop : undefined}
                     >
-                      {sorting && <IconButton {...folderGrip} icon="grip-vertical" label={t('options.folders.grip', { name })} tooltip={t('options.folders.grip.help')} className="options-grip" />}
+                      {sorting && !sorted && <IconButton {...folderGrip} icon="grip-vertical" label={t('options.folders.grip', { name })} tooltip={t('options.folders.grip.help')} className="options-grip" />}
                       <button
                         type="button"
                         className="options-folder-toggle"

@@ -33,13 +33,15 @@ interface Options {
   onMove: (move: Move) => void;
   /** Text for the live region after a move; rendered as text only. */
   announce: (move: Move) => string;
+  /** A move that is not allowed (e.g. reordering inside a sorted group): ignored, and no drop target is offered for it. */
+  locked?: (move: Move) => boolean;
 }
 
 /**
  * Reordering by dragging the grip with the mouse and by the arrow keys at the grip.
  * Both lead to `onMove`, which may also cross groups. `apply` takes the same path for other ways to move, such as a menu.
  */
-export function useReorder({ sizeOf, onMove, announce }: Options) {
+export function useReorder({ sizeOf, onMove, announce, locked }: Options) {
   const id = useId();
   const [announcement, setAnnouncement] = useState('');
   const [drag, setDrag] = useState<{ from: Slot; over: Slot }>();
@@ -58,6 +60,7 @@ export function useReorder({ sizeOf, onMove, announce }: Options) {
     // A drop on the end of the item's own group means its last place.
     const m = move.from.group === move.to.group && move.to.index === size ? { ...move, to: { ...move.to, index: size - 1 } } : move;
     if (m.from.group === m.to.group && m.from.index === m.to.index) return;
+    if (locked?.(m)) return;
     if (m.to.index < 0 || m.to.index >= (m.from.group === m.to.group ? size : size + 1)) return;
     setAnnouncement(announce(m));
     onMove(m);
@@ -68,7 +71,7 @@ export function useReorder({ sizeOf, onMove, announce }: Options) {
   /** Props for a drop target: a row, or with `index` at the group's size the end of a group. */
   const dropProps = (slot: Slot) => ({
     onDragOver: (e: DragEvent<HTMLElement>) => {
-      if (!drag) return;
+      if (!drag || locked?.({ from: drag.from, to: slot })) return;
       e.preventDefault();
       e.dataTransfer.dropEffect = 'move';
       if (!same(drag.over, slot)) setDrag({ ...drag, over: slot });

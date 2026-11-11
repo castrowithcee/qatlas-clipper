@@ -223,7 +223,7 @@ describe('folders in the sidebar', () => {
     expect(within(nav()).queryByRole('button', { name: /^(Add project|Add folder|From file)/ })).toBeNull();
     await user.click(within(nav()).getByRole('button', { name: 'Options for projects' }));
     const menu = screen.getByRole('menu', { name: 'Options for projects' });
-    expect(Array.from(menu.children).map((c) => c.getAttribute('role') === 'separator' ? '-' : c.textContent)).toEqual(['Add project', 'Project from file', '-', 'Add folder', 'Folder from file']);
+    expect(Array.from(menu.children).map((c) => c.getAttribute('role') === 'separator' ? '-' : c.textContent)).toEqual(['Add project', 'Project from file', '-', 'Add folder', 'Folder from file', '-', 'Sort orderManualA–ZZ–A']);
     await user.click(screen.getByRole('menuitem', { name: 'Add project' }));
     expect(screen.getAllByRole('link', { name: 'New project' }).length).toBe(1);
   });

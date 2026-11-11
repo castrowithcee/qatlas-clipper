@@ -14,6 +14,8 @@ interface EntryBase {
   icon?: IconName;
   /** Shown but not selectable and skipped by the arrow keys. */
   disabled?: boolean;
+  /** Tooltip text, e.g. the reason an entry is disabled. */
+  hint?: string;
   onSelect: () => void;
 }
 
@@ -162,6 +164,7 @@ export function Menu({ label, icon = 'ellipsis-vertical', tooltip, entries, butt
         className={['q-menu-item', danger && 'q-menu-item--danger'].filter(Boolean).join(' ')}
         aria-checked={entry.kind === 'action' ? undefined : entry.checked}
         aria-disabled={entry.disabled || undefined}
+        title={entry.hint}
         onClick={() => {
           if (entry.disabled) return;
           close(true);
