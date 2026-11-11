@@ -23,8 +23,7 @@ test('a contact block mapped by click reaches the webhook as Markdown with line 
   await expect(page.getByText('Choose element for "Contact"')).toBeVisible();
   // Click the padding so the block itself, not a line inside it, is chosen.
   await page.locator('#contact').click({ position: { x: 4, y: 4 } });
-  await page.getByRole('button', { name: 'Apply' }).click();
-  await expect(page.getByText('Mapping saved')).toBeVisible();
+  await expect(page.getByText('Saved for 127.0.0.1')).toBeVisible();
 
   popup = await openPopup(context, serviceWorker, extensionId, page);
   const area = popup.getByRole('textbox', { name: /Contact/ });

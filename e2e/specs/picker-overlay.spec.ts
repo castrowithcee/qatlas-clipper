@@ -60,7 +60,7 @@ test.beforeEach(async ({ serviceWorker }) => {
   await setConfig(serviceWorker, project);
 });
 
-test('hostile page styles do not change the overlay, and Apply saves the mapping', async ({ context, serviceWorker, pages }) => {
+test('hostile page styles do not change the overlay, and a click saves the mapping', async ({ context, serviceWorker, pages }) => {
   const page = await context.newPage();
   await page.goto(`${pages.origin}/picker-light.html`);
   await page.addStyleTag({ content: HOSTILE_CSS });
@@ -68,8 +68,8 @@ test('hostile page styles do not change the overlay, and Apply saves the mapping
 
   const title = page.getByText('Choose element for "Price"');
   await expect(title).toBeVisible();
-  const apply = page.getByRole('button', { name: 'Apply' });
-  const style = await apply.evaluate((el) => {
+  const cancel = page.getByRole('button', { name: 'Cancel' });
+  const style = await cancel.evaluate((el) => {
     const cs = getComputedStyle(el);
     const host = (el.getRootNode() as ShadowRoot).host;
     const hs = getComputedStyle(host);
@@ -84,13 +84,12 @@ test('hostile page styles do not change the overlay, and Apply saves the mapping
 
   await page.locator('#price').click();
   await expect(page.locator('.preview-text')).toHaveText('10.00');
-  await apply.click();
-  await expect(page.getByText('Mapping saved')).toBeVisible();
+  await expect(page.getByText('Saved for 127.0.0.1')).toBeVisible();
   await expect(title).toHaveCount(0);
   expect(await mappings(serviceWorker)).toEqual({ '127.0.0.1': { price: '#price' } });
 });
 
-test('German dark overlay: hint for a non-unique element, selector only in the tooltip, Esc cancels', async ({
+test('German dark overlay: hint for a non-unique element keeps the picker open, Esc cancels', async ({
   context,
   serviceWorker,
   pages,
@@ -104,17 +103,8 @@ test('German dark overlay: hint for a non-unique element, selector only in the t
 
   await page.locator('li span').first().click();
   await expect(page.getByText('Dieses Element ist nicht eindeutig. Wähle ein anderes.')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Übernehmen' })).toBeDisabled();
-  await expect(page.getByRole('button', { name: 'Technische Details' })).toBeHidden();
-
-  await page.locator('#price').click();
-  const details = page.getByRole('button', { name: 'Technische Details' });
-  await expect(details).toBeVisible();
-  await details.focus();
-  await expect(page.getByRole('tooltip').filter({ hasText: '#price' })).toBeVisible();
-
-  await page.getByRole('button', { name: 'Tastaturhinweis' }).focus();
-  await expect(page.getByRole('tooltip').filter({ hasText: 'Esc bricht ab' })).toBeVisible();
+  await expect(page.getByText('Esc bricht ab')).toBeVisible();
+  expect(await mappings(serviceWorker)).toEqual({});
 
   await page.keyboard.press('Escape');
   await expect(page.getByText('Element für')).toHaveCount(0);
@@ -125,8 +115,6 @@ test('Cancel closes without saving', async ({ context, serviceWorker, pages }) =
   const page = await context.newPage();
   await page.goto(`${pages.origin}/picker-dark.html`);
   await startPicker(serviceWorker, page, { language: 'en', appearance: 'system' });
-  await page.locator('#price').click();
-  await expect(page.getByRole('button', { name: 'Apply' })).toBeEnabled();
   await page.getByRole('button', { name: 'Cancel' }).click();
   await expect(page.getByText('Choose element for')).toHaveCount(0);
   expect(await mappings(serviceWorker)).toEqual({});
@@ -150,24 +138,11 @@ test.describe('screenshots', () => {
         await expect(page.locator('.bar')).toBeVisible();
         await page.locator('#headline').hover();
         await page.screenshot({ path: join(out, `${name}-hover.png`) });
-        await page.locator('#price').click();
-        await page.waitForTimeout(250);
-        await page.screenshot({ path: join(out, `${name}-unique.png`) });
-        await page.locator('.tipwrap button').nth(1).focus();
-        await page.waitForTimeout(250);
-        await page.screenshot({ path: join(out, `${name}-unique-details.png`) });
         await page.locator('li span').first().click();
         await page.waitForTimeout(250);
         await page.screenshot({ path: join(out, `${name}-not-unique.png`) });
-        await page.locator('.tipwrap button').first().focus();
-        await page.keyboard.press('Shift+Tab');
-        await page.keyboard.press('Tab');
-        await page.waitForTimeout(250);
-        await page.screenshot({ path: join(out, `${name}-not-unique-keyhint.png`) });
         await page.locator('#price').click();
-        await page.locator('.confirm').focus();
-        await page.waitForTimeout(250);
-        await page.screenshot({ path: join(out, `${name}-focus-apply.png`) });
+        await page.screenshot({ path: join(out, `${name}-saved.png`) });
       }
     }
   });

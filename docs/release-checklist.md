@@ -16,7 +16,7 @@ Manual check per release in **Brave** and **Edge**. Chrome is covered by the E2E
 - [ ] Options page: add a target (URL such as `https://example.com/hook`, optional header) and grant the host permission when the browser asks.
 - [ ] Popup on a page that contains JSON-LD: the matching project is offered and the fields are prefilled.
 - [ ] Popup on a page with only meta tags: the fields are prefilled from the meta tags.
-- [ ] Map a field by click: start the picker from the popup, click an element, confirm the mapping.
+- [ ] Map a field by click: start the picker from the popup, click an element; it is saved at once and the message names the website.
 - [ ] Open a second page of the same site: the mapped field is prefilled.
 - [ ] Side panel: in the options page choose "Side panel" under "Open as" (Brave: note whether the setting is visible); the browser shows its permission prompt for all websites; declining keeps the popup and shows a message; after granting, a click on the toolbar button opens the panel, and switching back to popup restores the popup.
 - [ ] Side panel with the picker: start the picker from the panel; the panel stays open and shows the saved mapping without reopening.

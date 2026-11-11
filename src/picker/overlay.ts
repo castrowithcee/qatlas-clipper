@@ -3,7 +3,7 @@ import { createTranslator, resolveLanguage } from '../i18n';
 import { DEFAULT_SETTINGS, type Settings } from '../settings/schema';
 import { loadSettings, subscribeSettings } from '../settings/storage';
 import { DARK_QUERY, resolveTheme } from '../ui/theme';
-import { saveMapping } from './mapping';
+import { normalizeDomain, saveMapping } from './mapping';
 import { HOST_STYLE, OVERLAY_CSS } from './overlayStyle';
 import { generateSelector } from './selector';
 
@@ -21,7 +21,12 @@ export interface PickerOptions {
   subscribe?: (onChange: (settings: Settings) => void) => () => void;
 }
 
-let active: (() => void) | undefined;
+/**
+ * Every injection of the picker script gets its own copy of this module, but all copies share the isolated world's global
+ * object. The running picker's close function lives there so a restarted picker can end the previous one completely.
+ */
+const ACTIVE_KEY = Symbol.for('qatlas.picker.active');
+const globals = globalThis as unknown as Record<symbol, (() => void) | undefined>;
 
 const previewText = (el: Element): string => {
   const text = (el.textContent ?? '').replace(/\s+/g, ' ').trim();
@@ -30,15 +35,14 @@ const previewText = (el: Element): string => {
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 const ICON_PATHS = {
-  info: ['M3 12a9 9 0 1 0 18 0a9 9 0 1 0 -18 0', 'M12 11v5M12 8h.01'],
   alert: ['M12 4l9 16H3zM12 10v4M12 17h.01'],
   error: ['M3 12a9 9 0 1 0 18 0a9 9 0 1 0 -18 0', 'M9 9l6 6M15 9l-6 6'],
   check: ['M5 12.5l4.5 4.5L19 7'],
 };
 
-/** Mounts the picker overlay on the page. A previously running picker is closed first. */
+/** Mounts the picker overlay on the page. A previously running picker, even from another script load, is closed first. */
 export function mountPicker(opts: PickerOptions): () => void {
-  active?.();
+  globals[ACTIVE_KEY]?.();
   const doc = opts.doc ?? document;
   const win = doc.defaultView ?? window;
 
@@ -71,43 +75,26 @@ export function mountPicker(opts: PickerOptions): () => void {
     }
     parent.append(svg);
   };
-  let tipCount = 0;
-  const tipWrap = (parent: ParentNode, mono: boolean): { wrap: HTMLElement; trigger: HTMLButtonElement; tip: HTMLElement } => {
-    const wrap = make('span', 'tipwrap', parent);
-    const trigger = make('button', 'small', wrap);
-    trigger.type = 'button';
-    const tip = make('span', mono ? 'tip mono' : 'tip', wrap);
-    tip.id = `tip-${tipCount++}`;
-    tip.setAttribute('role', 'tooltip');
-    trigger.setAttribute('aria-describedby', tip.id);
-    return { wrap, trigger, tip };
-  };
-
   const box = make('div', 'box', root);
   const bar = make('div', 'bar bottom', root);
   bar.setAttribute('role', 'group');
   bar.hidden = true;
-  const title = make('div', 'title', bar);
-  const preview = make('div', 'preview', bar);
-  const previewLabel = make('span', 'preview-label', preview);
-  const previewValue = make('span', 'preview-text', preview);
+  const line = make('div', 'line', bar);
+  const title = make('span', 'title', line);
+  const keyHint = make('span', 'keyhint', line);
+  make('span', 'spacer', line);
+  const cancel = make('button', 'cancel', line);
+  cancel.type = 'button';
   const hint = make('div', 'hint', bar);
   hint.setAttribute('role', 'status');
   const error = make('div', 'error', bar);
   error.setAttribute('role', 'alert');
-  const row = make('div', 'row', bar);
-  const keyTip = tipWrap(row, false);
-  keyTip.trigger.textContent = 'Esc';
-  const detailsTip = tipWrap(row, true);
-  icon('info', detailsTip.trigger);
-  make('span', 'spacer', row);
-  const cancel = make('button', 'cancel', row);
-  cancel.type = 'button';
-  const confirm = make('button', 'confirm primary', row);
-  confirm.type = 'button';
   const done = make('div', 'done', bar);
   done.setAttribute('role', 'status');
   const doneText = doc.createElement('span');
+  const preview = make('div', 'preview', bar);
+  const previewLabel = make('span', 'preview-label', preview);
+  const previewValue = make('span', 'preview-text', preview);
   root.prepend(style);
   doc.documentElement.append(host);
 
@@ -115,9 +102,11 @@ export function mountPicker(opts: PickerOptions): () => void {
   let label = opts.fieldKey;
   let ready = false;
   let phase: 'pick' | 'saving' | 'saved' = 'pick';
-  let picked: Element | undefined;
-  let selector: string | null = null;
+  let hovered: Element | undefined;
+  /** Element the last click could not map uniquely; stays marked until the pointer moves to another element. */
+  let invalid: Element | undefined;
   let previewContent = '';
+  let savedSite = '';
   let saveError: string | undefined;
   let timer: ReturnType<typeof setTimeout> | undefined;
   const media = typeof win.matchMedia === 'function' ? win.matchMedia(DARK_QUERY) : undefined;
@@ -130,17 +119,17 @@ export function mountPicker(opts: PickerOptions): () => void {
     const heading = tr.t('picker.title', { field: label });
     title.textContent = heading;
     bar.setAttribute('aria-label', heading);
-    previewLabel.textContent = tr.t('picker.preview');
-    previewValue.textContent = previewContent || tr.t('picker.previewEmpty');
-    preview.hidden = !picked;
-    const notUnique = !!picked && !selector;
-    hint.hidden = phase !== 'pick' || (!!picked && !notUnique);
-    hint.classList.toggle('warn', notUnique);
+    keyHint.textContent = tr.t('picker.keyHint');
+    cancel.textContent = tr.t('picker.cancel');
+    line.hidden = phase === 'saved';
+    hint.hidden = phase !== 'pick' || !invalid;
     hint.replaceChildren();
-    if (notUnique) icon('alert', hint);
-    const hintText = doc.createElement('span');
-    hintText.textContent = tr.t(notUnique ? 'picker.notUnique' : 'picker.prompt');
-    hint.append(hintText);
+    if (invalid) {
+      icon('alert', hint);
+      const hintText = doc.createElement('span');
+      hintText.textContent = tr.t('picker.notUnique');
+      hint.append(hintText);
+    }
     error.hidden = !saveError;
     error.replaceChildren();
     if (saveError) {
@@ -149,23 +138,14 @@ export function mountPicker(opts: PickerOptions): () => void {
       t.textContent = tr.t('picker.saveFailed', { message: saveError });
       error.append(t);
     }
-    const hintLabel = tr.t('picker.keyHintLabel');
-    keyTip.trigger.setAttribute('aria-label', hintLabel);
-    keyTip.tip.textContent = tr.t('picker.keyHint');
-    const detailsLabel = tr.t('picker.details');
-    detailsTip.trigger.setAttribute('aria-label', detailsLabel);
-    detailsTip.tip.textContent = selector ?? '';
-    detailsTip.wrap.hidden = !selector;
-    cancel.textContent = tr.t('picker.cancel');
-    confirm.textContent = tr.t('picker.confirm');
-    confirm.disabled = !selector || phase !== 'pick';
-    row.hidden = phase === 'saved';
-    preview.hidden = !picked || phase === 'saved';
     done.hidden = phase !== 'saved';
     done.replaceChildren();
     icon('check', done);
-    doneText.textContent = tr.t('picker.saved');
+    doneText.textContent = tr.t('picker.saved', { site: savedSite });
     done.append(doneText);
+    previewLabel.textContent = tr.t('picker.preview');
+    previewValue.textContent = previewContent || tr.t('picker.previewEmpty');
+    preview.hidden = phase !== 'saved';
   };
 
   const applySettings = (next: Settings): void => {
@@ -192,22 +172,33 @@ export function mountPicker(opts: PickerOptions): () => void {
     render();
   });
 
-  const place = (el: Element, cls: string): void => {
+  const intersects = (a: DOMRect, b: DOMRect): boolean =>
+    a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
+  const place = (el: Element): void => {
     const r = el.getBoundingClientRect();
-    box.className = `box ${cls}`.trim();
-    box.setAttribute(
-      'style',
-      `display:block;top:${r.top}px;left:${r.left}px;width:${r.width}px;height:${r.height}px;`,
-    );
-    // The bar sits on the side of the viewport away from the element.
-    const atTop = r.top + r.height / 2 > win.innerHeight / 2;
-    bar.classList.toggle('top', atTop);
-    bar.classList.toggle('bottom', !atTop);
+    box.className = `box${el === invalid ? ' invalid' : ''}`;
+    box.setAttribute('style', `display:block;top:${r.top}px;left:${r.left}px;width:${r.width}px;height:${r.height}px;`);
+    // The bar keeps its side; it moves only when it would cover the element under the pointer.
+    const bar0 = bar.getBoundingClientRect();
+    if (!intersects(r, bar0)) return;
+    const margin = 8;
+    const other = bar.classList.contains('bottom')
+      ? { top: margin, bottom: margin + bar0.height }
+      : { top: win.innerHeight - margin - bar0.height, bottom: win.innerHeight - margin };
+    if (r.top < other.bottom && r.bottom > other.top && r.height > 0 && r.top < other.top && r.bottom > other.bottom) return;
+    const toTop = bar.classList.contains('bottom');
+    bar.classList.toggle('top', toTop);
+    bar.classList.toggle('bottom', !toTop);
   };
   const onOver = (e: Event): void => {
     const t = e.target;
-    if (!(t instanceof win.Element) || t === host || picked) return;
-    place(t, '');
+    if (!(t instanceof win.Element) || t === host || phase !== 'pick') return;
+    if (invalid && t !== invalid) {
+      invalid = undefined;
+      render();
+    }
+    hovered = t;
+    place(t);
   };
   const onClick = (e: Event): void => {
     const t = e.target;
@@ -215,13 +206,37 @@ export function mountPicker(opts: PickerOptions): () => void {
     e.preventDefault();
     e.stopPropagation();
     if (phase !== 'pick' || !(t instanceof win.Element)) return;
-    picked = t;
     const res = generateSelector(t);
-    selector = res.unique ? res.selector : null;
-    previewContent = previewText(t);
     saveError = undefined;
-    place(t, res.unique ? 'picked' : 'invalid');
+    hovered = t;
+    if (!res.unique) {
+      invalid = t;
+      place(t);
+      render();
+      return;
+    }
+    invalid = undefined;
+    previewContent = previewText(t);
+    phase = 'saving';
     render();
+    saveMapping(
+      { projectId: opts.projectId, fieldKey: opts.fieldKey, pageUrl: win.location.href, selector: res.selector },
+      opts.storage,
+    ).then(
+      () => {
+        if (globals[ACTIVE_KEY] !== close) return; // closed while saving
+        savedSite = normalizeDomain(win.location.href);
+        phase = 'saved';
+        box.className = 'box picked';
+        render();
+        timer = setTimeout(close, opts.successDelayMs ?? SUCCESS_DELAY_MS);
+      },
+      (err: unknown) => {
+        phase = 'pick';
+        saveError = err instanceof Error ? err.message : String(err);
+        render();
+      },
+    );
   };
   const onKey = (e: Event): void => {
     if ((e as KeyboardEvent).key !== 'Escape') return;
@@ -229,8 +244,10 @@ export function mountPicker(opts: PickerOptions): () => void {
     e.stopPropagation();
     close();
   };
+  // The frame follows its element while scrolling; it never stays behind at an old position.
   const reposition = (): void => {
-    if (picked) place(picked, selector ? 'picked' : 'invalid');
+    if (hovered?.isConnected) place(hovered);
+    else box.style.display = 'none';
   };
 
   const close = (): void => {
@@ -243,36 +260,15 @@ export function mountPicker(opts: PickerOptions): () => void {
     win.removeEventListener('scroll', reposition, true);
     win.removeEventListener('resize', reposition);
     host.remove();
-    if (active === close) active = undefined;
+    if (globals[ACTIVE_KEY] === close) globals[ACTIVE_KEY] = undefined;
   };
 
   cancel.addEventListener('click', close);
-  confirm.addEventListener('click', () => {
-    if (!selector || phase !== 'pick') return;
-    phase = 'saving';
-    saveError = undefined;
-    render();
-    saveMapping(
-      { projectId: opts.projectId, fieldKey: opts.fieldKey, pageUrl: win.location.href, selector },
-      opts.storage,
-    ).then(
-      () => {
-        phase = 'saved';
-        render();
-        timer = setTimeout(close, opts.successDelayMs ?? SUCCESS_DELAY_MS);
-      },
-      (err: unknown) => {
-        phase = 'pick';
-        saveError = err instanceof Error ? err.message : String(err);
-        render();
-      },
-    );
-  });
   doc.addEventListener('mouseover', onOver, true);
   doc.addEventListener('click', onClick, true);
   doc.addEventListener('keydown', onKey, true);
   win.addEventListener('scroll', reposition, true);
   win.addEventListener('resize', reposition);
-  active = close;
+  globals[ACTIVE_KEY] = close;
   return close;
 }

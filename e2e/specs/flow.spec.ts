@@ -107,8 +107,7 @@ test('configure, map by click, prefill on a second page, send, and show the resp
   await expect(page1.getByText('Choose element for "Price"')).toBeVisible();
   await page1.locator('#price').click();
   await expect(page1.locator('.preview-text')).toHaveText('10.00');
-  await page1.getByRole('button', { name: 'Apply' }).click();
-  await expect(page1.getByText('Mapping saved')).toBeVisible();
+  await expect(page1.getByText('Saved for 127.0.0.1')).toBeVisible();
   await expect(page1.getByText('Choose element for')).toHaveCount(0);
 
   const mappings = await serviceWorker.evaluate(

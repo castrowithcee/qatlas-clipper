@@ -37,7 +37,7 @@ export const OVERLAY_CSS = `${shadowTokensCss()}
 .box.invalid { border-style: dotted; border-width: 3px; border-color: var(--color-warning); background: ${MIX('--color-warning', 16)}; }
 
 .bar { position: fixed; left: var(--space-2); right: var(--space-2); max-width: 640px; margin: 0 auto;
-  display: flex; flex-direction: column; gap: var(--space-2); padding: var(--space-3) var(--space-4);
+  display: flex; flex-direction: column; gap: var(--space-2); padding: var(--space-2) var(--space-3);
   pointer-events: auto; color: var(--color-text); background: var(--color-bg);
   border: 1px solid var(--color-border); border-radius: var(--radius-md);
   box-shadow: 0 4px 16px ${MIX('--color-text', 28)};
@@ -47,7 +47,9 @@ export const OVERLAY_CSS = `${shadowTokensCss()}
 .bar.top { top: var(--space-2); --shift: -6px; }
 @keyframes enter { from { opacity: 0; transform: translateY(var(--shift)); } }
 
+.line { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; }
 .title { font-weight: 600; overflow-wrap: anywhere; }
+.keyhint { color: var(--color-text-muted); font-size: var(--font-size-small); }
 .preview { display: flex; flex-direction: column; gap: 2px; padding: var(--space-2) var(--space-3);
   background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-sm); }
 .preview-label { color: var(--color-text-muted); font-size: var(--font-size-small); }
@@ -59,7 +61,6 @@ export const OVERLAY_CSS = `${shadowTokensCss()}
 .done { color: var(--color-success); font-weight: 600; }
 .icon { width: 1.125em; height: 1.125em; flex: none; margin-top: 0.15em; }
 
-.row { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
 .spacer { flex: 1; }
 button { font: inherit; font-size: var(--font-size-base); line-height: var(--line-height); color: var(--color-text);
   display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2);
@@ -67,21 +68,6 @@ button { font: inherit; font-size: var(--font-size-base); line-height: var(--lin
   background: var(--color-bg); border: 1px solid var(--color-border); border-radius: var(--radius-md);
   transition: background-color var(--motion-duration) var(--motion-ease), border-color var(--motion-duration) var(--motion-ease); }
 button:hover:not(:disabled) { background: var(--color-surface); border-color: var(--color-text-muted); }
-button.primary { background: var(--color-accent); border-color: var(--color-accent); color: var(--color-on-accent); }
-button.primary:hover:not(:disabled) { background: var(--color-accent); filter: brightness(1.08); }
 button:disabled { opacity: 0.5; cursor: not-allowed; }
 button:focus-visible { outline: 3px solid var(--color-focus); outline-offset: 2px; }
-button.small { min-width: 36px; padding: var(--space-1) var(--space-2); color: var(--color-text-muted);
-  font-size: var(--font-size-small); background: transparent; }
-
-.tipwrap { position: relative; display: inline-flex; }
-.tip { position: absolute; left: 0; z-index: 1; width: max-content; max-width: min(320px, calc(100vw - 32px));
-  padding: var(--space-2) var(--space-3); font-size: var(--font-size-small); line-height: var(--line-height); font-weight: normal;
-  color: var(--color-text); background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md);
-  box-shadow: 0 2px 8px ${MIX('--color-text', 22)}; overflow-wrap: anywhere; pointer-events: none;
-  visibility: hidden; opacity: 0; transition: opacity var(--motion-duration) var(--motion-ease), visibility var(--motion-duration); }
-.tip.mono { font-family: var(--font-mono); }
-.bar.bottom .tip { bottom: 100%; margin-bottom: var(--space-1); }
-.bar.top .tip { top: 100%; margin-top: var(--space-1); }
-.tipwrap:hover .tip, .tipwrap:focus-within .tip { visibility: visible; opacity: 1; }
 `;

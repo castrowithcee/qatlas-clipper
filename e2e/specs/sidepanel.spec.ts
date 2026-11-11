@@ -48,8 +48,7 @@ test('the side panel reads the page, shows a mapping made on the page and follow
     [tabId, PICKER_GLOBAL] as const,
   );
   await page.locator('#price').click();
-  await page.getByRole('button', { name: 'Apply' }).click();
-  await expect(page.getByText('Mapping saved')).toBeVisible();
+  await expect(page.getByText('Saved for 127.0.0.1')).toBeVisible();
 
   await panel.bringToFront();
   await expect(panel.getByRole('textbox', { name: 'Price' })).toHaveValue('10.00');

@@ -1,7 +1,6 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { loadConfig } from '../src/config';
-import { en } from '../src/i18n/catalog';
 import { mountPicker } from '../src/picker/overlay';
 import { OVERLAY_CSS } from '../src/picker/overlayStyle';
 import type { Settings } from '../src/settings/schema';
@@ -117,8 +116,8 @@ describe('language', () => {
     await flush();
     expect(q('.title').textContent).toBe('Choose element for "Article title"');
     expect(q('.cancel').textContent).toBe('Cancel');
-    expect(q('.confirm').textContent).toBe('Apply');
-    expect(text()).toContain(en['picker.prompt']);
+    expect(q('.keyhint').textContent).toBe('Esc cancels');
+    expect(text()).not.toContain('Apply');
     expect(q('.bar').lang).toBe('en');
   });
 
@@ -127,28 +126,16 @@ describe('language', () => {
     await flush();
     expect(q('.title').textContent).toBe('Element für „Article title“ wählen');
     expect(q('.cancel').textContent).toBe('Abbrechen');
-    expect(q('.confirm').textContent).toBe('Übernehmen');
+    expect(q('.keyhint').textContent).toBe('Esc bricht ab');
     expect(q('.bar').lang).toBe('de');
   });
 
   it('a fixed language setting wins over the browser language and applies live', async () => {
     const { q, push } = setup({ settings: { language: 'de' }, browserLanguage: 'en-US' });
     await flush();
-    expect(q('.confirm').textContent).toBe('Übernehmen');
+    expect(q('.cancel').textContent).toBe('Abbrechen');
     push({ language: 'en', appearance: 'system', openAs: 'popup' });
-    expect(q('.confirm').textContent).toBe('Apply');
-  });
-
-  it('shows the Esc hint as a tooltip reachable by keyboard focus', async () => {
-    const { q } = setup({ settings: { language: 'de' } });
-    await flush();
-    const trigger = q('.tipwrap button') as HTMLButtonElement;
-    const tip = q('.tip');
-    expect(tip.getAttribute('role')).toBe('tooltip');
-    expect(tip.textContent).toBe('Esc bricht ab');
-    expect(trigger.getAttribute('aria-describedby')).toBe(tip.id);
-    expect(trigger.tabIndex).toBe(0);
-    expect(OVERLAY_CSS).toContain('.tipwrap:focus-within .tip');
+    expect(q('.cancel').textContent).toBe('Cancel');
   });
 
   it('renders the field label as text, never as HTML', async () => {
@@ -189,52 +176,66 @@ describe('appearance', () => {
 });
 
 describe('picking', () => {
-  it('click shows the preview, blocks page handlers, and keeps the selector in the details tooltip only', async () => {
-    const { q, text } = setup();
+  it('a click saves at once, blocks page handlers, shows site and preview, then closes', async () => {
+    const { q, storage, host } = setup({ successDelayMs: 20 });
     await flush();
     const h1 = document.getElementById('title')!;
     const pageHandler = vi.fn();
     h1.addEventListener('click', pageHandler);
     click(h1);
     expect(pageHandler).not.toHaveBeenCalled();
+    await vi.waitFor(() => expect(q('.done').hidden).toBe(false));
+    expect(q('.done').textContent).toBe('Saved for example.com');
     expect(q('.preview-text').textContent).toBe('Article headline');
     expect(q('.box').className).toContain('picked');
-    expect((q('.confirm') as HTMLButtonElement).disabled).toBe(false);
-    const detailsTip = q('.tip.mono');
-    expect(detailsTip.textContent).toBe('#title');
-    expect(detailsTip.parentElement!.hidden).toBe(false);
-    expect(detailsTip.previousElementSibling!.getAttribute('aria-label')).toBe('Technical details');
-    // Everything outside the tooltip is free of the selector.
-    detailsTip.textContent = '';
-    expect(text()).not.toContain('#title');
+    expect(q('.line').hidden).toBe(true);
+    const cfg = await loadConfig(storage);
+    expect(cfg.projects[0]!.siteMappings['example.com']).toEqual({ title: '#title', price: '.p' });
+    expect(cfg.projects[0]!.siteMappings['example.org']).toEqual({ title: 'h2' });
+    await vi.waitFor(() => expect(host.isConnected).toBe(false));
+  });
+
+  it('shows the page text only as text', async () => {
+    const { q, root } = setup({ successDelayMs: 50 });
+    await flush();
+    const p = document.createElement('p');
+    p.id = 'evil';
+    p.textContent = '<img src=x onerror=alert(1)>';
+    document.body.append(p);
+    click(p);
+    await vi.waitFor(() => expect(q('.done').hidden).toBe(false));
+    expect(q('.preview-text').textContent).toBe('<img src=x onerror=alert(1)>');
+    expect(root.querySelector('img')).toBeNull();
   });
 
   it('shows the placeholder for elements without text', async () => {
-    const { q } = setup();
+    const { q } = setup({ successDelayMs: 50 });
     await flush();
     const empty = document.createElement('div');
     empty.id = 'empty';
     document.body.append(empty);
     click(empty);
+    await vi.waitFor(() => expect(q('.done').hidden).toBe(false));
     expect(q('.preview-text').textContent).toBe('(no text)');
   });
 
-  it('non-unique element shows the understandable hint without a selector, and re-picking works', async () => {
-    const { q, text } = setup();
+  it('a non-unique element saves nothing, is marked, keeps the picker open, and the next click picks anew', async () => {
+    const { q, text, storage, host } = setup({ successDelayMs: 5 });
     await flush();
+    const before = structuredClone(storage.data);
     click(document.querySelectorAll('span')[0]!);
+    await flush();
+    expect(q('.hint').hidden).toBe(false);
     expect(q('.hint').textContent).toBe('This element is not unique. Choose another one.');
-    expect(q('.hint').classList.contains('warn')).toBe(true);
+    expect(q('.hint').classList.contains('warn')).toBe(false);
     expect(q('.hint svg')).not.toBeNull();
     expect(q('.box').className).toContain('invalid');
-    expect((q('.confirm') as HTMLButtonElement).disabled).toBe(true);
-    const detailsTip = q('.tip.mono');
-    expect(detailsTip.textContent).toBe('');
-    expect(detailsTip.parentElement!.hidden).toBe(true);
-    expect(text()).not.toMatch(/ancestor|selector|span|div/i);
+    expect(storage.data).toEqual(before);
+    expect(host.isConnected).toBe(true);
+    expect(text()).not.toMatch(/ancestor|selector/i);
     click(document.getElementById('title')!);
+    await vi.waitFor(() => expect(q('.done').hidden).toBe(false));
     expect(q('.hint').hidden).toBe(true);
-    expect((q('.confirm') as HTMLButtonElement).disabled).toBe(false);
   });
 
   it('the non-unique hint is German in German mode', async () => {
@@ -244,58 +245,87 @@ describe('picking', () => {
     expect(q('.hint').textContent).toBe('Dieses Element ist nicht eindeutig. Wähle ein anderes.');
   });
 
-  it('truncates long previews and a second mount replaces the first', () => {
-    const para = document.createElement('p');
-    para.id = 'long';
-    para.textContent = 'a'.repeat(1000);
-    document.body.replaceChildren(para);
+  it('the saved message is German in German mode', async () => {
+    const { q } = setup({ settings: { language: 'de' }, successDelayMs: 50 });
+    await flush();
+    click(document.getElementById('title')!);
+    await vi.waitFor(() => expect(q('.done').hidden).toBe(false));
+    expect(q('.done').textContent).toBe('Gespeichert für example.com');
+  });
+
+  it('a second mount replaces the first and leaves one overlay', () => {
     const first = mountPicker({ projectId: 'articles', fieldKey: 'title', storage: fakeStorage(), subscribe: () => () => {} });
     close = mountPicker({ projectId: 'articles', fieldKey: 'title', storage: fakeStorage(), subscribe: () => () => {} });
     expect(first).not.toBe(close);
-    click(document.getElementById('long')!);
-    const hosts = [...document.documentElement.children].filter((c) => c.shadowRoot);
-    expect(hosts.length).toBe(1);
-    expect(hosts[0]!.shadowRoot!.querySelector('.preview-text')!.textContent!.length).toBeLessThan(260);
+    expect([...document.documentElement.children].filter((c) => c.shadowRoot).length).toBe(1);
   });
 
-  it('places the bar on the side away from the picked element', async () => {
+  it('a mount from a freshly loaded script copy closes the running picker and its listeners', async () => {
+    const { host } = setup();
+    await flush();
+    const el = document.getElementById('title')!;
+    const spy = vi.spyOn(document, 'addEventListener');
+    vi.resetModules();
+    const fresh = await import('../src/picker/overlay');
+    const storage = fakeStorage({ config: config() });
+    close = fresh.mountPicker({ projectId: 'articles', fieldKey: 'title', storage, subscribe: () => () => {} });
+    expect(host.isConnected).toBe(false);
+    expect([...document.documentElement.children].filter((c) => c.shadowRoot).length).toBe(1);
+    // One set of listeners remains: one click saves exactly one mapping.
+    const sets = vi.spyOn(storage, 'set');
+    await flush();
+    click(el);
+    await flush();
+    await flush();
+    expect(sets).toHaveBeenCalledTimes(1);
+    expect(spy.mock.calls.filter(([type]) => type === 'click').length).toBe(1);
+  });
+
+  it('the bar keeps its side on hover and moves only when it would cover the element', async () => {
+    const { q } = setup();
+    await flush();
+    vi.spyOn(window, 'innerHeight', 'get').mockReturnValue(800);
+    const bar = q('.bar');
+    vi.spyOn(bar, 'getBoundingClientRect').mockReturnValue({ top: 700, bottom: 780, left: 0, right: 600, height: 80, width: 600 } as DOMRect);
+    const rect = (top: number, h: number) => ({ top, bottom: top + h, left: 10, right: 110, height: h, width: 100 }) as DOMRect;
+    const over = (el: Element) => el.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+    const h1 = document.getElementById('title')!;
+    const [a, b] = document.querySelectorAll('span');
+    vi.spyOn(h1, 'getBoundingClientRect').mockReturnValue(rect(10, 20));
+    vi.spyOn(a!, 'getBoundingClientRect').mockReturnValue(rect(600, 20));
+    vi.spyOn(b!, 'getBoundingClientRect').mockReturnValue(rect(710, 20));
+    over(h1);
+    expect(bar.classList.contains('bottom')).toBe(true);
+    over(a!);
+    expect(bar.classList.contains('bottom')).toBe(true);
+    over(b!);
+    expect(bar.classList.contains('top')).toBe(true);
+    over(h1);
+    expect(bar.classList.contains('top')).toBe(true);
+  });
+
+  it('the frame follows the hovered element while scrolling', async () => {
     const { q } = setup();
     await flush();
     const h1 = document.getElementById('title')!;
-    vi.spyOn(window, 'innerHeight', 'get').mockReturnValue(800);
-    vi.spyOn(h1, 'getBoundingClientRect').mockReturnValue({ top: 700, height: 20, left: 0, width: 100 } as DOMRect);
-    click(h1);
-    expect(q('.bar').classList.contains('top')).toBe(true);
-    vi.spyOn(h1, 'getBoundingClientRect').mockReturnValue({ top: 10, height: 20, left: 0, width: 100 } as DOMRect);
-    click(h1);
-    expect(q('.bar').classList.contains('bottom')).toBe(true);
+    const spy = vi.spyOn(h1, 'getBoundingClientRect').mockReturnValue({ top: 50, bottom: 70, left: 5, right: 105, height: 20, width: 100 } as DOMRect);
+    h1.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+    expect(q('.box').style.top).toBe('50px');
+    spy.mockReturnValue({ top: 20, bottom: 40, left: 5, right: 105, height: 20, width: 100 } as DOMRect);
+    window.dispatchEvent(new Event('scroll'));
+    expect(q('.box').style.top).toBe('20px');
   });
 });
 
 describe('closing and saving', () => {
-  it('Apply stores the mapping, shows a short success message, then closes', async () => {
-    const { q, storage, host } = setup({ successDelayMs: 20 });
-    await flush();
-    click(document.getElementById('title')!);
-    click(q('.confirm'));
-    await vi.waitFor(() => expect(q('.done').hidden).toBe(false));
-    expect(q('.done').textContent).toBe('Mapping saved');
-    expect(q('.row').hidden).toBe(true);
-    const cfg = await loadConfig(storage);
-    expect(cfg.projects[0]!.siteMappings['example.com']).toEqual({ title: '#title', price: '.p' });
-    expect(cfg.projects[0]!.siteMappings['example.org']).toEqual({ title: 'h2' });
-    await vi.waitFor(() => expect(host.isConnected).toBe(false));
-  });
-
   it('shows a localized error and stays open when saving fails (non-http page)', async () => {
     const { q, host } = setup({ url: 'about:blank' });
     await flush();
     click(document.getElementById('title')!);
-    click(q('.confirm'));
     await flush();
     expect(q('.error').textContent).toMatch(/^The mapping could not be saved: .*http/);
     expect(q('.error').hidden).toBe(false);
-    expect((q('.confirm') as HTMLButtonElement).disabled).toBe(false);
+    expect(q('.line').hidden).toBe(false);
     expect(host.isConnected).toBe(true);
   });
 
@@ -304,7 +334,6 @@ describe('closing and saving', () => {
     await flush();
     const before = structuredClone(storage.data);
     const h1 = document.getElementById('title')!;
-    click(h1);
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
     expect(host.isConnected).toBe(false);
     expect(storage.data).toEqual(before);
@@ -318,8 +347,7 @@ describe('closing and saving', () => {
     const { q, storage, host } = setup();
     await flush();
     const before = structuredClone(storage.data);
-    click(document.getElementById('title')!);
-    click(q('.cancel'));
+    q('.cancel').dispatchEvent(new MouseEvent('click'));
     await flush();
     expect(host.isConnected).toBe(false);
     expect(storage.data).toEqual(before);

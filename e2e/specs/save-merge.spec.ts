@@ -42,8 +42,7 @@ test('saving in the options page keeps a click mapping stored from another tab',
     [tabId, PICKER_GLOBAL] as const,
   );
   await page.locator('#price').click();
-  await page.getByRole('button', { name: 'Apply' }).click();
-  await expect(page.getByText('Mapping saved')).toBeVisible();
+  await expect(page.getByText('Saved for 127.0.0.1')).toBeVisible();
 
   // The options page shows the foreign mapping without a reload.
   await options.bringToFront();

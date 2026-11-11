@@ -360,7 +360,7 @@ describe('popup: field menu', () => {
     const { user, deps } = setup({ projects: [menuProject()], page });
     await screen.findByLabelText('Price');
     await open(user, 'Price');
-    await user.click(screen.getByRole('menuitem', { name: 'Pick again on the page' }));
+    await user.click(screen.getByRole('menuitem', { name: 'Pick again on this website' }));
     expect(deps.pick).toHaveBeenCalledWith(7, 'm', 'price');
     await waitFor(() => expect(deps.close).toHaveBeenCalled());
   });
@@ -393,7 +393,7 @@ describe('popup: field menu', () => {
     const { user } = setup({ projects: [project('m', 'Menu', [field('price', 'Price')], { siteMappings: { 'other.example.org': { price: '#x' } } })], page });
     await screen.findByLabelText('Price');
     await open(user, 'Price');
-    expect(screen.getByRole('menuitem', { name: 'Pick again on the page' })).toBeTruthy();
+    expect(screen.getByRole('menuitem', { name: 'Pick again on this website' })).toBeTruthy();
     expect(screen.queryByRole('menuitem', { name: 'Remove assignment for this website' })).toBeNull();
   });
 

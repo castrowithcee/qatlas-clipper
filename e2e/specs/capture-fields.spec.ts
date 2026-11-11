@@ -29,8 +29,7 @@ test('a field added in the popup is picked on the page, read on reopening and sh
   await expect(options.getByRole('button', { name: 'Edit field Cost' })).toBeVisible();
 
   await page.locator('#price').click();
-  await page.getByRole('button', { name: 'Apply' }).click();
-  await expect(page.getByText('Mapping saved')).toBeVisible();
+  await expect(page.getByText('Saved for 127.0.0.1')).toBeVisible();
 
   popup = await openPopup(context, serviceWorker, extensionId, page);
   await expect(popup.getByRole('textbox', { name: 'Cost' })).toHaveValue('10.00');
