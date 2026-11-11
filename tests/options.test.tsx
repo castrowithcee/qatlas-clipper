@@ -1165,7 +1165,7 @@ describe('options navigation', () => {
   it('lists the name block, every project and the areas, and marks the current entry', async () => {
     const user = await mount(two());
     expect(screen.getByRole('heading', { name: 'Qatlas Clipper', level: 1 })).toBeTruthy();
-    expect(nav().getAllByRole('link').map((a) => a.textContent)).toEqual(['A', 'B', 'Settings', 'Import and export', 'Help']);
+    expect(nav().getAllByRole('link').map((a) => a.textContent)).toEqual(['A', 'B', 'Tags', 'Settings', 'Import and export', 'Help']);
     expect(nav().getByRole('button', { name: 'Add project' })).toBeTruthy();
     expect(current()).toEqual(['A']);
     expect(screen.getByRole('heading', { name: 'A', level: 2 })).toBeTruthy();
@@ -1392,7 +1392,7 @@ describe('saving without overwriting', { timeout: 20000 }, () => {
     await screen.findByRole('navigation', { name: 'Options' }, WAIT);
     return user;
   };
-  const links = () => within(screen.getByRole('navigation', { name: 'Options' })).getAllByRole('link').map((a) => a.textContent).filter((x) => x !== 'Settings' && x !== 'Import and export' && x !== 'Help');
+  const links = () => within(screen.getByRole('navigation', { name: 'Options' })).getAllByRole('link').map((a) => a.textContent).filter((x) => x !== 'Tags' && x !== 'Settings' && x !== 'Import and export' && x !== 'Help');
   const rename = async (user: ReturnType<typeof userEvent.setup>, name: string) => {
     const input = screen.getByLabelText('Project name');
     await user.clear(input);

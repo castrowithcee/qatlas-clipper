@@ -447,6 +447,7 @@ export function PopupApp({
     <Header
       projects={ordered}
       folders={config.folders}
+      tags={config.tags}
       matchingIds={page.matchingProjects.map((p) => p.id)}
       value={projectId}
       onChange={(id) => void changeProject(id)}

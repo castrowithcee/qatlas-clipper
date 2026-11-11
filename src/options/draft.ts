@@ -85,13 +85,39 @@ export function deleteFolder(config: Config, id: string): Config {
   return { ...config, folders: (config.folders ?? []).filter((f) => f.id !== id), projects };
 }
 
-/** Why a folder name cannot be used (blank, too long, or taken by another folder, ignoring case); `undefined` if fine. */
-export function folderNameError(config: Config, name: string, exceptId?: string): 'missing' | 'tooLong' | 'taken' | undefined {
+type NameError = 'missing' | 'tooLong' | 'taken' | undefined;
+
+export function nameErrorIn(list: { id: string; name: string }[], name: string, exceptId?: string): NameError {
   const trimmed = name.trim();
   if (trimmed === '') return 'missing';
   if (trimmed.length > 60) return 'tooLong';
   const key = trimmed.toLowerCase();
-  return (config.folders ?? []).some((f) => f.id !== exceptId && f.name.trim().toLowerCase() === key) ? 'taken' : undefined;
+  return list.some((f) => f.id !== exceptId && f.name.trim().toLowerCase() === key) ? 'taken' : undefined;
+}
+
+/** Why a folder name cannot be used (blank, too long, or taken by another folder, ignoring case); `undefined` if fine. */
+export function folderNameError(config: Config, name: string, exceptId?: string): NameError {
+  return nameErrorIn(config.folders ?? [], name, exceptId);
+}
+
+/** Same rules as for folders, applied to the tag list. */
+export function tagNameError(config: Config, name: string, exceptId?: string): NameError {
+  return nameErrorIn(config.tags ?? [], name, exceptId);
+}
+
+/** Number of projects that carry the tag. */
+export function tagUsage(config: Config, id: string): number {
+  return config.projects.filter((p) => p.tagIds?.includes(id)).length;
+}
+
+/** Creates the tag and assigns it to the project in one step. */
+export function addTagToProject(config: Config, projectId: string, name: string): Config {
+  const tag = { id: newId(), name };
+  return {
+    ...config,
+    tags: [...(config.tags ?? []), tag],
+    projects: config.projects.map((p) => (p.id === projectId ? setProjectTags(p, [...(p.tagIds ?? []), tag.id]) : p)),
+  };
 }
 
 /** `undefined` takes the project out of its folder. */
@@ -311,7 +337,7 @@ export const errorsAt = (issues: Issue[], path: string): string[] =>
 
 // Paths that the project editor shows itself: at an input, at a marked field row (whose details hold the input)
 // or, for site mappings, in the details of their field or in the warning line of a mapping without field.
-const MAPPED = /^projects\[(\d+)\]\.(name|scope\.(pageType|domains\[\d+\]|domains)|fields\[\d+\]\.(key|label|sources\.schemaOrgPath|sources\.metaTag\.name|sources\.manual\.values(\[\d+\])?)|folderId|siteMappings\..+|targets\[\d+\]\.(name|url|purpose|headers\[\d+\]))$/;
+const MAPPED = /^projects\[(\d+)\]\.(name|scope\.(pageType|domains\[\d+\]|domains)|fields\[\d+\]\.(key|label|sources\.schemaOrgPath|sources\.metaTag\.name|sources\.manual\.values(\[\d+\])?)|folderId|tagIds(\[\d+\])?|siteMappings\..+|targets\[\d+\]\.(name|url|purpose|headers\[\d+\]))$/;
 
 /** Issues that no visible input of the selected project shows. */
 export function unmappedIssues(issues: Issue[], selectedIndex: number): Issue[] {

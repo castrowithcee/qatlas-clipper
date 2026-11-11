@@ -361,6 +361,32 @@ describe.each(['de', 'en'] as const)('highlight switch in the header (%s)', (lan
   });
 });
 
+describe.each(['popup', 'sidepanel'] as const)('project choice with tags (%s)', (variant) => {
+  const proj = (id: string, name: string, extra: Record<string, unknown> = {}) => ({
+    id, name, scope: { allSites: true, domains: [] }, siteMappings: {}, fields: FIELDS, targets: [{ ...target, id: `t-${id}` }], ...extra,
+  });
+  const cfg = {
+    [CONFIG_KEY]: {
+      schemaVersion: 1,
+      folders: [{ id: 'f1', name: 'Zeta' }],
+      tags: [{ id: 't1', name: 'One' }, { id: 't2', name: 'Two <b>' }],
+      projects: [proj('p0', 'Match', { tagIds: ['t2', 't1'] }), proj('p1', 'InZeta', { folderId: 'f1', tagIds: ['t1'] }), proj('p2', 'Loose')],
+    },
+  };
+
+  it('puts the tags behind the name in tag-list order and keeps the grouping', async () => {
+    const { view } = setup('en', { cfg, variant } as never);
+    const select = (await screen.findByLabelText(en['popup.project.label'])) as HTMLSelectElement;
+    const noMatch = (name: string) => en['popup.project.noMatch'].replace('{name}', name);
+    const top = [...select.children].filter((c) => c.tagName === 'OPTION').map((c) => c.textContent);
+    expect(top).toEqual(['Match · One, Two <b>', noMatch('Loose')]);
+    const groups = [...select.querySelectorAll('optgroup')].map((g) => [g.label, [...g.querySelectorAll('option')].map((o) => o.textContent)]);
+    expect(groups).toEqual([['Zeta', [noMatch('InZeta · One')]]]);
+    expect(select.querySelector('b')).toBeNull();
+    view.unmount();
+  });
+});
+
 describe.each(['popup', 'sidepanel'] as const)('project choice with folders (%s)', (variant) => {
   const proj = (id: string, name: string, folderId?: string) => ({
     id, name, scope: { allSites: true, domains: [] }, siteMappings: {}, fields: FIELDS, targets: [{ ...target, id: `t-${id}` }], ...(folderId ? { folderId } : {}),

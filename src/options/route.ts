@@ -1,11 +1,12 @@
 import { useSyncExternalStore } from 'react';
 
 /** Views of the options page; each has its own address in the URL hash. */
-export type Route = { view: 'project'; id: string } | { view: 'settings' } | { view: 'import-export' } | { view: 'help' } | { view: 'home' };
+export type Route = { view: 'project'; id: string } | { view: 'tags' } | { view: 'settings' } | { view: 'import-export' } | { view: 'help' } | { view: 'home' };
 
 /** Unknown or malformed hashes fall back to `home`, which shows the first project. */
 export function parseHash(hash: string): Route {
   const path = hash.replace(/^#\/?/, '').replace(/\/+$/, '');
+  if (path === 'tags') return { view: 'tags' };
   if (path === 'settings') return { view: 'settings' };
   if (path === 'import-export') return { view: 'import-export' };
   if (path === 'help') return { view: 'help' };
@@ -22,6 +23,7 @@ export function parseHash(hash: string): Route {
 }
 
 export const projectHash = (id: string): string => `#/projects/${encodeURIComponent(id)}`;
+export const TAGS_HASH = '#/tags';
 export const SETTINGS_HASH = '#/settings';
 export const IMPORT_EXPORT_HASH = '#/import-export';
 export const HELP_HASH = '#/help';
