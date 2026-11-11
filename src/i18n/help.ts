@@ -11,6 +11,12 @@ export const helpDe = {
   'help.project.p3': 'Unter „Wo gilt das Projekt?“ wählst du „Alle Seiten“ oder „Bestimmte Websites“. Eine Website wie example.com gilt mit allen ihren Seiten und Subdomains, zum Beispiel blog.example.com. Zusätzlich kannst du das Projekt auf eine Art von Seite beschränken, etwa Artikel oder Produkt.',
   'help.project.p4': 'Beim Öffnen wählt die Erweiterung ein Projekt vor, das zur Seite passt. Passt keines, steht hinter den Namen „(kein Treffer)“, und du kannst trotzdem eines wählen. Die Reihenfolge der Projekte bestimmt, welches zuerst vorausgewählt wird.',
 
+  'help.folders.title': 'Ordner',
+  'help.folders.p1': 'Mit Ordnern hältst du viele Projekte übersichtlich. In der Seitenleiste stehen die Projekte ohne Ordner zuerst, darunter die Ordner als aufklappbare Gruppen. Ein Projekt liegt in keinem oder in einem Ordner; Ordner in Ordnern gibt es nicht.',
+  'help.folders.p2': 'Mit „Ordner anlegen“ unter „Projekt anlegen“ legst du einen Ordner an. Das Menü am Ordner bietet „Umbenennen“, „Nach oben“, „Nach unten“ und „Ordner löschen“. Ein Name kommt nur einmal vor, Groß- und Kleinschreibung zählt dabei nicht.',
+  'help.folders.p3': 'Einem Projekt weist du den Ordner im Projekt unter „Ordner“ zu; „Ohne Ordner“ nimmt es wieder heraus. Beim Löschen eines Ordners bleiben seine Projekte erhalten und stehen danach ohne Ordner.',
+  'help.folders.p4': 'Ordner ordnen nur die Optionsseite und die Projektauswahl. Sie ändern nichts an dem, was gesendet wird. Wie alle Änderungen gelten sie erst, wenn du speicherst. Zur Sicherung der ganzen Konfiguration gehören die Ordner mit dazu.',
+
   'help.fields.title': 'Felder',
   'help.fields.p1': 'Ein Feld ist eine Angabe, die im Popup ausgelesen und mitgesendet wird. Für den Wert gibt es drei Wege:',
   'help.fields.li1': 'Automatisch erkennen: Der Wert wird aus der Seite gelesen, zum Beispiel Titel, Beschreibung, Autor oder Preis.',
@@ -76,7 +82,7 @@ export const helpDe = {
   'help.openAs.p4': 'Das Popup braucht diesen Zugriff nicht: Es liest nur die Seite, auf der du es öffnest. Browser ohne Seitenleiste bleiben beim Popup.',
 
   'help.io.title': 'Import und Export',
-  'help.io.p1': 'Der Export speichert die gespeicherte Konfiguration als JSON-Datei: Projekte, Felder, Ziele und Zuordnungen per Klick. Ungespeicherte Änderungen sind nicht enthalten. Die Einstellungen dieses Geräts (Sprache, Darstellung, Öffnen als, Rahmen) gehören nicht dazu.',
+  'help.io.p1': 'Der Export speichert die gespeicherte Konfiguration als JSON-Datei: Projekte, Ordner, Felder, Ziele und Zuordnungen per Klick. Ungespeicherte Änderungen sind nicht enthalten. Die Einstellungen dieses Geräts (Sprache, Darstellung, Öffnen als, Rahmen) gehören nicht dazu.',
   'help.io.p2': 'Zugangsschlüssel und Werte eigener Header werden nie exportiert. Sie bleiben auf diesem Gerät; nach einem Import trägst du sie neu ein.',
   'help.io.p3': 'Importieren kannst du aus einer Datei oder von einer Adresse. Vor dem Ersetzen siehst du eine Vorschau und musst bestätigen. Der Import ersetzt die gesamte Konfiguration.',
 } as const;
@@ -92,6 +98,12 @@ export const helpEn: Record<keyof typeof helpDe, string> = {
   'help.project.p2': 'A project can apply to any number of websites. In the popup you see the same form on each of them. Only where a value comes from can differ per website (see "Click on the page").',
   'help.project.p3': 'Under "Where does the project apply?" you choose "All pages" or "Specific websites". A website such as example.com applies with all its pages and subdomains, for example blog.example.com. You can also limit the project to a kind of page, such as article or product.',
   'help.project.p4': 'When you open the extension, it preselects a project that fits the page. If none fits, "(no match)" follows the names, and you can still choose one. The order of the projects decides which one is preselected first.',
+
+  'help.folders.title': 'Folders',
+  'help.folders.p1': 'Folders keep many projects tidy. In the sidebar, the projects without a folder come first, followed by the folders as groups you can expand. A project is in no folder or in one folder; there are no folders inside folders.',
+  'help.folders.p2': 'Use "Add folder" below "Add project" to create a folder. The menu on a folder offers "Rename", "Move up", "Move down" and "Delete folder". A name can only be used once, ignoring upper and lower case.',
+  'help.folders.p3': 'You assign a project to a folder in the project under "Folder"; "No folder" takes it out again. When you delete a folder, its projects are kept and then have no folder.',
+  'help.folders.p4': 'Folders only organize the options page and the project choice. They change nothing about what is sent. Like all changes, they only apply once you save. The folders are part of the backup of the whole configuration.',
 
   'help.fields.title': 'Fields',
   'help.fields.p1': 'A field is a detail that the popup reads and sends along. There are three ways to get its value:',
@@ -158,7 +170,7 @@ export const helpEn: Record<keyof typeof helpDe, string> = {
   'help.openAs.p4': 'The popup does not need this access: it reads only the page where you open it. Browsers without a side panel stay with the popup.',
 
   'help.io.title': 'Import and export',
-  'help.io.p1': 'The export saves the stored configuration as a JSON file: projects, fields, targets and mappings by click. Unsaved changes are not included. The settings of this device (language, appearance, open as, frames) are not part of it.',
+  'help.io.p1': 'The export saves the stored configuration as a JSON file: projects, folders, fields, targets and mappings by click. Unsaved changes are not included. The settings of this device (language, appearance, open as, frames) are not part of it.',
   'help.io.p2': 'Access keys and values of custom headers are never exported. They stay on this device; after an import you enter them again.',
   'help.io.p3': 'You can import from a file or from an address. Before replacing, you see a preview and must confirm. The import replaces the whole configuration.',
 };

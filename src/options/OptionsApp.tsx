@@ -24,7 +24,7 @@ import { ProjectEditor } from './ProjectEditor';
 import { Brand, Sidebar, type NavTarget } from './Sidebar';
 import { defaultFocusChannel, takeOptionsFocus, type FocusChannel } from './focus';
 import { navigate, parseHash, projectHash, useHash } from './route';
-import { moveItem, newProject, normalize, unmappedIssues, validate } from './draft';
+import { addFolder, deleteFolder, moveFolder, moveItem, newProject, renameFolder, normalize, unmappedIssues, validate } from './draft';
 import { SettingsSection, useI18n } from '../settings';
 import { Button, Dialog, Disclosure, EmptyState, ErrorState, LoadingState, NotificationsProvider, useNotifications } from '../ui/components';
 import './options.css';
@@ -289,6 +289,12 @@ function Editor({ initial, initialValues, storage, permissions, subscribe, onRel
     setStatus(undefined);
   };
 
+  // Folder edits change the whole draft configuration; they are saved with "Save" like everything else.
+  const editConfig = (change: (config: Config) => Config) => {
+    commit({ draft: change(live.current.draft) });
+    setStatus(undefined);
+  };
+
   const trackRename = (projectId: string, from: string, to: string) => {
     const base = live.current.saved.projects.find((p) => p.id === projectId);
     const map = { ...renames.current[projectId] };
@@ -402,7 +408,20 @@ function Editor({ initial, initialValues, storage, permissions, subscribe, onRel
   const projectName = (i: number) => draft.projects[i]?.name || t('options.projects.fallbackName', { n: i + 1 });
 
   return (
-    <Shell sidebar={<Sidebar projects={draft.projects} current={current} dirty={dirty} onAdd={addProject} />}>
+    <Shell sidebar={(
+      <Sidebar
+        projects={draft.projects}
+        folders={draft.folders}
+        config={draft}
+        current={current}
+        dirty={dirty}
+        onAdd={addProject}
+        onAddFolder={(name) => editConfig((c) => addFolder(c, name))}
+        onRenameFolder={(id, name) => editConfig((c) => renameFolder(c, id, name))}
+        onMoveFolder={(index, delta) => editConfig((c) => moveFolder(c, index, index + delta))}
+        onDeleteFolder={(id) => editConfig((c) => deleteFolder(c, id))}
+      />
+    )}>
       {projectView && (
         <>
           <div className="options-bar">
@@ -448,6 +467,7 @@ function Editor({ initial, initialValues, storage, permissions, subscribe, onRel
               project={selected}
               index={selectedIndex}
               count={draft.projects.length}
+              folders={draft.folders ?? []}
               onMove={(d) => edit(moveItem(draft.projects, selectedIndex, d))}
               onDelete={deleteSelected}
               issues={issues}

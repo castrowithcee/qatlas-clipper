@@ -85,6 +85,15 @@ export function deleteFolder(config: Config, id: string): Config {
   return { ...config, folders: (config.folders ?? []).filter((f) => f.id !== id), projects };
 }
 
+/** Why a folder name cannot be used (blank, too long, or taken by another folder, ignoring case); `undefined` if fine. */
+export function folderNameError(config: Config, name: string, exceptId?: string): 'missing' | 'tooLong' | 'taken' | undefined {
+  const trimmed = name.trim();
+  if (trimmed === '') return 'missing';
+  if (trimmed.length > 60) return 'tooLong';
+  const key = trimmed.toLowerCase();
+  return (config.folders ?? []).some((f) => f.id !== exceptId && f.name.trim().toLowerCase() === key) ? 'taken' : undefined;
+}
+
 /** `undefined` takes the project out of its folder. */
 export function setProjectFolder(project: Project, folderId: string | undefined): Project {
   const { folderId: _old, ...rest } = project;
@@ -302,7 +311,7 @@ export const errorsAt = (issues: Issue[], path: string): string[] =>
 
 // Paths that the project editor shows itself: at an input, at a marked field row (whose details hold the input)
 // or, for site mappings, in the details of their field or in the warning line of a mapping without field.
-const MAPPED = /^projects\[(\d+)\]\.(name|scope\.(pageType|domains\[\d+\]|domains)|fields\[\d+\]\.(key|label|sources\.schemaOrgPath|sources\.metaTag\.name|sources\.manual\.values(\[\d+\])?)|siteMappings\..+|targets\[\d+\]\.(name|url|purpose|headers\[\d+\]))$/;
+const MAPPED = /^projects\[(\d+)\]\.(name|scope\.(pageType|domains\[\d+\]|domains)|fields\[\d+\]\.(key|label|sources\.schemaOrgPath|sources\.metaTag\.name|sources\.manual\.values(\[\d+\])?)|folderId|siteMappings\..+|targets\[\d+\]\.(name|url|purpose|headers\[\d+\]))$/;
 
 /** Issues that no visible input of the selected project shows. */
 export function unmappedIssues(issues: Issue[], selectedIndex: number): Issue[] {

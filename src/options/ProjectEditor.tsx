@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { contentFormatOf, type ContentFormat, type HeaderValues, type Project } from '../config';
+import { contentFormatOf, type ContentFormat, type Folder, type HeaderValues, type Project } from '../config';
 import { FieldEditor } from './FieldEditor';
 import { ScopeEditor } from './ScopeEditor';
-import { deleteField, deleteMapping, errorsAt, renameFieldKey, type Issue } from './draft';
+import { deleteField, deleteMapping, errorsAt, renameFieldKey, setProjectFolder, type Issue } from './draft';
 import { useI18n } from '../settings';
 import { Button, Dialog, IconButton, Select, TextField, Tooltip } from '../ui/components';
 import { TargetEditor } from './TargetEditor';
@@ -12,6 +12,7 @@ interface Props {
   project: Project;
   index: number;
   count: number;
+  folders?: Folder[];
   onMove: (delta: -1 | 1) => void;
   onDelete: () => void;
   issues: Issue[];
@@ -24,7 +25,7 @@ interface Props {
   onFieldRenamed?: (projectId: string, from: string, to: string) => void;
 }
 
-export function ProjectEditor({ project, index, count, onMove, onDelete, issues, onChange, headerValues, onHeaderValues, permissionStatus, onRequestPermission, onFieldRenamed }: Props) {
+export function ProjectEditor({ project, index, count, folders = [], onMove, onDelete, issues, onChange, headerValues, onHeaderValues, permissionStatus, onRequestPermission, onFieldRenamed }: Props) {
   const { t } = useI18n();
   const base = `projects[${index}]`;
   const nameError = project.name.trim() === '' ? t('options.project.nameMissing') : errorsAt(issues, `${base}.name`)[0];
@@ -32,6 +33,14 @@ export function ProjectEditor({ project, index, count, onMove, onDelete, issues,
     <div className="options-project-view">
       <ProjectHeader name={project.name || t('options.projects.unnamed')} index={index} count={count} onMove={onMove} onDelete={onDelete} />
       <TextField label={t('options.project.name')} value={project.name} error={nameError} onChange={(e) => onChange({ ...project, name: e.target.value })} />
+      <Select
+        label={t('options.project.folder.label')}
+        help={t('options.project.folder.help')}
+        value={project.folderId ?? ''}
+        error={errorsAt(issues, `${base}.folderId`)[0]}
+        options={[{ value: '', label: t('options.project.folder.none') }, ...folders.map((f) => ({ value: f.id, label: f.name }))]}
+        onChange={(e) => onChange(setProjectFolder(project, e.target.value || undefined))}
+      />
       <ScopeEditor scope={project.scope} basePath={base} issues={issues} onChange={(scope) => onChange({ ...project, scope })} />
       <FieldEditor
         fields={project.fields}
