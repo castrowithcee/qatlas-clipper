@@ -1,9 +1,9 @@
 import { useId, useRef, useState } from 'react';
 import { exportConfig, checkImportUrl, fetchImportText, MAX_IMPORT_CHARS, parseImportText, saveConfig, type Config, type StorageArea } from '../config';
 import { useI18n } from '../settings';
-import { Button, Dialog, Field, IconButton, TextField, useNotifications } from '../ui/components';
+import { Button, Dialog, IconButton, TextField, useNotifications } from '../ui/components';
 import type { PermissionsApi } from './permissions';
-import { ShareImportSection } from './ShareImportDialog';
+import { AddressList, ShareFileButton, ShareImportButton } from './ShareImportDialog';
 import { ShareManager } from './ShareManager';
 import { saveText } from './saveText';
 
@@ -22,6 +22,10 @@ interface Props {
 }
 
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
+
+/** Distinct target origins of a configuration, in file order; an unparsable address is shown as written. */
+const targetOrigins = (config: Config) =>
+  [...new Set(config.projects.flatMap((p) => p.targets.map((x) => { try { return new URL(x.url).origin; } catch { return x.url; } })))];
 
 export function ImportExport({ storage, permissions, dirty, onImported, onImporting, onShareFile }: Props) {
   const { t, tn } = useI18n();
@@ -114,54 +118,57 @@ export function ImportExport({ storage, permissions, dirty, onImported, onImport
     }
   };
 
+  const origins = pending ? targetOrigins(pending) : [];
+
   return (
-    <>
     <section aria-labelledby={`${id}-title`} className="options-io">
       <h2 id={`${id}-title`}>
         {t('options.nav.importExport')}{' '}
         <IconButton icon="info" label={t('ui.moreInfo')} tooltip={t('options.io.help')} className="q-help" />
       </h2>
-      <section aria-labelledby={`${id}-export`} className="options-section">
-        <h3 id={`${id}-export`}>{t('options.io.export.title')}</h3>
-        <p className="q-hint">
-          {t('options.io.export.note')}
-          {dirty ? ` ${t('options.io.export.dirty')}` : ''}
-        </p>
-        <Button icon="file-export" onClick={doExport} disabled={busy}>
-          {t('options.io.export.button')}
-        </Button>
-      </section>
-      <section aria-labelledby={`${id}-import`} className="options-section">
-        <h3 id={`${id}-import`}>{t('options.io.import.title')}</h3>
-        <p className="q-hint">{t('options.io.import.note')}</p>
-        <Field label={t('options.io.file')} error={fileError} disabled={busy}>
-          {(control) => (
-            <input
-              {...control}
-              type="file"
-              className="q-input"
-              accept="application/json,.json"
-              disabled={busy}
-              onChange={(e) => {
-                const f = e.target.files?.[0];
-                e.target.value = '';
-                void fromFile(f);
-              }}
-            />
-          )}
-        </Field>
-        <div className="options-add">
-          <TextField
-            label={t('options.io.url')}
-            type="url"
-            value={url}
-            placeholder="https://example.com/config.json"
-            error={urlError}
-            onChange={(e) => setUrl(e.target.value)}
+      <section aria-labelledby={`${id}-backup`} className="options-section">
+        <h3 id={`${id}-backup`}>
+          {t('options.io.backup.title')}{' '}
+          <IconButton icon="info" label={t('ui.moreInfo')} tooltip={`${t('options.io.export.note')} ${t('options.io.import.note')}`} className="q-help" />
+        </h3>
+        <div className="options-restore">
+          <div>
+            <Button icon="file-export" className="options-wide" onClick={doExport} disabled={busy}>
+              {t('options.io.export.button')}
+            </Button>
+            {dirty && <p className="q-hint">{t('options.io.export.dirty')}</p>}
+          </div>
+          <ShareFileButton
+            label={t('options.io.file')}
+            className="options-wide"
+            error={fileError}
+            disabled={busy}
+            testId="backup-file-input"
+            onFile={(f) => void fromFile(f)}
           />
-          <Button icon="file-import" onClick={fromUrl} disabled={busy || url.trim() === ''}>
-            {t('options.io.load')}
-          </Button>
+          <div className="options-add">
+            <TextField
+              label={t('options.io.url')}
+              type="url"
+              value={url}
+              placeholder="https://example.com/config.json"
+              error={urlError}
+              onChange={(e) => setUrl(e.target.value)}
+            />
+            <Button icon="file-import" onClick={fromUrl} disabled={busy || url.trim() === ''}>
+              {t('options.io.load')}
+            </Button>
+          </div>
+        </div>
+      </section>
+      <section aria-labelledby={`${id}-share`} className="options-section">
+        <h3 id={`${id}-share`}>
+          {t('options.io.share.title')}{' '}
+          <IconButton icon="info" label={t('ui.moreInfo')} tooltip={`${t('options.share.manager.note')} ${t('options.shareImport.note')}`} className="q-help" />
+        </h3>
+        <ShareManager storage={storage} dirty={dirty} />
+        <div className="options-share-import">
+          <ShareImportButton onFile={onShareFile} />
         </div>
       </section>
       <Dialog
@@ -182,15 +189,24 @@ export function ImportExport({ storage, permissions, dirty, onImported, onImport
         {pending && (
           <>
             <p>{tn('options.io.confirm.count', pending.projects.length)}</p>
+            {pending.projects.length === 0 && (
+              <p role="alert" className="options-import-targets">
+                {t('options.io.confirm.empty')}
+              </p>
+            )}
             <p>{t('options.io.confirm.replace')}</p>
             {dirty && <p>{t('options.io.confirm.dirty')}</p>}
+            {origins.length > 0 && (
+              <div role="alert" className="options-import-targets">
+                <p>{tn('options.shareImport.targets', origins.length)}</p>
+                <AddressList origins={origins} />
+                <p>{t('options.shareImport.keys')}</p>
+              </div>
+            )}
+            {pending.projects.length > 0 && origins.length === 0 && <p className="q-hint">{t('options.shareImport.noTargets')}</p>}
           </>
         )}
       </Dialog>
     </section>
-    {/* Next to the backup, not inside it: the backup section keeps its own headings. */}
-    <ShareManager storage={storage} dirty={dirty} />
-    <ShareImportSection onFile={onShareFile} />
-    </>
   );
 }

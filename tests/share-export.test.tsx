@@ -191,7 +191,7 @@ describe('export manager', () => {
     await waitFor(() => expect(articles.indeterminate).toBe(true));
     expect(articles.checked).toBe(false);
     await user.click(within(tree).getByRole('checkbox', { name: 'Shop' }));
-    await user.click(screen.getByRole('button', { name: 'Export…' }));
+    await user.click(screen.getByRole('button', { name: /^Export selection…/ }));
     const d = await dialog();
     await within(d).findByText('Exported: 3 projects in 2 folders.');
     await user.click(within(d).getByRole('button', { name: 'Export' }));
@@ -201,19 +201,54 @@ describe('export manager', () => {
     expect(out.name).toBe('qatlas-clipper-share.json');
   });
 
-  it('a folder selects all its projects; All and None work; nothing selected disables export', async () => {
+  it('a folder selects all its projects; the head checkbox selects all and none and shows mixed', async () => {
     const user = await mount(storageWith(), '#/import-export');
     const tree = await screen.findByRole('list', { name: 'Folders and projects' });
-    const exportButton = screen.getByRole('button', { name: 'Export…' });
-    expect((exportButton as HTMLButtonElement).disabled).toBe(true);
+    const head = screen.getByRole('checkbox', { name: 'All projects and folders' }) as HTMLInputElement;
+    const exportButton = () => screen.getByRole('button', { name: /^Export selection…/ }) as HTMLButtonElement;
+    expect(exportButton().disabled).toBe(true);
     await user.click(within(tree).getByRole('checkbox', { name: 'Articles' }));
     expect((within(tree).getByRole('checkbox', { name: 'Blog' }) as HTMLInputElement).checked).toBe(true);
     expect((within(tree).getByRole('checkbox', { name: 'Notes' }) as HTMLInputElement).checked).toBe(true);
     expect((within(tree).getByRole('checkbox', { name: 'Store' }) as HTMLInputElement).checked).toBe(false);
-    await user.click(screen.getByRole('button', { name: 'None' }));
-    expect((within(tree).getByRole('checkbox', { name: 'Blog' }) as HTMLInputElement).checked).toBe(false);
-    await user.click(screen.getByRole('button', { name: 'All' }));
+    await waitFor(() => expect(head.indeterminate).toBe(true));
+    expect(head.checked).toBe(false);
+    expect(exportButton().textContent).toBe('Export selection… (2)');
+    await user.click(head);
     expect(within(tree).getAllByRole('checkbox').every((c) => (c as HTMLInputElement).checked)).toBe(true);
+    expect(head.checked).toBe(true);
+    expect(head.indeterminate).toBe(false);
+    expect(exportButton().textContent).toBe('Export selection… (4)');
+    await user.click(head);
+    expect(within(tree).getAllByRole('checkbox').every((c) => !(c as HTMLInputElement).checked)).toBe(true);
+    expect(exportButton().disabled).toBe(true);
+    expect(exportButton().textContent).toBe('Export selection…');
+  });
+
+  it('keeps Export disabled after All and clearing every project (no empty export)', async () => {
+    const user = await mount(storageWith(), '#/import-export');
+    const tree = await screen.findByRole('list', { name: 'Folders and projects' });
+    const head = screen.getByRole('checkbox', { name: 'All projects and folders' });
+    await user.click(head);
+    for (const name of ['Loose', 'Blog', 'Notes', 'Store']) await user.click(within(tree).getByRole('checkbox', { name }));
+    expect((screen.getByRole('button', { name: /^Export selection…/ }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('exports a chosen empty folder on its own', async () => {
+    const out = stubSave();
+    const storage = fakeStorage({
+      [CONFIG_KEY]: { schemaVersion: 1, folders: [{ id: 'f1', name: 'Empty one' }], projects: [project('p1', 'Loose')] },
+    });
+    const user = await mount(storage, '#/import-export');
+    const tree = await screen.findByRole('list', { name: 'Folders and projects' });
+    await user.click(within(tree).getByRole('checkbox', { name: 'Empty one' }));
+    await user.click(screen.getByRole('button', { name: 'Export selection…' }));
+    const d = await dialog();
+    await user.click(within(d).getByRole('button', { name: 'Export' }));
+    await screen.findByText(done);
+    const file = JSON.parse(out.text);
+    expect(file.projects).toEqual([]);
+    expect(file.folders.map((f: { id: string }) => f.id)).toEqual(['f1']);
   });
 });
 

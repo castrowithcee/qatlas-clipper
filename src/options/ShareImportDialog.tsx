@@ -1,7 +1,7 @@
-import { useEffect, useId, useState, type RefObject } from 'react';
+import { useEffect, useId, useRef, useState, type RefObject } from 'react';
 import { MAX_IMPORT_CHARS, applyImport, loadConfig, parseShareText, planImport, type Config, type ImportMode, type ImportPlan, type ShareFile, type StorageArea, type StoredState } from '../config';
 import { useI18n } from '../settings';
-import { Button, Checkbox, Dialog, Field, Select, useNotifications } from '../ui/components';
+import { Button, Checkbox, Dialog, Icon, Select, useNotifications } from '../ui/components';
 
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
@@ -16,14 +16,14 @@ export async function readShareFile(file: File, t: ReturnType<typeof useI18n>['t
 }
 
 /** Hidden file input for share files; open it with `ref.current.click()` from a button or menu entry. */
-export function ShareFileInput({ inputRef, onFile }: { inputRef: RefObject<HTMLInputElement | null>; onFile: (file: File) => void }) {
+export function ShareFileInput({ inputRef, onFile, testId = 'share-file-input' }: { inputRef: RefObject<HTMLInputElement | null>; onFile: (file: File) => void; testId?: string }) {
   return (
     <input
       ref={inputRef}
       hidden
       type="file"
       accept="application/json,.json"
-      data-testid="share-file-input"
+      data-testid={testId}
       onChange={(e) => {
         const f = e.target.files?.[0];
         e.target.value = '';
@@ -33,32 +33,52 @@ export function ShareFileInput({ inputRef, onFile }: { inputRef: RefObject<HTMLI
   );
 }
 
-/** Export manager section: choose a file with a selection to import. */
-export function ShareImportSection({ onFile }: { onFile: (file: File) => Promise<void> }) {
+/** Button with an icon that opens the file chooser; a native button, so Enter and Space work. */
+export function ShareFileButton({ label, onFile, error, disabled, className, testId }: { label: string; onFile: (file: File) => void; error?: string; disabled?: boolean; className?: string; testId?: string }) {
+  const input = useRef<HTMLInputElement>(null);
+  const errorId = useId();
+  return (
+    <>
+      <Button icon="file-import" className={className} disabled={disabled} aria-describedby={error ? errorId : undefined} onClick={() => input.current?.click()}>
+        {label}
+      </Button>
+      <ShareFileInput inputRef={input} onFile={onFile} testId={testId} />
+      {error && (
+        <p id={errorId} className="q-error">
+          <Icon name="error" />
+          <span>{error}</span>
+        </p>
+      )}
+    </>
+  );
+}
+
+/** Choose a file with a selection to import; the dialog opens from the parent. */
+export function ShareImportButton({ onFile }: { onFile: (file: File) => Promise<void> }) {
   const { t } = useI18n();
-  const id = useId();
   const [error, setError] = useState<string>();
   return (
-    <section aria-labelledby={`${id}-title`} className="options-section">
-      <h3 id={`${id}-title`}>{t('options.shareImport.title')}</h3>
-      <p className="q-hint">{t('options.shareImport.note')}</p>
-      <Field label={t('options.shareImport.file')} error={error}>
-        {(control) => (
-          <input
-            {...control}
-            type="file"
-            className="q-input"
-            accept="application/json,.json"
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              e.target.value = '';
-              setError(undefined);
-              if (f) onFile(f).catch((err: unknown) => setError(message(err)));
-            }}
-          />
-        )}
-      </Field>
-    </section>
+    <ShareFileButton
+      label={t('options.shareImport.file')}
+      error={error}
+      onFile={(f) => {
+        setError(undefined);
+        onFile(f).catch((err: unknown) => setError(message(err)));
+      }}
+    />
+  );
+}
+
+/** Distinct target addresses from a file; they are foreign data and only ever shown as text. */
+export function AddressList({ origins }: { origins: string[] }) {
+  const { t } = useI18n();
+  // A long list scrolls; the list takes focus so the keyboard can scroll it.
+  return (
+    <ul className="options-address-list" tabIndex={0} aria-label={t('options.shareImport.addresses')}>
+      {origins.map((o) => (
+        <li key={o}>{o}</li>
+      ))}
+    </ul>
   );
 }
 
@@ -252,11 +272,7 @@ function ShareImport({ share, storage, dirty, onClose, onImported }: Props & { s
               {origins.length > 0 && (
                 <div role="alert" className="options-import-targets">
                   <p>{tn('options.shareImport.targets', origins.length)}</p>
-                  <ul>
-                    {origins.map((o) => (
-                      <li key={o}>{o}</li>
-                    ))}
-                  </ul>
+                  <AddressList origins={origins} />
                   <p>{t('options.shareImport.keys')}</p>
                 </div>
               )}
