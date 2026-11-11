@@ -1,7 +1,7 @@
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { loadConfig, type Config, type StorageArea } from '../config';
 import { useI18n } from '../settings';
-import { Button, Checkbox } from '../ui/components';
+import { Button, Icon, type IconName } from '../ui/components';
 import { ShareExportDialog, type ShareRequest } from './ShareExportDialog';
 
 interface Props {
@@ -9,26 +9,46 @@ interface Props {
   dirty: boolean;
 }
 
+type State = 'on' | 'off' | 'mixed';
+
 /** A folder counts as chosen when all its projects are; an empty one is chosen on its own. */
-const folderState = (inside: string[], chosen: Set<string>, emptyChosen: boolean): 'on' | 'off' | 'mixed' => {
+const folderState = (inside: string[], chosen: Set<string>, emptyChosen: boolean): State => {
   if (inside.length === 0) return emptyChosen ? 'on' : 'off';
   const n = inside.filter((id) => chosen.has(id)).length;
   return n === 0 ? 'off' : n === inside.length ? 'on' : 'mixed';
 };
 
-/** Export manager: a tree of folders and projects with checkboxes, exporting through the shared dialog. */
+interface RowProps {
+  icon?: IconName;
+  label: string;
+  state: State;
+  onChange: (on: boolean) => void;
+  className?: string;
+}
+
+/** One compact row: checkbox, symbol and name in a single label. `data-check` lets the effect below set `indeterminate`. */
+function Row({ icon, label, state, onChange, className }: RowProps) {
+  return (
+    <label className={['options-share-row', className].filter(Boolean).join(' ')}>
+      <input type="checkbox" className="q-check" data-check={state} checked={state === 'on'} onChange={(e) => onChange(e.target.checked)} />
+      {icon && <Icon name={icon} />}
+      <span>{label}</span>
+    </label>
+  );
+}
+
+/** Export manager: a compact tree of folders and projects with a three-state head checkbox, exporting through the shared dialog. */
 export function ShareManager({ storage, dirty }: Props) {
-  const { t, tn } = useI18n();
-  const id = useId();
+  const { t } = useI18n();
   const [config, setConfig] = useState<Config>();
   const [projectIds, setProjectIds] = useState<Set<string>>(new Set());
   const [emptyFolders, setEmptyFolders] = useState<Set<string>>(new Set());
   const [request, setRequest] = useState<ShareRequest>();
-  const root = useRef<HTMLElement>(null);
+  const root = useRef<HTMLDivElement>(null);
 
   // `indeterminate` exists only as a DOM property.
   useEffect(() => {
-    for (const el of root.current?.querySelectorAll<HTMLInputElement>('input[data-folder-check]') ?? []) el.indeterminate = el.dataset.folderCheck === 'mixed';
+    for (const el of root.current?.querySelectorAll<HTMLInputElement>('input[data-check]') ?? []) el.indeterminate = el.dataset.check === 'mixed';
   });
 
   // The saved state is the source, like for the export itself.
@@ -40,10 +60,11 @@ export function ShareManager({ storage, dirty }: Props) {
     };
   }, [storage]);
 
+  const projects = config?.projects ?? [];
   const folders = config?.folders ?? [];
   const known = new Set(folders.map((f) => f.id));
-  const loose = (config?.projects ?? []).filter((p) => !p.folderId || !known.has(p.folderId));
-  const idsIn = (folderId: string) => (config?.projects ?? []).filter((p) => p.folderId === folderId).map((p) => p.id);
+  const loose = projects.filter((p) => !p.folderId || !known.has(p.folderId));
+  const idsIn = (folderId: string) => projects.filter((p) => p.folderId === folderId).map((p) => p.id);
 
   const flip = <T,>(set: Set<T>, value: T, on: boolean) => {
     const next = new Set(set);
@@ -64,67 +85,63 @@ export function ShareManager({ storage, dirty }: Props) {
       return next;
     });
   };
-  const all = () => {
-    setProjectIds(new Set((config?.projects ?? []).map((p) => p.id)));
-    setEmptyFolders(new Set(folders.map((f) => f.id)));
-  };
-  const none = () => {
-    setProjectIds(new Set());
-    setEmptyFolders(new Set());
+
+  // Only folders without projects count on their own; a folder with projects is chosen through them.
+  const emptyIds = folders.filter((f) => idsIn(f.id).length === 0).map((f) => f.id);
+  const chosenEmpty = emptyIds.filter((fid) => emptyFolders.has(fid));
+  const chosenProjects = projects.filter((p) => projectIds.has(p.id)).length;
+  const selected = chosenProjects + chosenEmpty.length;
+  const total = projects.length + emptyIds.length;
+  const head: State = selected === 0 ? 'off' : selected === total ? 'on' : 'mixed';
+  const setAll = (on: boolean) => {
+    setProjectIds(new Set(on ? projects.map((p) => p.id) : []));
+    setEmptyFolders(new Set(on ? emptyIds : []));
   };
 
   const chosenFolders = folders.filter((f) => folderState(idsIn(f.id), projectIds, emptyFolders.has(f.id)) === 'on').map((f) => f.id);
-  const selected = projectIds.size + emptyFolders.size;
   const unnamed = t('options.projects.unnamed');
-  const projectBox = (p: { id: string; name: string }) => (
+  const projectRow = (p: { id: string; name: string }) => (
     <li key={p.id}>
-      <Checkbox label={p.name || unnamed} checked={projectIds.has(p.id)} onChange={(e) => setProject(p.id, e.target.checked)} />
+      <Row icon="project" label={p.name || unnamed} state={projectIds.has(p.id) ? 'on' : 'off'} onChange={(on) => setProject(p.id, on)} />
     </li>
   );
 
   return (
-    <section ref={root} aria-labelledby={`${id}-title`} className="options-section options-share-manager">
-      <h3 id={`${id}-title`}>{t('options.share.manager.title')}</h3>
-      <p className="q-hint">{t('options.share.manager.note')}</p>
-      {config && config.projects.length === 0 && folders.length === 0 ? (
+    <div ref={root} className="options-share-manager">
+      {config && projects.length === 0 && folders.length === 0 ? (
         <p className="q-hint">{t('options.share.manager.empty')}</p>
       ) : (
         config && (
           <>
-            <div className="options-share-tools">
-              <Button onClick={all}>{t('options.share.manager.all')}</Button>
-              <Button onClick={none}>{t('options.share.manager.none')}</Button>
-            </div>
-            <ul className="options-share-tree" aria-label={t('options.share.manager.tree')}>
-              {loose.map(projectBox)}
+            <Row className="options-share-head" label={t('options.share.manager.selectAll')} state={head} onChange={setAll} />
+            <ul className="options-share-tree options-share-compact" aria-label={t('options.share.manager.tree')}>
+              {loose.map(projectRow)}
               {folders.map((f) => {
-                const inside = (config.projects ?? []).filter((p) => p.folderId === f.id);
-                const state = folderState(inside.map((p) => p.id), projectIds, emptyFolders.has(f.id));
+                const inside = projects.filter((p) => p.folderId === f.id);
                 return (
                   <li key={f.id} data-testid="share-folder">
-                    <Checkbox
+                    <Row
+                      icon="folder-open"
                       label={f.name || t('options.folders.unnamed')}
-                      checked={state === 'on'}
-                      data-folder-check={state}
-                      onChange={(e) => setFolder(f.id, e.target.checked)}
+                      state={folderState(inside.map((p) => p.id), projectIds, emptyFolders.has(f.id))}
+                      onChange={(on) => setFolder(f.id, on)}
                     />
-                    {inside.length > 0 && <ul className="options-share-tree options-share-children">{inside.map(projectBox)}</ul>}
+                    {inside.length > 0 && <ul className="options-share-tree options-share-compact options-share-children">{inside.map(projectRow)}</ul>}
                   </li>
                 );
               })}
             </ul>
-            <p role="status" className="q-hint">{projectIds.size > 0 ? tn('options.share.manager.count', projectIds.size) : ''}</p>
             <Button
               icon="file-export"
               disabled={selected === 0}
-              onClick={() => setRequest({ projectIds: [...projectIds], folderIds: chosenFolders })}
+              onClick={() => setRequest({ projectIds: projects.filter((p) => projectIds.has(p.id)).map((p) => p.id), folderIds: chosenFolders })}
             >
-              {t('options.share.manager.button')}
+              {chosenProjects > 0 ? t('options.share.manager.buttonCount', { count: chosenProjects }) : t('options.share.manager.button')}
             </Button>
           </>
         )
       )}
       <ShareExportDialog request={request} storage={storage} dirty={dirty} onClose={() => setRequest(undefined)} />
-    </section>
+    </div>
   );
 }
