@@ -79,8 +79,8 @@ const hasErrors = (e: FieldErrors): boolean => Boolean(e.label || e.key || e.sch
 /** Where the value comes from, with the icons and words of the popup. */
 function sourceOf(field: Field, t: Translate): { icon: IconName; text: string } {
   const way = valueWay(field);
-  if (way === 'click') return { icon: 'pointer', text: t('popup.source.click') };
-  if (way === 'manual') return { icon: 'edit', text: t('popup.source.manual') };
+  if (way === 'click') return { icon: 'click-mapped', text: t('popup.source.click') };
+  if (way === 'manual') return { icon: 'pencil', text: t('popup.source.manual') };
   return { icon: 'auto', text: t('popup.source.detect', { value: t(`popup.detect.${field.sources.detect}` as MessageKey) }) };
 }
 
@@ -229,7 +229,7 @@ export function FieldEditor({ fields, siteMappings, basePath, issues, onChange, 
                     {(tip) => (
                       <IconButton
                         id={`${id}-grip-${row}`}
-                        icon="grip"
+                        icon="grip-vertical"
                         label={t('options.fields.grip', { name })}
                         className="options-grip"
                         draggable

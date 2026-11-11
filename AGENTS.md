@@ -12,7 +12,7 @@ Chromium browser extension (Manifest V3) that reads page content and fields acco
 ## Structure
 
 - `entrypoints/`: WXT entry points (`background.ts`, `popup/`, `sidepanel/`, `options/`, `picker.ts`, `reader.ts` and `highlight.ts` unlisted injected scripts)
-- `src/ui/`: design tokens (CSS variables, light and dark, `:root` and Shadow DOM variants), theme application and the accessible component basis in `components/`
+- `src/ui/`: design tokens (CSS variables, light and dark, `:root` and Shadow DOM variants), theme application and the accessible component basis in `components/`; icons are locally embedded Lucide motifs (`components/Icon.tsx`), license in `public/LICENSE-lucide.txt`
 - `src/i18n/`: translation catalogs (`de` reference, `en`), translator with placeholders, plurals and `Intl` formats, language resolution; the help texts live in `help.ts`
 - `src/settings/`: device settings (language, appearance, open as popup or side panel) with storage, provider and the options section; `openAs.ts` applies the toolbar button behavior in the service worker and switches directly between popup and side panel from the header
 - `src/config/`: configuration model, validation, storage, migration, import and export of the whole configuration, share files of selected projects and folders (`share.ts`)

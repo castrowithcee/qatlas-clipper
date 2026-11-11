@@ -19,8 +19,8 @@ export interface SourceInfo {
  */
 export function sourceInfo(field: FieldConfig, found: FieldResult | undefined, edited: boolean, i18n: Pick<Translator, 't'>): SourceInfo {
   const { t } = i18n;
-  if (edited || !found || found.source === 'manual') return { icon: 'edit', text: t('popup.source.manual') };
-  if (found.source === 'selector') return { icon: 'pointer', text: t('popup.source.click') };
+  if (edited || !found || found.source === 'manual') return { icon: 'pencil', text: t('popup.source.manual') };
+  if (found.source === 'selector') return { icon: 'click-mapped', text: t('popup.source.click') };
   if (found.source === 'detect' && field.sources.detect) {
     return { icon: 'auto', text: t('popup.source.detect', { value: t(`popup.detect.${field.sources.detect}` as MessageKey) }) };
   }
@@ -105,7 +105,7 @@ function FieldRow({ field, value, source, invalid, onChange, onPick, mapped, onU
           )}
           <SourceMark {...source} />
           <Tooltip content={t('popup.field.pickTip')}>
-            {(tip) => <IconButton icon="pointer" label={t('popup.field.pick', { label: field.label })} onClick={onPick} {...tip} />}
+            {(tip) => <IconButton icon="pick-element" label={t('popup.field.pick', { label: field.label })} onClick={onPick} {...tip} />}
           </Tooltip>
           <Tooltip content={t('popup.menu.tip')}>
             {(tip) => <Menu label={t('popup.menu.button', { label: field.label })} entries={entries} buttonProps={tip} />}

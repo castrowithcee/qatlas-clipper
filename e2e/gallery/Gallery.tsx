@@ -39,8 +39,8 @@ function TileGroupDemo() {
 
 const ROWS = [
   { label: 'Title', source: 'auto' as const, sourceName: 'Detected automatically', format: 'Text', required: true, sites: 2, error: false },
-  { label: 'Summary', source: 'pointer' as const, sourceName: 'Assigned by click', format: 'Markdown', required: false, sites: 1, error: false },
-  { label: 'Author', source: 'edit' as const, sourceName: 'Enter it yourself', format: 'Text', required: false, sites: 0, error: true },
+  { label: 'Summary', source: 'click-mapped' as const, sourceName: 'Assigned by click', format: 'Markdown', required: false, sites: 1, error: false },
+  { label: 'Author', source: 'pencil' as const, sourceName: 'Enter it yourself', format: 'Text', required: false, sites: 0, error: true },
 ];
 
 function TableDemo() {
@@ -54,7 +54,7 @@ function TableDemo() {
       >
         {ROWS.map((r) => (
           <tr key={r.label} data-invalid={r.error || undefined}>
-            <td><Icon name="grip" /></td>
+            <td><Icon name="grip-vertical" /></td>
             <td>
               {r.label}
               {r.error && <div><RowError>Label is missing</RowError></div>}
@@ -101,7 +101,7 @@ export function Gallery() {
         .gallery-row { display: flex; flex-wrap: wrap; gap: var(--space-3); align-items: flex-start; }
         .gallery-row > .q-field { flex: 1 1 14rem; }
         .gallery-chips { display: flex; gap: var(--space-2); padding: 0; margin: 0; list-style: none; }
-        .gallery-icons { display: flex; gap: var(--space-3); }
+        .gallery-icons { display: flex; flex-wrap: wrap; gap: var(--space-3); }
         .gallery-icons .q-icon { width: 1.5rem; height: 1.5rem; }
       `}</style>
       <h1>Components</h1>

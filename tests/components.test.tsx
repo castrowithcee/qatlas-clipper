@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import {
-  Button, Checkbox, Chip, DataTable, DetailPanel, Dialog, Disclosure, EmptyState, ErrorState, Icon, IconButton, LoadingState, Select, Switch, TextField, Toast, Tooltip, TileGroup, ICON_NAMES, NotificationsProvider, TOAST_DURATION_MS, useNotifications, type ToastKind,
+  Button, Checkbox, Chip, DataTable, DetailPanel, Dialog, Disclosure, EmptyState, ErrorState, Icon, IconButton, LoadingState, Select, Switch, TextField, Toast, Tooltip, TileGroup, ICON_NAMES, type IconName, NotificationsProvider, TOAST_DURATION_MS, useNotifications, type ToastKind,
 } from '../src/ui/components';
 import { de, en } from '../src/i18n/catalog';
 
@@ -107,8 +107,15 @@ describe('Icon', () => {
     expect(b?.getAttribute('role')).toBe('img');
     expect(screen.getByRole('img', { name: 'Done' })).toBeTruthy();
   });
+  it('has distinct motifs for import, export, move and the two picker states', () => {
+    for (const n of ['file-import', 'file-export', 'arrow-up', 'arrow-down', 'pick-element', 'click-mapped', 'folder-open', 'grip-vertical', 'ellipsis-vertical', 'sort', 'sort-asc', 'sort-desc', 'search', 'square']) {
+      expect(ICON_NAMES).toContain(n);
+    }
+    const d = (name: IconName) => render(<Icon name={name} />).container.innerHTML;
+    expect(new Set([d('file-import'), d('file-export'), d('arrow-up'), d('arrow-down'), d('pick-element'), d('click-mapped')]).size).toBe(6);
+  });
   it('renders every icon', () => {
-    for (const name of ICON_NAMES) expect(render(<Icon name={name} />).container.querySelector('svg path, svg circle')).toBeTruthy();
+    for (const name of ICON_NAMES) expect(render(<Icon name={name} />).container.querySelector('svg > :is(path, circle, rect, line, polyline, ellipse), svg > * > *')).toBeTruthy();
   });
 });
 

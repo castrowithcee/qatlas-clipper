@@ -81,7 +81,7 @@ export function Sidebar({ projects, folders = [], config, current, dirty, onAdd,
       <p role="status" className="options-unsaved">
         {dirty && (
           <>
-            <Icon name="edit" />
+            <Icon name="pencil" />
             {t('options.nav.unsaved')}
           </>
         )}

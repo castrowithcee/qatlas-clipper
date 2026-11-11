@@ -29,9 +29,9 @@ const previewText = (el: Element): string => {
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 const ICON_PATHS = {
-  alert: ['M12 4l9 16H3zM12 10v4M12 17h.01'],
-  error: ['M3 12a9 9 0 1 0 18 0a9 9 0 1 0 -18 0', 'M9 9l6 6M15 9l-6 6'],
-  check: ['M5 12.5l4.5 4.5L19 7'],
+  alert: ['m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3', 'M12 9v4', 'M12 17h.01'],
+  error: ['M2 12a10 10 0 1 0 20 0a10 10 0 1 0 -20 0', 'm15 9-6 6', 'm9 9 6 6'],
+  check: ['M20 6 9 17l-5-5'],
 };
 
 /** Mounts the picker overlay on the page. A previously running picker, even from another script load, is closed first. */

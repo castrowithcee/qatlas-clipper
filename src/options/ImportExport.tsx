@@ -129,7 +129,7 @@ export function ImportExport({ storage, permissions, dirty, onImported, onImport
           {t('options.io.export.note')}
           {dirty ? ` ${t('options.io.export.dirty')}` : ''}
         </p>
-        <Button icon="arrow-down" onClick={doExport} disabled={busy}>
+        <Button icon="file-export" onClick={doExport} disabled={busy}>
           {t('options.io.export.button')}
         </Button>
       </section>
@@ -161,7 +161,7 @@ export function ImportExport({ storage, permissions, dirty, onImported, onImport
             error={urlError}
             onChange={(e) => setUrl(e.target.value)}
           />
-          <Button icon="arrow-up" onClick={fromUrl} disabled={busy || url.trim() === ''}>
+          <Button icon="file-import" onClick={fromUrl} disabled={busy || url.trim() === ''}>
             {t('options.io.load')}
           </Button>
         </div>

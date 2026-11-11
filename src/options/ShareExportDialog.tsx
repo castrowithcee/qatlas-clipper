@@ -100,7 +100,7 @@ function ShareExport({ request, storage, dirty, onClose }: Props & { request: Sh
         actions={
           <>
             <Button onClick={onClose} disabled={busy}>{t('options.cancel')}</Button>
-            <Button variant="primary" icon="arrow-down" onClick={doExport} disabled={busy || !ready}>{t('options.share.button')}</Button>
+            <Button variant="primary" icon="file-export" onClick={doExport} disabled={busy || !ready}>{t('options.share.button')}</Button>
           </>
         }
       >

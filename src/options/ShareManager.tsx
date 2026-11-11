@@ -115,7 +115,7 @@ export function ShareManager({ storage, dirty }: Props) {
             </ul>
             <p role="status" className="q-hint">{projectIds.size > 0 ? tn('options.share.manager.count', projectIds.size) : ''}</p>
             <Button
-              icon="arrow-down"
+              icon="file-export"
               disabled={selected === 0}
               onClick={() => setRequest({ projectIds: [...projectIds], folderIds: chosenFolders })}
             >

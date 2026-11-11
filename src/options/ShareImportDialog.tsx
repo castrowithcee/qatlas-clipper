@@ -28,7 +28,7 @@ export function ShareFileButton({ className, label, ariaLabel, onFile }: FileBut
   const input = useRef<HTMLInputElement>(null);
   return (
     <>
-      <Button icon="arrow-up" className={className} aria-label={ariaLabel} onClick={() => input.current?.click()}>
+      <Button icon="file-import" className={className} aria-label={ariaLabel} onClick={() => input.current?.click()}>
         {label}
       </Button>
       <input
@@ -222,7 +222,7 @@ function ShareImport({ share, storage, dirty, onClose, onImported }: Props & { s
       actions={
         <>
           <Button onClick={onClose} disabled={busy}>{t('options.cancel')}</Button>
-          <Button variant="primary" icon="arrow-up" onClick={confirm} disabled={busy || !plan || count === 0}>
+          <Button variant="primary" icon="file-import" onClick={confirm} disabled={busy || !plan || count === 0}>
             {t('options.shareImport.button')}
           </Button>
         </>

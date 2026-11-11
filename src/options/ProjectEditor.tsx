@@ -123,7 +123,7 @@ function ProjectHeader({ name, index, count, onMove, onDelete, onExport }: Heade
             <IconButton icon="arrow-down" label={t('options.projects.moveDown', { name })} disabled={index === count - 1} onClick={() => onMove(1)} {...tip} />
           )}
         </Tooltip>
-        <Button icon="arrow-down" onClick={onExport}>
+        <Button icon="file-export" onClick={onExport}>
           {t('options.share.export')}
         </Button>
         <Button variant="danger" icon="trash" onClick={() => setConfirming(true)}>
