@@ -6,6 +6,7 @@ import {
   deleteFolder,
   deleteTag,
   moveFolder,
+  moveProjectTo,
   normalize,
   renameFolder,
   renameTag,
@@ -96,5 +97,50 @@ describe('normalize', () => {
 
   it('validate reports a duplicate name only after trimming', () => {
     expect(validate(config({ folders: [{ id: 'f1', name: 'A' }, { id: 'f2', name: ' a ' }] })).length).toBe(1);
+  });
+});
+
+describe('moveProjectTo', () => {
+  const folders = [{ id: 'fa', name: 'A' }, { id: 'fb', name: 'B' }];
+  const list = [proj('p1'), proj('p2', { folderId: 'fa' }), proj('p3'), proj('p4', { folderId: 'fa' }), proj('p5', { folderId: 'fb' }), proj('p6', { folderId: 'fa' })];
+  const ids = (ps: Project[]) => ps.map((p) => p.id);
+  const group = (ps: Project[], folderId?: string) => ids(ps.filter((p) => p.folderId === folderId));
+
+  it('moves within a group to the given position and leaves the other groups alone', () => {
+    const out = moveProjectTo(list, folders, 'p6', 'fa', 0);
+    expect(group(out, 'fa')).toEqual(['p6', 'p2', 'p4']);
+    expect(group(out)).toEqual(['p1', 'p3']);
+    expect(group(out, 'fb')).toEqual(['p5']);
+    expect(group(moveProjectTo(list, folders, 'p2', 'fa', 2), 'fa')).toEqual(['p4', 'p6', 'p2']);
+    expect(group(moveProjectTo(list, folders, 'p1', undefined, 1))).toEqual(['p3', 'p1']);
+  });
+
+  it('moves into another folder at a position or the end, and takes the folder id along', () => {
+    const mid = moveProjectTo(list, folders, 'p5', 'fa', 1);
+    expect(group(mid, 'fa')).toEqual(['p2', 'p5', 'p4', 'p6']);
+    expect(mid.find((p) => p.id === 'p5')?.folderId).toBe('fa');
+    expect(group(moveProjectTo(list, folders, 'p1', 'fb', 99), 'fb')).toEqual(['p5', 'p1']);
+    expect(group(moveProjectTo(list, folders, 'p1', 'fa', 99), 'fa')).toEqual(['p2', 'p4', 'p6', 'p1']);
+  });
+
+  it('moves out of a folder without a folderId, also into an empty group', () => {
+    const out = moveProjectTo(list, folders, 'p4', undefined, 1);
+    expect(group(out)).toEqual(['p1', 'p4', 'p3']);
+    expect('folderId' in out.find((p) => p.id === 'p4')!).toBe(false);
+    const alone = moveProjectTo([proj('x', { folderId: 'fa' })], folders, 'x', undefined, 0);
+    expect(ids(alone)).toEqual(['x']);
+    expect(moveProjectTo([proj('x'), proj('y')], folders, 'x', 'fb', 0)[1]).toMatchObject({ id: 'x', folderId: 'fb' });
+  });
+
+  it('keeps the relative order of all other projects and ignores unknown ids and folders', () => {
+    const out = moveProjectTo(list, folders, 'p3', 'fb', 0);
+    expect(ids(out).filter((id) => id !== 'p3')).toEqual(['p1', 'p2', 'p4', 'p5', 'p6']);
+    expect(moveProjectTo(list, folders, 'nope', 'fa', 0)).toBe(list);
+    expect(moveProjectTo(list, folders, 'p1', 'gone', 0)).toBe(list);
+  });
+
+  it('treats a project with a missing folder as having none', () => {
+    const odd = [proj('p1'), proj('p2', { folderId: 'gone' })];
+    expect(ids(moveProjectTo(odd, folders, 'p1', undefined, 1))).toEqual(['p2', 'p1']);
   });
 });

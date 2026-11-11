@@ -31,6 +31,32 @@ export function moveProjectInGroup(projects: Project[], folders: Folder[], id: s
   return next;
 }
 
+/** The group a project is listed in: its existing folder, or `''` for none. */
+export function projectGroup(folders: Folder[], p: Project): string {
+  return p.folderId && folders.some((f) => f.id === p.folderId) ? p.folderId : '';
+}
+
+/**
+ * Puts a project into a folder (`undefined`: none) at `index` among that group's projects, counted after the project
+ * has left its place; an index past the end means the last place. Only the relative order within each group matters,
+ * so the other projects keep their order. An unknown project or folder returns the list unchanged.
+ */
+export function moveProjectTo(projects: Project[], folders: Folder[], id: string, folderId: string | undefined, index: number): Project[] {
+  const project = projects.find((p) => p.id === id);
+  if (!project || (folderId !== undefined && !folders.some((f) => f.id === folderId))) return projects;
+  const group = folderId ?? '';
+  const others = projects.filter((p) => p.id !== id);
+  const members = others.filter((p) => projectGroup(folders, p) === group);
+  const at = Math.max(0, Math.min(index, members.length));
+  // Moving down inside the own group lands right behind its new predecessor, as a step with "Move down" always did.
+  const down = projectGroup(folders, project) === group && at > projects.filter((p) => projectGroup(folders, p) === group).indexOf(project);
+  const before = members[at];
+  const insertAt = down ? others.indexOf(members[at - 1]!) + 1 : before ? others.indexOf(before) : members.length > 0 ? others.indexOf(members[members.length - 1]!) + 1 : group === '' ? 0 : others.length;
+  const next = [...others];
+  next.splice(insertAt, 0, setProjectFolder(project, folderId));
+  return next;
+}
+
 /** Moves the item at `from` so that it ends up at index `to`. */
 export function moveTo<T>(items: T[], from: number, to: number): T[] {
   if (from === to || from < 0 || to < 0 || from >= items.length || to >= items.length) return items;
