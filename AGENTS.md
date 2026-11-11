@@ -15,7 +15,7 @@ Chromium browser extension (Manifest V3) that reads page content and fields acco
 - `src/ui/`: design tokens (CSS variables, light and dark, `:root` and Shadow DOM variants), theme application and the accessible component basis in `components/`
 - `src/i18n/`: translation catalogs (`de` reference, `en`), translator with placeholders, plurals and `Intl` formats, language resolution; the help texts live in `help.ts`
 - `src/settings/`: device settings (language, appearance, open as popup or side panel) with storage, provider and the options section; `openAs.ts` applies the toolbar button behavior in the service worker and switches directly between popup and side panel from the header
-- `src/config/`: configuration model, validation, storage, migration, import and export
+- `src/config/`: configuration model, validation, storage, migration, import and export of the whole configuration, share files of selected projects and folders (`share.ts`)
 - `src/extract/`: project scope matching with page kinds (`pageTypes.ts`, schema.org types including subtypes), field sources (click mapping, detect values resolved over several candidates in `detect.ts`, JSON-LD, meta tags) and Defuddle page reading as pure functions over a `Document`; `inject.ts` runs the reader in a tab
 - `src/picker/`: CSS selector generation, click-mapping overlay (Shadow DOM), mapping persistence and picker start
 - `src/highlight/`: frames with the field name around click-mapped elements (Shadow DOM, steps aside while the picker runs); the popup or side panel opens a port (`connect.ts`) and its end removes everything from the page; device setting `highlight` toggles it from the header
