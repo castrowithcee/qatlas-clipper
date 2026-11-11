@@ -4,6 +4,9 @@ import {
   Button, Checkbox, Chip, DataTable, DetailPanel, Dialog, Disclosure, EmptyState, ErrorState, ICON_NAMES, Icon, IconButton, LoadingState, Menu, type MenuEntry, type MenuTriggerProps, NotificationsProvider, RowActions, RowError, Select, Switch, TextField, Toast, TileGroup, useNotifications,
 } from '../../src/ui/components';
 import '../../src/ui/components/components.css';
+import '../../src/options/options.css';
+import { moveTo } from '../../src/options/draft';
+import { useReorder } from '../../src/options/reorder';
 
 const Section = ({ id, title, children }: { id: string; title: string; children: ReactNode }) => (
   <section data-testid={id} className="gallery-section">
@@ -46,15 +49,23 @@ const ROWS = [
 function TableDemo() {
   const i18n = useI18n();
   const [open, setOpen] = useState<string | null>(null);
+  const [rows, setRows] = useState(ROWS);
+  const reorder = useReorder({
+    sizeOf: () => rows.length,
+    onMove: ({ from, to }) => setRows(moveTo(rows, from.index, to.index)),
+    announce: ({ from, to }) => `${rows[from.index]?.label}: position ${to.index + 1} of ${rows.length}`,
+  });
   return (
     <>
       <DataTable
         caption="Fields"
         columns={[{ label: 'Move', hidden: true, narrow: true }, 'Label', { label: 'Source', narrow: true }, 'Format', 'Required', 'Websites', { label: 'Actions', hidden: true, narrow: true }]}
       >
-        {ROWS.map((r) => (
-          <tr key={r.label} data-invalid={r.error || undefined}>
-            <td><Icon name="grip-vertical" /></td>
+        {rows.map((r, i) => {
+          const { row, grip } = reorder.item(r.label, r.label, i);
+          return (
+          <tr key={r.label} data-invalid={r.error || undefined} className={['options-field-row', row.className].filter(Boolean).join(' ')} onDragOver={row.onDragOver} onDrop={row.onDrop}>
+            <td><IconButton {...grip} icon="grip-vertical" label={`Move ${r.label}`} className="options-grip" /></td>
             <td>
               {r.label}
               {r.error && <div><RowError>Label is missing</RowError></div>}
@@ -65,14 +76,14 @@ function TableDemo() {
             <td>{r.sites}</td>
             <td>
               <RowActions>
-                <IconButton icon="arrow-up" label={`Move ${r.label} up`} />
-                <IconButton icon="arrow-down" label={`Move ${r.label} down`} />
                 <IconButton icon="chevron-right" label={`Open ${r.label}`} onClick={() => setOpen(r.label)} data-testid={`row-open-${r.label}`} />
               </RowActions>
             </td>
           </tr>
-        ))}
+          );
+        })}
       </DataTable>
+      <p className="q-sr-only" role="status">{reorder.announcement}</p>
       <DetailPanel
         open={open !== null}
         onClose={() => setOpen(null)}
