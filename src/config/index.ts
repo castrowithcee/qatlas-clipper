@@ -4,3 +4,5 @@ export * from './migrate';
 export * from './storage';
 export * from './importExport';
 export * from './merge';
+export * from './id';
+export * from './share';

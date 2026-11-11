@@ -1,6 +1,6 @@
-import { ConfigError, parseConfig, type Config, type Field, type Folder, type Project, type Tag, type Scope, type Target } from '../config';
+import { ConfigError, newId, parseConfig, type Config, type Field, type Folder, type Project, type Tag, type Scope, type Target } from '../config';
 
-export const newId = (): string => crypto.randomUUID();
+export { newId };
 
 export function moveItem<T>(items: T[], index: number, delta: -1 | 1): T[] {
   const target = index + delta;
