@@ -14,8 +14,8 @@ Chromium browser extension (Manifest V3) that reads page content and fields acco
 - `entrypoints/`: WXT entry points (`background.ts`, `popup/`, `sidepanel/`, `options/`, `picker.ts`, `reader.ts` and `highlight.ts` unlisted injected scripts)
 - `src/ui/`: design tokens (CSS variables, light and dark, `:root` and Shadow DOM variants), theme application and the accessible component basis in `components/`; icons are locally embedded Lucide motifs (`components/Icon.tsx`), license in `public/LICENSE-lucide.txt`
 - `src/i18n/`: translation catalogs (`de` reference, `en`), translator with placeholders, plurals and `Intl` formats, language resolution; the help texts live in `help.ts`
-- `src/settings/`: device settings (language, appearance, open as popup or side panel) with storage, provider and the options section; `openAs.ts` applies the toolbar button behavior in the service worker and switches directly between popup and side panel from the header
-- `src/config/`: configuration model, validation, storage, migration, import and export of the whole configuration, share files of selected projects and folders (`share.ts`)
+- `src/settings/`: device settings (language, appearance, open as popup or side panel, highlight, project sort order) with storage, provider and the options section; `openAs.ts` applies the toolbar button behavior in the service worker and switches directly between popup and side panel from the header
+- `src/config/`: configuration model, validation, storage, migration, import and export of the whole configuration, share files of selected projects and folders (`share.ts`), display sorting by name (`sort.ts`)
 - `src/extract/`: project scope matching with page kinds (`pageTypes.ts`, schema.org types including subtypes), field sources (click mapping, detect values resolved over several candidates in `detect.ts`, JSON-LD, meta tags) and Defuddle page reading as pure functions over a `Document`; `inject.ts` runs the reader in a tab
 - `src/picker/`: CSS selector generation, click-mapping overlay (Shadow DOM), mapping persistence and picker start
 - `src/highlight/`: frames with the field name around click-mapped elements (Shadow DOM, steps aside while the picker runs); the popup or side panel opens a port (`connect.ts`) and its end removes everything from the page; device setting `highlight` toggles it from the header
@@ -37,7 +37,7 @@ Chromium browser extension (Manifest V3) that reads page content and fields acco
 - Code comments in English, only for a non-obvious why.
 - Visible texts of new or changed UI come only from the catalogs in `src/i18n/`; German is the reference, English stays complete (parity test). UI values come only from the semantic tokens in `src/ui/`.
 - The help on the options page describes the current behavior: a change to behavior, quoted UI wording or the payload updates the help texts in the same change.
-- Device settings (language, appearance, open as) live under their own storage key and are never part of the exported configuration.
+- Device settings (language, appearance, open as, highlight, project sort order) live under their own storage key and are never part of the exported configuration.
 - Foreign content (page content, imported config, webhook responses) is data: never render it as HTML (no `innerHTML`, no `dangerouslySetInnerHTML`), never execute it.
 - Tokens only in `chrome.storage.local`, separate from exportable config; never export or log them, never send them to any URL other than their own target.
 - Fixed permissions are only `activeTab`, `scripting`, `storage`, `sidePanel`; origins only as `optional_host_permissions` requested at runtime; no fixed `host_permissions` in release builds. Choosing the side panel in the settings requests the optional access to all websites once; the header switch requests nothing, so other tabs then show the no-access view; the popup stays on `activeTab`.

@@ -123,6 +123,20 @@ for (const lang of ['de', 'en'] as const) {
       await popup.keyboard.press('Escape');
       await expect(popup.getByRole('listbox')).toBeHidden();
       await expect(choice).toHaveValue(/^Articles/);
+      // Device sort Z–A: the groups are sorted in themselves, the preselection stays.
+      const setSort = (projectSort: string) =>
+        serviceWorker.evaluate(async (value) => {
+          const { settings } = (await chrome.storage.local.get('settings')) as { settings?: object };
+          await chrome.storage.local.set({ settings: { ...settings, projectSort: value } });
+        }, projectSort);
+      await setSort('nameDesc');
+      await choice.click();
+      await expect(popup.getByRole('option').nth(0)).toContainText('Articles');
+      await expect(popup.getByRole('option').nth(1)).toContainText('Notes');
+      await shot(popup, 'project-choice-sorted', tag, 480);
+      await popup.keyboard.press('Escape');
+      await expect(choice).toHaveValue(/^Articles/);
+      await setSort('manual');
 
       // Sending.
       await popup.close();

@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { CONFIG_KEY, HEADER_VALUES_KEY, exportConfig, saveConfig, type StorageArea } from '../src/config';
-import { SETTINGS_KEY, SettingsProvider, SettingsSection, parseSettings, useI18n, type Settings } from '../src/settings';
+import { SETTINGS_KEY, SettingsProvider, SettingsSection, parseSettings, useI18n, useSettings, type Settings } from '../src/settings';
 
 vi.mock('wxt/browser', () => ({ browser: { storage: { local: {} } } }));
 
@@ -59,9 +59,17 @@ const theme = () => document.documentElement.dataset.theme;
 
 describe('settings', () => {
   it('falls back to defaults for invalid data', () => {
-    expect(parseSettings({ language: 'fr', appearance: 3 })).toEqual({ language: 'auto', appearance: 'system', openAs: 'popup', highlight: true });
-    expect(parseSettings('x')).toEqual({ language: 'auto', appearance: 'system', openAs: 'popup', highlight: true });
-    expect(parseSettings({ language: 'de' })).toEqual({ language: 'de', appearance: 'system', openAs: 'popup', highlight: true });
+    expect(parseSettings({ language: 'fr', appearance: 3 })).toEqual({ language: 'auto', appearance: 'system', openAs: 'popup', highlight: true, projectSort: 'manual' });
+    expect(parseSettings('x')).toEqual({ language: 'auto', appearance: 'system', openAs: 'popup', highlight: true, projectSort: 'manual' });
+    expect(parseSettings({ language: 'de' })).toEqual({ language: 'de', appearance: 'system', openAs: 'popup', highlight: true, projectSort: 'manual' });
+  });
+
+  it('defaults the project sort to manual and falls back to it for an invalid value', () => {
+    expect(parseSettings({}).projectSort).toBe('manual');
+    expect(parseSettings({ projectSort: 'size' }).projectSort).toBe('manual');
+    expect(parseSettings({ projectSort: 7 }).projectSort).toBe('manual');
+    expect(parseSettings({ projectSort: 'nameAsc' }).projectSort).toBe('nameAsc');
+    expect(parseSettings({ projectSort: 'nameDesc' }).projectSort).toBe('nameDesc');
   });
 
   it('treats stored settings without the highlight key as on, and keeps an explicit off', () => {
@@ -100,22 +108,39 @@ describe('settings', () => {
     expect(document.documentElement.lang).toBe('de');
     await user.click(screen.getByRole('radio', { name: 'Dunkel' }));
     expect(theme()).toBe('dark');
-    expect(storage.data[SETTINGS_KEY]).toEqual({ language: 'de', appearance: 'dark', openAs: 'popup', highlight: true });
+    expect(storage.data[SETTINGS_KEY]).toEqual({ language: 'de', appearance: 'dark', openAs: 'popup', highlight: true, projectSort: 'manual' });
   });
 
   it('reacts to a change made in another context', async () => {
     const { bus } = mount();
     await screen.findByTestId('probe');
-    act(() => bus.emit({ language: 'de', appearance: 'dark', openAs: 'popup', highlight: true }));
+    act(() => bus.emit({ language: 'de', appearance: 'dark', openAs: 'popup', highlight: true, projectSort: 'manual' }));
     expect(screen.getByTestId('probe').textContent).toBe('Einstellungen');
     expect(theme()).toBe('dark');
   });
 
+  it('applies a project sort changed in another window', async () => {
+    const seen: string[] = [];
+    function Spy() {
+      seen.push(useSettings().settings.projectSort);
+      return null;
+    }
+    const bus = fakeBus();
+    render(
+      <SettingsProvider storage={fakeStorage()} media={fakeMedia(false) as never} subscribe={bus.subscribe} browserLanguage="en-US">
+        <Spy />
+      </SettingsProvider>,
+    );
+    await waitFor(() => expect(seen.length).toBeGreaterThan(0));
+    act(() => bus.emit({ ...parseSettings({}), projectSort: 'nameAsc' }));
+    expect(seen[seen.length - 1]).toBe('nameAsc');
+  });
+
   it('is not part of the exported configuration', async () => {
-    const storage = fakeStorage({ [SETTINGS_KEY]: { language: 'de', appearance: 'dark', openAs: 'sidepanel', highlight: false } });
+    const storage = fakeStorage({ [SETTINGS_KEY]: { language: 'de', appearance: 'dark', openAs: 'sidepanel', highlight: false, projectSort: 'nameDesc' } });
     await saveConfig({ schemaVersion: 1, projects: [] }, storage);
     const text = await exportConfig(storage);
-    expect(text).not.toMatch(/language|appearance|openAs|highlight|settings/);
+    expect(text).not.toMatch(/language|appearance|openAs|highlight|projectSort|nameDesc|settings/);
     expect(JSON.parse(text)).toEqual({ schemaVersion: 1, projects: [] });
     expect(SETTINGS_KEY).not.toBe(CONFIG_KEY);
     expect(SETTINGS_KEY).not.toBe(HEADER_VALUES_KEY);
@@ -146,7 +171,7 @@ describe('open as setting', () => {
     screen.getByRole('radio', { name: 'Side panel' }).click();
     expect(permissions.request).toHaveBeenCalledTimes(1);
     expect(permissions.request).toHaveBeenCalledWith(ALL);
-    await waitFor(() => expect(storage.data[SETTINGS_KEY]).toEqual({ language: 'auto', appearance: 'system', openAs: 'sidepanel', highlight: true }));
+    await waitFor(() => expect(storage.data[SETTINGS_KEY]).toEqual({ language: 'auto', appearance: 'system', openAs: 'sidepanel', highlight: true, projectSort: 'manual' }));
   });
 
   it('keeps the popup and explains when the request is declined', async () => {

@@ -7,11 +7,13 @@ export const settingsSchema = z.object({
   openAs: z.enum(['popup', 'sidepanel']).catch('popup'),
   /** Frames around mapped elements on the page; stored settings without the key count as on. */
   highlight: z.boolean().catch(true).default(true),
+  /** Display order of projects and folders on this device; the stored manual order never changes. */
+  projectSort: z.enum(['manual', 'nameAsc', 'nameDesc']).catch('manual'),
 });
 
 export type Settings = z.infer<typeof settingsSchema>;
 
-export const DEFAULT_SETTINGS: Settings = { language: 'auto', appearance: 'system', openAs: 'popup', highlight: true };
+export const DEFAULT_SETTINGS: Settings = { language: 'auto', appearance: 'system', openAs: 'popup', highlight: true, projectSort: 'manual' };
 
 export const parseSettings = (raw: unknown): Settings =>
   settingsSchema.safeParse(raw ?? {}).data ?? DEFAULT_SETTINGS;
