@@ -37,7 +37,7 @@ interface Options {
 
 /**
  * Reordering by dragging the grip with the mouse and by the arrow keys at the grip.
- * Both lead to `onMove`, which may also cross groups.
+ * Both lead to `onMove`, which may also cross groups. `apply` takes the same path for other ways to move, such as a menu.
  */
 export function useReorder({ sizeOf, onMove, announce }: Options) {
   const id = useId();
@@ -114,5 +114,8 @@ export function useReorder({ sizeOf, onMove, announce }: Options) {
     };
   };
 
-  return { item, dropProps, announcement };
+  /** Whether a drag is under way and which place it is over (to mark a target such as a collapsed folder). */
+  const isOver = (slot: Slot) => drag !== undefined && same(drag.over, slot);
+
+  return { item, dropProps, announcement, dragging: drag !== undefined, isOver, apply: move };
 }

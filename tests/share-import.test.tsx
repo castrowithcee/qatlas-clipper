@@ -191,8 +191,9 @@ describe('share import', () => {
     }
     click.mockRestore();
     window.location.hash = '#/import-export';
-    const section = await screen.findByLabelText('File with a selection');
-    await user.upload(section, new File([fresh()], 's.json', { type: 'application/json' }));
+    await screen.findByRole('button', { name: 'Import selection from file' });
+    // The sidebar input comes first in the document; the page's own follows.
+    await upload(user, fresh(), 1);
     await dialog();
   });
 });

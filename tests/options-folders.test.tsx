@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, it } from 'vitest';
-import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { CONFIG_KEY, loadConfig, type StorageArea } from '../src/config';
 import { OptionsApp } from '../src/options/OptionsApp';
@@ -241,7 +241,7 @@ describe('folders in the sidebar', () => {
     await user.click(screen.getByRole('menuitem', { name: 'Move down' }));
     await save(user);
     await screen.findByText('Saved.');
-    expect((await loadConfig(storage)).projects.map((p) => p.name)).toEqual(['Loose B', 'News', 'Loose A', 'Blog']);
+    expect((await loadConfig(storage)).projects.map((p) => p.name)).toEqual(['Loose B', 'Loose A', 'News', 'Blog']);
   });
 
   it('deletes exactly the project of the row after confirming while another one is open', async () => {
@@ -328,6 +328,133 @@ describe('folder choice in the project editor', () => {
     await save(user);
     await vi_waitUnsaved();
     expect((await loadConfig(storage)).projects[0]?.folderId).toBeUndefined();
+  });
+});
+
+const dt = () => ({ effectAllowed: '', dropEffect: '', setData: () => {}, setDragImage: () => {} });
+const grip = (name: string) => within(nav()).getByRole('button', { name: new RegExp(`^Move (project|folder) ${name}$`) });
+const rowOf = (name: string) => within(nav()).getByRole('link', { name }).closest('li')!;
+const names = (list: Element) => Array.from(list.querySelectorAll(':scope > li:not([data-testid]):not([aria-hidden]) .options-nav-link')).map((a) => a.textContent);
+const inFolder = (name: string) => names(within(nav()).getAllByTestId('options-folder').find((li) => li.querySelector('.options-folder-name')?.textContent === name)!.querySelector('ul')!);
+const topNames = () => names(within(nav()).getByRole('list', { name: 'Projects' }));
+const announced = () => Array.from(nav().querySelectorAll('[aria-live="polite"]')).map((p) => p.textContent).join('');
+
+describe('ordering by dragging and keys', () => {
+  const many = () =>
+    fakeStorage(stored(FOLDERS, project('p1', 'Loose A'), project('p2', 'Loose B'), project('p3', 'Blog', { folderId: 'f1' }), project('p4', 'News', { folderId: 'f1' }), project('p5', 'Store', { folderId: 'f2' })));
+
+  it('drags a project within its group; the draft stays unsaved until Save', async () => {
+    const storage = many();
+    const user = await mount(storage, projectHash('p3'));
+    const data = dt();
+    fireEvent.dragStart(grip('News'), { dataTransfer: data });
+    fireEvent.dragOver(rowOf('Blog'), { dataTransfer: data });
+    expect(rowOf('Blog').className).toContain('is-drop-before');
+    fireEvent.drop(rowOf('Blog'), { dataTransfer: data });
+    expect(inFolder('Articles')).toEqual(['News', 'Blog']);
+    expect(announced()).toBe('News: position 1 of 2 in Articles');
+    expect(unsaved()).toBeTruthy();
+    expect((await loadConfig(storage)).projects.map((p) => p.name)).toEqual(['Loose A', 'Loose B', 'Blog', 'News', 'Store']);
+    await save(user);
+    await screen.findByText('Saved.');
+    expect((await loadConfig(storage)).projects.map((p) => p.name)).toEqual(['Loose A', 'Loose B', 'News', 'Blog', 'Store']);
+  });
+
+  it('gives the same result with the arrow keys as with dragging', async () => {
+    const user = await mount(many(), projectHash('p3'));
+    act(() => grip('Blog').focus());
+    await user.keyboard('{ArrowDown}');
+    expect(inFolder('Articles')).toEqual(['News', 'Blog']);
+    expect(announced()).toBe('Blog: position 2 of 2 in Articles');
+    expect(document.activeElement).toBe(grip('Blog'));
+    await user.keyboard('{ArrowDown}');
+    expect(inFolder('Articles')).toEqual(['News', 'Blog']);
+  });
+
+  it('drags into another folder at a position, into a collapsed folder at its end, and out to no folder', async () => {
+    const storage = many();
+    await mount(storage, projectHash('p3'));
+    const data = dt();
+    fireEvent.dragStart(grip('Loose A'), { dataTransfer: data });
+    fireEvent.drop(rowOf('News'), { dataTransfer: data });
+    expect(inFolder('Articles')).toEqual(['Blog', 'Loose A', 'News']);
+    expect(announced()).toBe('Loose A: position 2 of 3 in Articles');
+
+    // Shop is collapsed: a drop on its row puts the project at the end.
+    expect(toggle('Shop').getAttribute('aria-expanded')).toBe('false');
+    const head = toggle('Shop').closest('.options-folder-head')!;
+    fireEvent.dragStart(grip('Blog'), { dataTransfer: data });
+    fireEvent.dragOver(head, { dataTransfer: data });
+    expect(head.className).toContain('is-drop-into');
+    fireEvent.drop(head, { dataTransfer: data });
+    expect(within(nav()).getAllByTestId('options-folder-count').map((c) => c.textContent)).toEqual(['2', '2']);
+    expect(announced()).toBe('Blog: position 2 of 2 in Shop');
+
+    await userEvent.setup().click(toggle('Articles'));
+    // The end zone "No folder" shows only while a project is dragged.
+    expect(nav().querySelector('.options-drop-end')).toBeNull();
+    fireEvent.dragStart(grip('News'), { dataTransfer: data });
+    const zone = nav().querySelector('.options-drop-end')!;
+    fireEvent.drop(zone, { dataTransfer: data });
+    expect(topNames()).toEqual(['Loose B', 'News']);
+    expect(announced()).toBe('News: position 2 of 2 in No folder');
+  });
+
+  it('drags a folder to another place among the folders', async () => {
+    const storage = many();
+    const user = await mount(storage);
+    const data = dt();
+    const target = within(nav()).getAllByTestId('options-folder')[1]!;
+    fireEvent.dragStart(grip('Articles'), { dataTransfer: data });
+    fireEvent.dragOver(target, { dataTransfer: data });
+    fireEvent.drop(target, { dataTransfer: data });
+    expect(folderNames()).toEqual(['Shop', 'Articles']);
+    expect(announced()).toBe('Folder Articles: position 2 of 2');
+    await save(user);
+    await screen.findByText('Saved.');
+    expect((await loadConfig(storage)).folders?.map((f) => f.name)).toEqual(['Shop', 'Articles']);
+  });
+
+  it('moves a folder with the arrow keys', async () => {
+    const user = await mount(many());
+    act(() => grip('Shop').focus());
+    await user.keyboard('{ArrowUp}');
+    expect(folderNames()).toEqual(['Shop', 'Articles']);
+  });
+
+  it('moves a project to another folder or to no folder from its menu, with an announcement', async () => {
+    const storage = many();
+    const user = await mount(storage, projectHash('p1'));
+    await projectMenu(user, 'Loose A');
+    const radios = screen.getAllByRole('menuitemradio');
+    expect(radios.map((r) => [r.textContent, r.getAttribute('aria-checked')])).toEqual([['No folder', 'true'], ['Articles', 'false'], ['Shop', 'false']]);
+    await user.click(screen.getByRole('menuitemradio', { name: 'Shop' }));
+    expect(inFolder('Shop')).toEqual(['Store', 'Loose A']);
+    expect(toggle('Shop').getAttribute('aria-expanded')).toBe('true');
+    expect(announced()).toBe('Loose A: position 2 of 2 in Shop');
+    expect(unsaved()).toBeTruthy();
+    expect(document.activeElement).toBe(within(nav()).getByRole('link', { name: 'Loose A' }));
+    await projectMenu(user, 'Loose A');
+    await user.click(screen.getByRole('menuitemradio', { name: 'No folder' }));
+    expect(topNames()).toEqual(['Loose B', 'Loose A']);
+    await save(user);
+    await screen.findByText('Saved.');
+    const saved = await loadConfig(storage);
+    expect(saved.projects.find((p) => p.name === 'Loose A')?.folderId).toBeUndefined();
+  });
+
+  it('offers no grips while a tag filter is active', async () => {
+    const storage = fakeStorage({ [CONFIG_KEY]: { schemaVersion: 1, folders: FOLDERS, tags: [{ id: 't1', name: 'Urgent' }], projects: [project('p1', 'Loose', { tagIds: ['t1'] }), project('p2', 'Blog', { folderId: 'f1' })] } });
+    const user = await mount(storage);
+    expect(within(nav()).getAllByRole('button', { name: /^Move (project|folder) /i }).length).toBe(3);
+    await user.click(within(nav()).getByRole('button', { name: 'Urgent' }));
+    expect(within(nav()).queryAllByRole('button', { name: /^Move (project|folder) /i }).length).toBe(0);
+  });
+
+  it('renders names in grip labels and drop zones as text only', async () => {
+    const storage = fakeStorage(stored([{ id: 'f1', name: '<img src=x onerror=alert(1)>' }], project('p1', '<b>Loose</b>')));
+    await mount(storage);
+    expect(nav().querySelector('img[src="x"], b')).toBeNull();
   });
 });
 
