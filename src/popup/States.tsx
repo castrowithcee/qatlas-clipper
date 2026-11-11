@@ -76,10 +76,10 @@ export function NoTargetView({ onOpenOptions }: { onOpenOptions: () => void }) {
 }
 
 /** Host permission for a target address is missing; granting happens on the options page. */
-export function NoPermissionView({ onOpenOptions }: { onOpenOptions: () => void }) {
+export function NoPermissionView({ onOpenOptions, target }: { onOpenOptions: () => void; target?: string }) {
   const { t } = useI18n();
   return (
-    <Notice kind="warning" title={t('popup.noPermission.title')}>
+    <Notice kind="warning" title={t('popup.noPermission.title')} target={target}>
       <p className="popup-outcome-text">{t('popup.noPermission.text')}</p>
       <Button className="popup-retry" onClick={onOpenOptions}>{t('popup.noPermission.action')}</Button>
     </Notice>
