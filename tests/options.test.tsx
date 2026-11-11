@@ -335,6 +335,41 @@ describe('options page', () => {
     expect((await loadConfig(storage)).projects[0]?.siteMappings).toEqual({ 'example.com': { headline: 'h1' } });
   });
 
+  it('moves the hints into tooltips and turns the add actions into icon buttons', async () => {
+    const hint = 'These are the details that are read and sent in the popup.';
+    const storage = fakeStorage(stored(project('p1', 'A', { scope: { allSites: false, domains: ['example.com'] }, fields: [], targets: [] })));
+    const user = await mount(storage);
+    const tipOf = (button: HTMLElement) => document.getElementById(button.getAttribute('aria-describedby') ?? '');
+    // Empty areas keep a labelled primary action.
+    expect(screen.getByRole('button', { name: 'Add field' }).className).toContain('q-button--primary');
+    expect(screen.getByRole('button', { name: 'Add target' }).className).toContain('q-button--primary');
+    const helpOf = (heading: string) => within(screen.getByRole('heading', { name: new RegExp(heading) })).getByRole('button', { name: 'More information' });
+    for (const [heading, text] of [['Fields', hint], ['Targets', 'Webhooks that receive the captured details.']] as const) {
+      expect(screen.queryAllByText(text).filter((e) => e.getAttribute('role') !== 'tooltip')).toEqual([]);
+      const button = helpOf(heading);
+      expect(tipOf(button)?.textContent).toBe(text);
+      expect(tipOf(button)?.hidden).toBe(true);
+      await user.tab();
+      act(() => button.focus());
+      expect(tipOf(button)?.hidden).toBe(false);
+    }
+    const site = screen.getByLabelText('Add website');
+    expect(site.getAttribute('placeholder')).toBe('example.com');
+    expect(screen.queryAllByText(/You can also paste a full address/).filter((e) => e.getAttribute('role') !== 'tooltip')).toEqual([]);
+    // With rows the add actions are icon buttons: same name, same action, tooltip on focus.
+    await addField(user, 'Status');
+    await closeDetails(user);
+    const add = screen.getByRole('button', { name: 'Add field' });
+    expect(add.className).toContain('q-button--icon');
+    expect(add.textContent).toBe('');
+    await user.click(screen.getByRole('button', { name: 'Add target' }));
+    await closeDetails(user);
+    const addTarget = screen.getByRole('button', { name: 'Add target' });
+    expect(addTarget.className).toContain('q-button--icon');
+    act(() => addTarget.focus());
+    expect(screen.getAllByRole('tooltip').some((t) => t.textContent === 'Add target' && !t.hidden)).toBe(true);
+  });
+
   it('drops site mappings of a deleted field', async () => {
     const f = { key: 'title', label: 'Title', required: false, sources: {} };
     const storage = fakeStorage(stored(project('p1', 'A', { fields: [f], siteMappings: { 'example.com': { title: 'h1' } } })));
@@ -900,7 +935,7 @@ describe('import and export', () => {
     vi.stubGlobal('showSaveFilePicker', async (o: unknown) => ((options = o), { createWritable: async () => writable }));
     const user = await mount(storage, fakePermissions(), IMPORT_EXPORT);
     expect(screen.getByText(/Access keys are not included/)).toBeTruthy();
-    await user.click(screen.getByRole('button', { name: 'Export' }));
+    await user.click(screen.getByRole('button', { name: 'Export configuration' }));
     await screen.findByText(exportDone);
     expect(options).toMatchObject({ suggestedName: 'qatlas-clipper-config.json' });
     expect(written).toContain('Authorization');
@@ -913,7 +948,7 @@ describe('import and export', () => {
     const writable = { write: vi.fn(async () => {}), close: vi.fn(() => new Promise<void>((r) => (finish = r))) };
     vi.stubGlobal('showSaveFilePicker', async () => ({ createWritable: async () => writable }));
     const user = await mount(withHeader(), fakePermissions(), IMPORT_EXPORT);
-    await user.click(screen.getByRole('button', { name: 'Export' }));
+    await user.click(screen.getByRole('button', { name: 'Export configuration' }));
     await waitFor(() => expect(writable.close).toHaveBeenCalled());
     expect(screen.queryByText(exportDone)).toBeNull();
     finish();
@@ -926,7 +961,7 @@ describe('import and export', () => {
     });
     vi.stubGlobal('showSaveFilePicker', picker);
     const user = await mount(withHeader(), fakePermissions(), IMPORT_EXPORT);
-    await user.click(screen.getByRole('button', { name: 'Export' }));
+    await user.click(screen.getByRole('button', { name: 'Export configuration' }));
     await waitFor(() => expect(picker).toHaveBeenCalled());
     await act(async () => {});
     expect(screen.queryByText(exportDone)).toBeNull();
@@ -938,7 +973,7 @@ describe('import and export', () => {
       createWritable: async () => ({ write: async () => { throw new Error('disk full'); }, close: async () => {} }),
     }));
     const user = await mount(withHeader(), fakePermissions(), IMPORT_EXPORT);
-    await user.click(screen.getByRole('button', { name: 'Export' }));
+    await user.click(screen.getByRole('button', { name: 'Export configuration' }));
     expect((await screen.findByRole('alert')).textContent).toContain('Export failed: disk full');
     expect(screen.queryByText(exportDone)).toBeNull();
   });
@@ -950,7 +985,7 @@ describe('import and export', () => {
     URL.revokeObjectURL = vi.fn();
     const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
     const user = await mount(storage, fakePermissions(), IMPORT_EXPORT);
-    await user.click(screen.getByRole('button', { name: 'Export' }));
+    await user.click(screen.getByRole('button', { name: 'Export configuration' }));
     await waitFor(() => expect(click).toHaveBeenCalledOnce());
     const text = await blob!.text();
     expect(text).toContain('Authorization');
@@ -980,7 +1015,7 @@ describe('import and export', () => {
     const before = structuredClone(storage.data);
     const user = await mount(storage, fakePermissions(), IMPORT_EXPORT);
     const file = new File([imported], 'c.json', { type: 'application/json' });
-    await user.upload(screen.getByLabelText('From file'), file);
+    await user.upload(screen.getByTestId('backup-file-input'), file);
     const dialog = await screen.findByRole('dialog', { name: DIALOG });
     expect(dialog.textContent).toContain('2 projects');
     expect(dialog.textContent).toContain('whole current configuration is replaced');
@@ -989,7 +1024,7 @@ describe('import and export', () => {
     expect(screen.queryByRole('dialog', { name: DIALOG })).toBeNull();
     expect(storage.data).toEqual(before);
 
-    await user.upload(screen.getByLabelText('From file'), file);
+    await user.upload(screen.getByTestId('backup-file-input'), file);
     await user.click(await screen.findByRole('button', { name: 'Replace' }));
     expect(await screen.findByRole('link', { name: 'Imported 1' })).toBeTruthy();
     // The message survives the reload that remounts the page content.
@@ -997,17 +1032,59 @@ describe('import and export', () => {
     expect((await loadConfig(storage)).projects.map((p) => p.name)).toEqual(['Imported 1', 'Imported 2']);
   });
 
+  it('lists every target address of the file in the confirmation, without keys or header values', async () => {
+    const withTargets = JSON.stringify({
+      schemaVersion: 1,
+      projects: [
+        project('n1', 'Imported 1', { targets: [{ id: 'a', name: 'A', url: 'https://one.example.com/hook', headers: ['X-Key'], purpose: '' }] }),
+        project('n2', 'Imported 2', { targets: [
+          { id: 'b', name: 'B', url: 'https://two.example.org/in', headers: [], purpose: '' },
+          { id: 'c', name: 'C', url: 'https://one.example.com/other', headers: [], purpose: '' },
+        ] }),
+      ],
+    });
+    const user = await mount(withHeader(), fakePermissions(), IMPORT_EXPORT);
+    await user.upload(screen.getByTestId('backup-file-input'), new File([withTargets], 'c.json'));
+    const dialog = await screen.findByRole('dialog', { name: DIALOG });
+    const list = within(dialog).getByRole('list', { name: 'Addresses' });
+    expect(within(list).getAllByRole('listitem').map((li) => li.textContent)).toEqual(['https://one.example.com', 'https://two.example.org']);
+    expect(dialog.textContent).toContain('these 2 addresses');
+    expect(dialog.textContent).not.toMatch(/X-Key|secret-token/);
+    expect(within(dialog).getByRole('button', { name: 'Replace' }).className).toContain('q-button--danger');
+  });
+
+  it('warns that no projects are left when the file has none', async () => {
+    const user = await mount(withHeader(), fakePermissions(), IMPORT_EXPORT);
+    await user.upload(screen.getByTestId('backup-file-input'), new File([JSON.stringify({ schemaVersion: 1, projects: [] })], 'c.json'));
+    const dialog = await screen.findByRole('dialog', { name: DIALOG });
+    expect(within(dialog).getByRole('alert').textContent).toContain('no projects are left');
+    expect(within(dialog).queryByRole('list', { name: 'Addresses' })).toBeNull();
+  });
+
+  it('opens the file chooser from the restore button with the keyboard', async () => {
+    const click = vi.spyOn(HTMLInputElement.prototype, 'click');
+    const user = await mount(withHeader(), fakePermissions(), IMPORT_EXPORT);
+    const button = screen.getByRole('button', { name: 'Restore from file' });
+    button.focus();
+    await user.keyboard('{Enter}');
+    expect(click).toHaveBeenCalledTimes(1);
+    expect((click.mock.contexts[0] as HTMLInputElement).dataset.testid).toBe('backup-file-input');
+    await user.keyboard(' ');
+    expect(click).toHaveBeenCalledTimes(2);
+    click.mockRestore();
+  });
+
   it('shows an error at the file field for invalid files without storing and without echoing content', async () => {
     const storage = withHeader();
     const before = structuredClone(storage.data);
     const user = await mount(storage, fakePermissions(), IMPORT_EXPORT);
-    await user.upload(screen.getByLabelText('From file'), new File(['{"secret-marker":'], 'c.json'));
+    await user.upload(screen.getByTestId('backup-file-input'), new File(['{"secret-marker":'], 'c.json'));
     const alert = await screen.findByText(/Import failed/);
     expect(alert.textContent).not.toContain('secret-marker');
     expect(storage.data).toEqual(before);
     expect(screen.queryByRole('dialog', { name: DIALOG })).toBeNull();
-    expect(screen.getByRole('button', { name: 'Export' })).toHaveProperty('disabled', false);
-    expect(screen.getByLabelText('From file')).toHaveProperty('disabled', false);
+    expect(screen.getByRole('button', { name: 'Export configuration' })).toHaveProperty('disabled', false);
+    expect(screen.getByTestId('backup-file-input')).toHaveProperty('disabled', false);
   });
 
   it('mentions discarded unsaved changes in the confirmation', async () => {
@@ -1015,7 +1092,7 @@ describe('import and export', () => {
     await titleMenu(user, 'Add project');
     await user.click(screen.getByRole('link', { name: 'Import and export' }));
     expect(screen.getByText(/Unsaved changes are not exported/)).toBeTruthy();
-    await user.upload(screen.getByLabelText('From file'), new File([imported], 'c.json'));
+    await user.upload(screen.getByTestId('backup-file-input'), new File([imported], 'c.json'));
     expect((await screen.findByRole('dialog', { name: DIALOG })).textContent).toContain('Unsaved changes are discarded');
   });
 
@@ -1025,8 +1102,8 @@ describe('import and export', () => {
     const fetchMock = vi.fn(async () => new Response(imported));
     vi.stubGlobal('fetch', fetchMock);
     const user = await mount(storage, permissions, IMPORT_EXPORT);
-    await user.type(screen.getByLabelText('From address'), 'https://example.org/c.json');
-    await user.click(screen.getByRole('button', { name: 'Load' }));
+    await user.type(screen.getByLabelText('Address of the backup'), 'https://example.org/c.json');
+    await user.click(screen.getByRole('button', { name: 'Load backup' }));
     const dialog = await screen.findByRole('dialog', { name: DIALOG });
     expect(permissions.request).toHaveBeenCalledWith(['https://example.org/*']);
     expect(fetchMock).toHaveBeenCalledWith('https://example.org/c.json', { credentials: 'omit', redirect: 'error' });
@@ -1042,19 +1119,19 @@ describe('import and export', () => {
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
     const user = await mount(storage, fakePermissions(false), IMPORT_EXPORT);
-    await user.type(screen.getByLabelText('From address'), 'https://example.org/c.json');
-    await user.click(screen.getByRole('button', { name: 'Load' }));
+    await user.type(screen.getByLabelText('Address of the backup'), 'https://example.org/c.json');
+    await user.click(screen.getByRole('button', { name: 'Load backup' }));
     await screen.findByText(/permission for the address was not granted/);
     expect(fetchMock).not.toHaveBeenCalled();
     expect(screen.queryByRole('dialog', { name: DIALOG })).toBeNull();
-    expect(screen.getByLabelText('From address')).toHaveProperty('value', 'https://example.org/c.json');
+    expect(screen.getByLabelText('Address of the backup')).toHaveProperty('value', 'https://example.org/c.json');
   });
 
   it('rejects plain http URLs except localhost without asking for permission', async () => {
     const permissions = fakePermissions();
     const user = await mount(withHeader(), permissions, IMPORT_EXPORT);
-    await user.type(screen.getByLabelText('From address'), 'http://example.org/c.json');
-    await user.click(screen.getByRole('button', { name: 'Load' }));
+    await user.type(screen.getByLabelText('Address of the backup'), 'http://example.org/c.json');
+    await user.click(screen.getByRole('button', { name: 'Load backup' }));
     await screen.findByText(/only allowed for localhost/);
     expect(permissions.request).not.toHaveBeenCalled();
   });
@@ -1084,7 +1161,7 @@ describe('options page language', () => {
     }
     expect(within(screen.getByRole('main')).getByRole('button', { name: de['options.project.menu'].replace('{name}', 'A') })).toBeTruthy();
     await user.click(screen.getByRole('button', { name: de['options.fields.open'].replace('{name}', 'Headline') }));
-    for (const key of ['options.fields.title', 'options.fields.way.label', 'options.fields.add.button', 'options.fields.required', 'options.mappings.title', 'options.fields.deleteButton'] as const) {
+    for (const key of ['options.fields.title', 'options.fields.way.label', 'options.fields.required', 'options.mappings.title', 'options.fields.deleteButton'] as const) {
       expect(screen.getAllByText(de[key]).length, key).toBeGreaterThan(0);
     }
     const detect = screen.getByLabelText(de['options.fields.detect.label']) as HTMLSelectElement;
@@ -1215,7 +1292,7 @@ describe('options navigation', () => {
     expect(screen.getByRole('heading', { name: 'Settings', level: 2 })).toBeTruthy();
     await user.click(nav().getByRole('link', { name: 'Import and export' }));
     expect(current()).toEqual(['Import and export']);
-    expect(screen.getByLabelText('From file')).toBeTruthy();
+    expect(screen.getByTestId('backup-file-input')).toBeTruthy();
   });
 
   it('opens the help from its address and marks its entry as the current page', async () => {
@@ -1590,7 +1667,7 @@ describe('saving without overwriting', { timeout: 20000 }, () => {
     await rename(user, 'Mine');
     await user.click(screen.getByRole('link', { name: 'Import and export' }));
     const file = new File([JSON.stringify({ schemaVersion: 1, projects: [project('n1', 'Imported')] })], 'c.json');
-    await user.upload(screen.getByLabelText('From file'), file);
+    await user.upload(screen.getByTestId('backup-file-input'), file);
     await user.click(await screen.findByRole('button', { name: 'Replace' }, WAIT));
     expect(await screen.findByRole('link', { name: 'Imported' }, WAIT)).toBeTruthy();
     expect(screen.queryByRole('dialog', { name: CONFLICT })).toBeNull();

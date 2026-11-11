@@ -26,15 +26,26 @@ h4 { font-size: 1em; margin: 0; }
 .options-row { display: flex; align-items: center; gap: var(--space-1); }
 .options-row > .options-nav-link { flex: 1 1 auto; min-width: 0; }
 /* Row menus: space stays reserved and the button stays in the tab order; it shows on hover, focus, open menu and touch. */
-.options-row .q-menu-wrap { flex: none; opacity: 0; }
-.options-row:hover .q-menu-wrap, .options-row:focus-within .q-menu-wrap, .options-row:has([aria-expanded="true"]) .q-menu-wrap { opacity: 1; }
-@media (hover: none) { .options-row .q-menu-wrap { opacity: 1; } }
+.options-row .q-menu-wrap, .options-row .options-grip { flex: none; opacity: 0; }
+.options-row:hover .q-menu-wrap, .options-row:focus-within .q-menu-wrap, .options-row:has([aria-expanded="true"]) .q-menu-wrap,
+.options-row:hover .options-grip, .options-row:focus-within .options-grip { opacity: 1; }
+@media (hover: none) { .options-row .q-menu-wrap, .options-row .options-grip { opacity: 1; } }
+/* The grip keeps the focus during a drag; its tooltip would cover the drop targets. */
+.options-sidebar.is-dragging .q-tooltip { display: none; }
+/* Drop marks of the sidebar: a line before or after the row, a frame around a folder that takes the project. */
+.options-nav-projects li.is-dragged { opacity: 0.5; }
+.options-nav-projects li.is-drop-before { box-shadow: inset 0 3px 0 var(--color-accent); }
+.options-nav-projects li.is-drop-after { box-shadow: inset 0 -3px 0 var(--color-accent); }
+.options-nav-projects .is-drop-into { box-shadow: inset 0 0 0 2px var(--color-accent); border-radius: var(--radius-md); }
+.options-drop-end { padding: var(--space-1) var(--space-3); border: 1px dashed var(--color-border); border-radius: var(--radius-md); color: var(--color-text-muted); font-size: var(--font-size-small); }
+.options-drop-end.is-over { border-style: solid; border-color: var(--color-accent); }
 .options-nav-projects, .options-nav-areas { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-1); }
 .options-nav-projects { overflow-y: auto; min-height: 0; flex: 1 1 auto; }
 .options-nav-areas { margin-top: auto; padding-top: var(--space-3); border-top: 1px solid var(--color-border); }
 .options-import-existing { margin: var(--space-1) 0 var(--space-2) var(--space-5); }
 .options-import-targets { border: 1px solid var(--color-danger); border-radius: var(--radius-md); padding: var(--space-2) var(--space-4); }
 .options-import-targets ul { margin: var(--space-2) 0; padding-left: var(--space-5); overflow-wrap: anywhere; }
+.options-address-list { max-height: 10rem; overflow-y: auto; }
 .options-nav-link {
   display: flex; align-items: center; gap: var(--space-2); padding: var(--space-2) var(--space-3); border-radius: var(--radius-md); border: 1px solid transparent;
   color: var(--color-text); text-decoration: none; overflow-wrap: anywhere;
@@ -95,7 +106,9 @@ a.q-button { text-decoration: none; }
 .options-choice input:focus-visible { outline: 3px solid var(--color-focus); outline-offset: 2px; }
 .options-chips { display: flex; flex-wrap: wrap; gap: var(--space-2); list-style: none; margin: 0 0 var(--space-3); padding: 0; }
 .options-add { display: flex; flex-wrap: wrap; gap: var(--space-3); align-items: flex-start; }
-.options-add .q-button { margin-top: 1.75rem; }
+/* The add button sits in a tooltip wrapper; the info button in the label row must keep its place. */
+.options-add > .q-button, .options-add > .q-tooltip-wrap { margin-top: calc(1.75rem + var(--space-1)); }
+.options-add .q-tooltip-wrap > .q-button--icon:not(.q-help) { min-height: 2.5rem; border-color: var(--color-border); }
 
 /* Fields: table, details and mappings. Targets use the same table and details. */
 .options-field { border: 1px solid var(--color-border); border-radius: var(--radius-md); background: var(--color-surface); padding: var(--space-3) var(--space-4); margin-bottom: var(--space-3); }
@@ -192,7 +205,18 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .options-folder-edit-row .q-icon { flex: none; }
 .options-folder-edit-row .q-input { flex: 1 1 auto; min-width: 0; }
 .options-folder-edit .q-error { margin: 0 0 var(--space-1) var(--space-3); }
-.options-share-tools { display: flex; gap: var(--space-2); margin-bottom: var(--space-3); }
 .options-share-tree { list-style: none; margin: 0 0 var(--space-3); padding: 0; display: flex; flex-direction: column; gap: var(--space-2); }
 .options-share-children { margin: var(--space-2) 0 0 var(--space-5); }
+.options-share-compact, .options-share-compact.options-share-children { gap: 0; }
+.options-share-compact.options-share-children { margin: 0 0 0 var(--space-5); }
+.options-share-row { display: flex; align-items: center; gap: var(--space-2); min-height: 1.75rem; padding: 0 var(--space-2); border-radius: var(--radius-sm); cursor: pointer; overflow-wrap: anywhere; }
+.options-share-row:hover { background: var(--color-surface); }
+.options-share-row .q-icon { flex: none; color: var(--color-text-muted); }
+.options-share-head { font-weight: 600; border-bottom: 1px solid var(--color-border); border-radius: 0; margin-bottom: var(--space-1); }
+.options-share-manager { max-width: 28rem; margin-bottom: var(--space-3); }
+.options-share-manager > .q-button { margin-top: var(--space-3); }
+.options-share-import { padding-top: var(--space-4); border-top: 1px solid var(--color-border); }
+.options-restore { display: flex; flex-direction: column; gap: var(--space-3); align-items: flex-start; }
+.options-restore .options-wide { width: 28rem; max-width: 100%; justify-content: center; }
+.options-restore .options-add .q-field { width: 28rem; max-width: 100%; margin-bottom: 0; }
 .options-share { display: flex; flex-direction: column; gap: var(--space-3); }

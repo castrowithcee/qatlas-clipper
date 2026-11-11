@@ -70,7 +70,6 @@ export function SettingsSection({ permissions = defaultPermissions }: { permissi
         {i18n.t('settings.title')}{' '}
         <IconButton icon="info" label={i18n.t('ui.moreInfo')} tooltip={i18n.t('settings.help')} className="q-help" />
       </h2>
-      <p className="hint">{i18n.t('settings.hint')}</p>
       <Select
         label={i18n.t('settings.language.label')}
         value={settings.language}

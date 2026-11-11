@@ -7,7 +7,7 @@ import { chromeSwitchApis, switchSupported, switchView, useI18n, useSettings, ty
 import { connectHighlight, type HighlightConnection } from '../highlight/connect';
 import type { HighlightItem } from '../highlight/messages';
 import { findSelector } from '../extract';
-import { Button } from '../ui/components';
+import { SplitButton } from '../ui/components';
 import { ALL_SITES_ORIGINS, defaultPermissions, originPattern, type PermissionsApi } from '../options/permissions';
 import { startPicker } from '../picker/start';
 import { buildPayload, domainOfUrl } from '../send/payload';
@@ -31,6 +31,7 @@ import { addCapturedField, updateProject, updateProjectField } from './projectFi
 import { requestOptionsFocus } from '../options/focus';
 import { FieldForm, type FieldPatch } from './FieldForm';
 import { Header } from './Header';
+import { loadLastTargets, pickTarget, saveLastTarget, shortAddress } from './lastTarget';
 import { MissingHint, Notice, ResultView } from './Outcome';
 import { BlockedView, LoadingView, NoPermissionView, NoProjectsView, NoTargetView, type BlockReason } from './States';
 import './popup.css';
@@ -128,6 +129,9 @@ export function PopupApp({
   const sending = useRef(new Set<string>());
   const [sendingIds, setSendingIds] = useState<string[]>([]);
   const [draft, setDraft] = useState<Draft | null>(null);
+  const [lastTargets, setLastTargets] = useState<Record<string, string>>({});
+  // The target of the latest send action, whose hint or result is shown under the header.
+  const [sentId, setSentId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [accessDenied, setAccessDenied] = useState(false);
   const [switchApis] = useState(() => switchProp ?? chromeSwitchApis());
@@ -182,7 +186,10 @@ export function PopupApp({
         setDraft(saved);
         setAccessDenied(false);
         const stored = await loadSendState(url, resultStorage).catch(() => undefined);
+        const remembered = await loadLastTargets(storage).catch(() => ({}));
         if (stale()) return;
+        setLastTargets(remembered);
+        setSentId(null);
         if (stored) setSendState(stored);
         setState({ phase: 'ready', config, tabId: tab.id, tabUrl: url, read: result.result, projectId });
       } catch {
@@ -387,6 +394,7 @@ export function PopupApp({
     sending.current.add(target.id);
     setSendingIds([...sending.current]);
     setHint(null);
+    setSentId(target.id);
     try {
       const missing = project.fields.filter((f) => f.required && valueOf(f.key).trim() === '').map((f) => f.key);
       if (missing.length > 0) return setHint({ targetId: target.id, kind: 'missing', keys: missing });
@@ -443,6 +451,28 @@ export function PopupApp({
     });
   };
   const missingKeys = hint?.kind === 'missing' ? hint.keys : [];
+  const targets = project.targets;
+  const chosen = pickTarget(targets, lastTargets, projectId);
+  const busyTarget = targets.find((x) => sendingIds.includes(x.id) || sendState.inFlight.includes(x.id));
+  const chooseTarget = (id: string) => {
+    const target = targets.find((x) => x.id === id);
+    if (!target) return;
+    void saveLastTarget(storage, projectId, id).then(setLastTargets, () => undefined);
+    void sendTo(target);
+  };
+  const active = busyTarget ?? chosen;
+  const sendControl = chosen && active && (
+    <SplitButton
+      icon="send"
+      label={t('popup.send.to', { name: chosen.name })}
+      busyLabel={t('popup.send.busyTo', { name: active.name })}
+      busy={busyTarget !== undefined}
+      onMain={() => void sendTo(chosen)}
+      menuLabel={t('popup.send.choose')}
+      options={targets.length > 1 ? targets.map((x) => ({ id: x.id, label: x.name, detail: shortAddress(x.url) })) : []}
+      onSelect={chooseTarget}
+    />
+  );
   const header = (
     <Header
       projects={ordered}
@@ -456,12 +486,32 @@ export function PopupApp({
       onToggleHighlight={() => void updateSettings({ highlight: !highlightOn }).catch(() => undefined)}
       switchTo={switchSupported(switchApis) ? (variant === 'sidepanel' ? 'popup' : 'sidepanel') : undefined}
       onSwitchView={switchNow}
+      send={sendControl || undefined}
     />
   );
 
   const switchNotice =
     switchNote &&
     (switchNote.kind === 'hint' ? <Notice kind="warning" title={switchNote.text} /> : <p role="alert" className="popup-error">{switchNote.text}</p>);
+
+  const latest = targets
+    .filter((x) => sendState.results[x.id] !== undefined)
+    .sort((a, b) => sendState.results[b.id]!.at.localeCompare(sendState.results[a.id]!.at))[0];
+  const shown = targets.find((x) => x.id === sentId) ?? busyTarget ?? latest;
+  const shownResult = shown ? sendState.results[shown.id] : undefined;
+  const shownBusy = shown !== undefined && shown.id === busyTarget?.id;
+  const shownHint = hint !== null && shown?.id === hint.targetId ? hint : null;
+  const resultBlock = shown && (
+    <div className="popup-result">
+      {shownBusy && <span role="status" className="popup-sr">{t('popup.send.busyTo', { name: shown.name })}</span>}
+      {shownHint?.kind === 'missing' && <MissingHint target={shown.name} />}
+      {shownHint?.kind === 'permission' && <NoPermissionView target={shown.name} onOpenOptions={openOpts} />}
+      {!shownHint && !shownBusy && shownResult?.outcome.kind === 'no-permission' && <NoPermissionView target={shown.name} onOpenOptions={openOpts} />}
+      {!shownHint && !shownBusy && shownResult && (
+        <ResultView target={shown.name} outcome={shownResult.outcome} at={shownResult.at} onRetry={() => void sendTo(shown)} />
+      )}
+    </div>
+  );
 
   if (project.targets.length === 0) {
     return (
@@ -476,6 +526,7 @@ export function PopupApp({
   return (
     <main className={rootClass}>
       {header}
+      {resultBlock}
       {switchNotice}
       {actionError && <p role="alert" className="popup-error">{actionError}</p>}
       <FieldForm
@@ -497,32 +548,6 @@ export function PopupApp({
         onUpdateField={updateField}
         onRemoveMapping={removeMapping}
       />
-      <section aria-label={t('popup.send.section')} className="popup-send">
-        {project.targets.map((target) => {
-          const busy = sendingIds.includes(target.id) || sendState.inFlight.includes(target.id);
-          const result = sendState.results[target.id];
-          const h = hint?.targetId === target.id ? hint : null;
-          const noPermission = h?.kind === 'permission' || result?.outcome.kind === 'no-permission';
-          return (
-            <div className="popup-target" key={target.id}>
-              <Button variant="primary" className="popup-send-button" disabled={busy} aria-busy={busy} onClick={() => void sendTo(target)}>
-                {busy ? (
-                  <>
-                    <span className="q-spinner popup-spinner" aria-hidden="true" />
-                    {t('popup.send.busy')}
-                  </>
-                ) : (
-                  t('popup.send.to', { name: target.name })
-                )}
-              </Button>
-              {busy && <span role="status" className="popup-sr">{t('popup.send.busyTo', { name: target.name })}</span>}
-              {h?.kind === 'missing' && <MissingHint />}
-              {noPermission && <NoPermissionView onOpenOptions={openOpts} />}
-              {result && !busy && <ResultView outcome={result.outcome} at={result.at} onRetry={() => void sendTo(target)} />}
-            </div>
-          );
-        })}
-      </section>
     </main>
   );
 }

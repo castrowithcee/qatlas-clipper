@@ -110,7 +110,7 @@ export function FieldEditor({ fields, siteMappings, basePath, issues, onChange, 
     const row = returnTo.current;
     if (row === undefined) return;
     returnTo.current = undefined;
-    (document.getElementById(`${id}-open-${row}`) ?? document.getElementById(`${id}-title`)?.parentElement?.querySelector<HTMLElement>('.options-add input'))?.focus();
+    (document.getElementById(`${id}-open-${row}`) ?? document.getElementById(`${id}-title`)?.closest('section')?.querySelector<HTMLElement>('.options-add input'))?.focus();
   }, [shownId, id]);
 
   const add = () => {
@@ -158,8 +158,10 @@ export function FieldEditor({ fields, siteMappings, basePath, issues, onChange, 
 
   return (
     <section aria-labelledby={`${id}-title`} className="options-section">
-      <h3 id={`${id}-title`}>{t('options.fields.title')}</h3>
-      <p className="q-hint">{t('options.fields.hint')}</p>
+      <h3>
+        <span id={`${id}-title`}>{t('options.fields.title')}</span>{' '}
+        <IconButton icon="info" label={t('ui.moreInfo')} tooltip={t('options.fields.hint')} className="q-help" />
+      </h3>
       {fields.length === 0 ? (
         <EmptyState title={t('options.fields.empty')} />
       ) : (
@@ -267,9 +269,13 @@ export function FieldEditor({ fields, siteMappings, basePath, issues, onChange, 
           }}
           onKeyDown={onKeyDown}
         />
-        <Button icon="plus" onClick={add}>
-          {t('options.fields.add.button')}
-        </Button>
+        {fields.length === 0 ? (
+          <Button variant="primary" icon="plus" onClick={add}>
+            {t('options.fields.add.button')}
+          </Button>
+        ) : (
+          <IconButton icon="plus" label={t('options.fields.add.button')} onClick={add} />
+        )}
       </div>
       <DetailPanel
         open={openField !== undefined}

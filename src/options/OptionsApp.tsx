@@ -29,7 +29,7 @@ import { ShareImportDialog, readShareFile } from './ShareImportDialog';
 import { Brand, Sidebar, type NavTarget } from './Sidebar';
 import { defaultFocusChannel, takeOptionsFocus, type FocusChannel } from './focus';
 import { navigate, parseHash, projectHash, useHash } from './route';
-import { addFolder, addTagToProject, deleteFolder, groupNeighbor, moveFolder, moveProjectInGroup, newProject, renameFolder, normalize, unmappedIssues, validate } from './draft';
+import { addFolder, addTagToProject, deleteFolder, groupNeighbor, moveFolder, moveProjectInGroup, moveProjectTo, newProject, renameFolder, normalize, unmappedIssues, validate } from './draft';
 import { SettingsSection, useI18n } from '../settings';
 import { Button, Dialog, Disclosure, EmptyState, ErrorState, LoadingState, NotificationsProvider, useNotifications } from '../ui/components';
 import './options.css';
@@ -443,10 +443,10 @@ function Editor({ initial, initialValues, storage, permissions, subscribe, onRel
           return id;
         }}
         onRenameFolder={(id, name) => editConfig((c) => renameFolder(c, id, name))}
-        onMoveFolder={(index, delta) => editConfig((c) => moveFolder(c, index, index + delta))}
+        onMoveFolderTo={(from, to) => editConfig((c) => moveFolder(c, from, to))}
         onDeleteFolder={(id) => editConfig((c) => deleteFolder(c, id))}
         onExportFolder={(id) => setShareRequest({ projectIds: [], folderIds: [id] })}
-        onMoveProject={moveProject}
+        onMoveProjectTo={(id, folderId, index) => edit(moveProjectTo(live.current.draft.projects, live.current.draft.folders ?? [], id, folderId, index))}
         onExportProject={(id) => setShareRequest({ projectIds: [id], folderIds: [] })}
         onDeleteProject={deleteProject}
         onImportFile={openShareFileFromSidebar}

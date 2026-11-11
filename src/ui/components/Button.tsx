@@ -25,10 +25,12 @@ interface IconButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 
   label: string;
   /** Replaces the label as tooltip content; read as description, since it adds to the name. */
   tooltip?: string;
+  /** Shows a spinner instead of the icon and sets aria-busy; the caller also disables the button. */
+  busy?: boolean;
   ref?: Ref<HTMLButtonElement>;
 }
 
-export function IconButton({ icon, label, tooltip, className, type = 'button', onFocus, onBlur, 'aria-describedby': describedBy, ...rest }: IconButtonProps) {
+export function IconButton({ icon, label, tooltip, busy, className, type = 'button', onFocus, onBlur, 'aria-describedby': describedBy, ...rest }: IconButtonProps) {
   const content = tooltip ?? label;
   return (
     <Tooltip content={content} keepMounted={content !== label}>
@@ -38,6 +40,7 @@ export function IconButton({ icon, label, tooltip, className, type = 'button', o
           aria-label={label}
           className={['q-button', 'q-button--icon', className].filter(Boolean).join(' ')}
           {...rest}
+          aria-busy={busy || undefined}
           // A tooltip equal to the name must not be announced a second time.
           aria-describedby={[describedBy, content !== label ? tip['aria-describedby'] : undefined].filter(Boolean).join(' ') || undefined}
           onFocus={(e) => {
@@ -49,7 +52,7 @@ export function IconButton({ icon, label, tooltip, className, type = 'button', o
             onBlur?.(e);
           }}
         >
-          <Icon name={icon} />
+          {busy ? <span className="q-spinner q-spinner--small" aria-hidden="true" /> : <Icon name={icon} />}
         </button>
       )}
     </Tooltip>
