@@ -77,3 +77,92 @@ export function registerOpenAs(deps: RegisterOpenAsDeps): { apply: () => Promise
   deps.subscribe((s) => void run(s.openAs));
   return { apply };
 }
+
+/** Browser APIs of the direct switch; every function may be missing in older browsers. */
+export interface SwitchApis {
+  action?: {
+    setPopup?(details: { popup: string }): Promise<void> | void;
+    openPopup?(): Promise<void> | void;
+  };
+  sidePanel?: {
+    open?(options: { tabId: number }): Promise<void> | void;
+    close?(options: { tabId: number }): Promise<void> | void;
+  };
+}
+
+/** `switched`: the other view is open and this one closed. `failed`: the setting changed, this view stays open. */
+export type SwitchResult = 'switched' | 'failed' | 'save-failed';
+
+export interface SwitchDeps {
+  from: OpenAs;
+  tabId: number;
+  apis: SwitchApis;
+  /** Stores the new `openAs` (the service worker then applies it to the toolbar button). */
+  save: (openAs: OpenAs) => Promise<void>;
+  /** Closes the view the switch started from; for the side panel after `sidePanel.close` was not possible. */
+  closeSelf: () => void;
+  popupPath?: string;
+}
+
+/** The switch exists only where the side panel API exists. */
+export const switchSupported = (apis: SwitchApis): boolean => apis.sidePanel !== undefined;
+
+/** Reads the extension APIs of the global `chrome` object; undefined parts stay undefined. */
+export function chromeSwitchApis(root: { chrome?: unknown } = globalThis): SwitchApis {
+  const c = root.chrome as
+    | { action?: SwitchApis['action']; sidePanel?: SwitchApis['sidePanel'] }
+    | undefined;
+  // Bound calls: the browser functions need their namespace as `this`.
+  const bind = <T extends object>(ns: T | undefined): T | undefined =>
+    typeof ns === 'object' && ns !== null
+      ? (Object.fromEntries(
+          Object.keys(ns).map((k) => {
+            const f = (ns as Record<string, unknown>)[k];
+            return [k, typeof f === 'function' ? (f as (...a: unknown[]) => unknown).bind(ns) : f];
+          }),
+        ) as T)
+      : undefined;
+  return { action: bind(c?.action), sidePanel: bind(c?.sidePanel) };
+}
+
+/**
+ * Switches between popup and side panel and makes the choice permanent.
+ * From the popup `sidePanel.open` is called before anything is awaited: it needs the user gesture of the click.
+ */
+export async function switchView(deps: SwitchDeps): Promise<SwitchResult> {
+  const { from, tabId, apis } = deps;
+  if (from === 'popup') {
+    let opened: Promise<void>;
+    try {
+      if (!apis.sidePanel?.open) throw new Error('sidePanel.open missing');
+      opened = Promise.resolve(apis.sidePanel.open({ tabId }));
+    } catch (e) {
+      opened = Promise.reject(e);
+    }
+    const [open, saved] = await Promise.allSettled([opened, deps.save('sidepanel')]);
+    if (saved.status === 'rejected') return 'save-failed';
+    if (open.status === 'rejected') return 'failed';
+    deps.closeSelf();
+    return 'switched';
+  }
+  try {
+    await deps.save('popup');
+  } catch {
+    return 'save-failed';
+  }
+  try {
+    if (!apis.action?.openPopup) throw new Error('action.openPopup missing');
+    // openPopup needs a popup document; the service worker sets it too, but may not have run yet.
+    await apis.action.setPopup?.({ popup: deps.popupPath ?? FALLBACK_POPUP_PATH });
+    await apis.action.openPopup();
+  } catch {
+    return 'failed';
+  }
+  try {
+    if (!apis.sidePanel?.close) throw new Error('sidePanel.close missing');
+    await apis.sidePanel.close({ tabId });
+  } catch {
+    deps.closeSelf();
+  }
+  return 'switched';
+}

@@ -9,9 +9,12 @@ interface Props {
   onOpenOptions: () => void;
   highlight: boolean;
   onToggleHighlight: () => void;
+  /** Target view of the switch; undefined hides it (no side panel API). */
+  switchTo?: 'popup' | 'sidepanel';
+  onSwitchView?: () => void;
 }
 
-export function Header({ projects, matchingIds, value, onChange, onOpenOptions, highlight, onToggleHighlight }: Props) {
+export function Header({ projects, matchingIds, value, onChange, onOpenOptions, highlight, onToggleHighlight, switchTo, onSwitchView }: Props) {
   const { t } = useI18n();
   return (
     <header className="popup-header">
@@ -27,6 +30,18 @@ export function Header({ projects, matchingIds, value, onChange, onOpenOptions, 
             />
           )}
         </Tooltip>
+        {switchTo && (
+          <Tooltip content={t(switchTo === 'sidepanel' ? 'popup.header.toSidepanel' : 'popup.header.toPopup')}>
+            {(tip) => (
+              <IconButton
+                icon={switchTo}
+                label={t(switchTo === 'sidepanel' ? 'popup.header.toSidepanel' : 'popup.header.toPopup')}
+                onClick={onSwitchView}
+                {...tip}
+              />
+            )}
+          </Tooltip>
+        )}
         <Tooltip content={t('popup.header.options')}>
           {(tip) => <IconButton icon="settings" label={t('popup.header.options')} onClick={onOpenOptions} {...tip} />}
         </Tooltip>

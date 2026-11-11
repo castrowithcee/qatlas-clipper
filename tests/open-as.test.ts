@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { DEFAULT_SETTINGS, type Settings } from '../src/settings/schema';
-import { PANEL_CLICK_TYPE, applyOpenAs, effectiveOpenAs, registerOpenAs, sidePanelSupported } from '../src/settings/openAs';
+import { PANEL_CLICK_TYPE, applyOpenAs, chromeSwitchApis, switchSupported, switchView, effectiveOpenAs, registerOpenAs, sidePanelSupported } from '../src/settings/openAs';
 
 const fakes = () => {
   const calls: string[] = [];
@@ -116,5 +116,103 @@ describe('registerOpenAs', () => {
     await flush();
     expect(f.apis.sidePanel.open).toHaveBeenCalledTimes(3);
     expect(notifyPanel).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('switchView', () => {
+  const setup = () => {
+    const calls: string[] = [];
+    const apis = {
+      action: {
+        setPopup: vi.fn(async (d: { popup: string }) => void calls.push(`popup:${d.popup}`)),
+        openPopup: vi.fn(async () => void calls.push('openPopup')),
+      },
+      sidePanel: {
+        open: vi.fn(async (o: { tabId: number }) => void calls.push(`open:${o.tabId}`)),
+        close: vi.fn(async (o: { tabId: number }) => void calls.push(`close:${o.tabId}`)),
+      },
+    };
+    const save = vi.fn(async (v: string) => void calls.push(`save:${v}`));
+    const closeSelf = vi.fn(() => void calls.push('closeSelf'));
+    return { calls, apis, save, closeSelf, deps: { tabId: 7, apis, save, closeSelf, popupPath: 'popup.html' } };
+  };
+
+  it('popup: calls sidePanel.open synchronously with the tab, saves, then closes itself', async () => {
+    const f = setup();
+    const result = switchView({ ...f.deps, from: 'popup' });
+    // Before any await of the caller: the user gesture is still valid.
+    expect(f.apis.sidePanel.open).toHaveBeenCalledWith({ tabId: 7 });
+    expect(await result).toBe('switched');
+    expect(f.save).toHaveBeenCalledWith('sidepanel');
+    expect(f.calls.at(-1)).toBe('closeSelf');
+  });
+
+  it('popup: failing or missing open keeps the setting changed and the view open', async () => {
+    const f = setup();
+    f.apis.sidePanel.open.mockRejectedValue(new Error('no'));
+    expect(await switchView({ ...f.deps, from: 'popup' })).toBe('failed');
+    expect(f.save).toHaveBeenCalledWith('sidepanel');
+    expect(f.closeSelf).not.toHaveBeenCalled();
+
+    const g = setup();
+    expect(await switchView({ ...g.deps, apis: { sidePanel: {} }, from: 'popup' })).toBe('failed');
+    expect(g.save).toHaveBeenCalledWith('sidepanel');
+    f.apis.sidePanel.open.mockImplementation(() => {
+      throw new Error('sync');
+    });
+    expect(await switchView({ ...f.deps, from: 'popup' })).toBe('failed');
+  });
+
+  it('popup: a failing save is reported and the view stays open', async () => {
+    const f = setup();
+    f.save.mockRejectedValue(new Error('full'));
+    expect(await switchView({ ...f.deps, from: 'popup' })).toBe('save-failed');
+    expect(f.closeSelf).not.toHaveBeenCalled();
+  });
+
+  it('side panel: saves popup, sets the popup, opens it, then closes the panel', async () => {
+    const f = setup();
+    expect(await switchView({ ...f.deps, from: 'sidepanel' })).toBe('switched');
+    expect(f.calls).toEqual(['save:popup', 'popup:popup.html', 'openPopup', 'close:7']);
+    expect(f.closeSelf).not.toHaveBeenCalled();
+  });
+
+  it('side panel: without sidePanel.close the panel document closes itself', async () => {
+    const f = setup();
+    expect(await switchView({ ...f.deps, apis: { ...f.apis, sidePanel: {} }, from: 'sidepanel' })).toBe('switched');
+    expect(f.closeSelf).toHaveBeenCalled();
+  });
+
+  it('side panel: missing or failing openPopup keeps the setting and the panel open', async () => {
+    const f = setup();
+    f.apis.action.openPopup.mockRejectedValue(new Error('no'));
+    expect(await switchView({ ...f.deps, from: 'sidepanel' })).toBe('failed');
+    expect(f.save).toHaveBeenCalledWith('popup');
+    expect(f.apis.sidePanel.close).not.toHaveBeenCalled();
+    expect(f.closeSelf).not.toHaveBeenCalled();
+
+    const g = setup();
+    expect(await switchView({ ...g.deps, apis: { action: {}, sidePanel: g.apis.sidePanel }, from: 'sidepanel' })).toBe('failed');
+    expect(g.closeSelf).not.toHaveBeenCalled();
+  });
+
+  it('side panel: a failing save stops before opening the popup', async () => {
+    const f = setup();
+    f.save.mockRejectedValue(new Error('full'));
+    expect(await switchView({ ...f.deps, from: 'sidepanel' })).toBe('save-failed');
+    expect(f.apis.action.openPopup).not.toHaveBeenCalled();
+  });
+
+  it('is supported only with a side panel API; chromeSwitchApis binds the namespaces', async () => {
+    expect(switchSupported({})).toBe(false);
+    expect(switchSupported({ sidePanel: {} })).toBe(true);
+    expect(chromeSwitchApis({}).sidePanel).toBeUndefined();
+    const ns = {
+      tag: 'x',
+      open(this: { tag: string }) {
+        return this.tag;
+      },
+    };
+    expect(await chromeSwitchApis({ chrome: { sidePanel: ns } }).sidePanel!.open!({ tabId: 1 })).toBe('x');
   });
 });

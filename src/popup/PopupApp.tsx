@@ -3,7 +3,7 @@ import { browser } from 'wxt/browser';
 import { defaultStorage, loadConfig, type Config, type Field, type StorageArea } from '../config';
 import { readTab, type ReadTabResult } from '../extract/inject';
 import type { ReadResult } from '../extract/result';
-import { useI18n, useSettings } from '../settings';
+import { chromeSwitchApis, switchSupported, switchView, useI18n, useSettings, type SwitchApis } from '../settings';
 import { connectHighlight, type HighlightConnection } from '../highlight/connect';
 import type { HighlightItem } from '../highlight/messages';
 import { findSelector } from '../extract';
@@ -31,7 +31,7 @@ import { addCapturedField, updateProject, updateProjectField } from './projectFi
 import { requestOptionsFocus } from '../options/focus';
 import { FieldForm, type FieldPatch } from './FieldForm';
 import { Header } from './Header';
-import { MissingHint, ResultView } from './Outcome';
+import { MissingHint, Notice, ResultView } from './Outcome';
 import { BlockedView, LoadingView, NoPermissionView, NoProjectsView, NoTargetView, type BlockReason } from './States';
 import './popup.css';
 
@@ -58,6 +58,8 @@ export interface PopupDeps {
   connectHighlight?: (tabId: number) => Promise<HighlightConnection>;
   /** 'sidepanel' fills the panel width and stays open while the picker runs (no close). */
   variant?: 'popup' | 'sidepanel';
+  /** Browser APIs of the switch between popup and side panel; without side panel API there is no switch. */
+  switchApis?: SwitchApis;
   /** Increasing this number reads the active tab and the configuration again. */
   reloadToken?: number;
 }
@@ -108,6 +110,7 @@ export function PopupApp({
   close = () => window.close(),
   connectHighlight: connect = connectHighlight,
   variant = 'popup',
+  switchApis: switchProp,
   reloadToken = 0,
 }: PopupDeps) {
   const rootClass = variant === 'sidepanel' ? 'popup popup-panel' : 'popup';
@@ -127,6 +130,8 @@ export function PopupApp({
   const [draft, setDraft] = useState<Draft | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [accessDenied, setAccessDenied] = useState(false);
+  const [switchApis] = useState(() => switchProp ?? chromeSwitchApis());
+  const [switchNote, setSwitchNote] = useState<{ kind: 'hint' | 'save'; text: string } | null>(null);
   const requestId = useRef(0);
   // Set on selection: state.projectId follows only after the tab re-read, too late for the options handoff.
   const chosenProject = useRef<string | null>(null);
@@ -420,6 +425,23 @@ export function PopupApp({
     }
   };
 
+  // Not async before the call: sidePanel.open inside switchView needs the user gesture of this click.
+  const switchNow = () => {
+    setSwitchNote(null);
+    void switchView({
+      from: variant === 'sidepanel' ? 'sidepanel' : 'popup',
+      tabId,
+      apis: switchApis,
+      save: (openAs) => updateSettings({ openAs }),
+      closeSelf: close,
+    }).then((result) => {
+      if (result === 'failed') {
+        setSwitchNote({ kind: 'hint', text: t(variant === 'sidepanel' ? 'popup.switch.failedToPopup' : 'popup.switch.failedToSidepanel') });
+      } else if (result === 'save-failed') {
+        setSwitchNote({ kind: 'save', text: t('popup.switch.saveFailed') });
+      }
+    });
+  };
   const missingKeys = hint?.kind === 'missing' ? hint.keys : [];
   const header = (
     <Header
@@ -430,13 +452,20 @@ export function PopupApp({
       onOpenOptions={openOpts}
       highlight={highlightOn}
       onToggleHighlight={() => void updateSettings({ highlight: !highlightOn }).catch(() => undefined)}
+      switchTo={switchSupported(switchApis) ? (variant === 'sidepanel' ? 'popup' : 'sidepanel') : undefined}
+      onSwitchView={switchNow}
     />
   );
+
+  const switchNotice =
+    switchNote &&
+    (switchNote.kind === 'hint' ? <Notice kind="warning" title={switchNote.text} /> : <p role="alert" className="popup-error">{switchNote.text}</p>);
 
   if (project.targets.length === 0) {
     return (
       <main className={rootClass}>
         {header}
+        {switchNotice}
         <NoTargetView onOpenOptions={openOpts} />
       </main>
     );
@@ -445,6 +474,7 @@ export function PopupApp({
   return (
     <main className={rootClass}>
       {header}
+      {switchNotice}
       {actionError && <p role="alert" className="popup-error">{actionError}</p>}
       <FieldForm
         key={projectId}
