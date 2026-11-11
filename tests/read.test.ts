@@ -192,6 +192,15 @@ describe('readTab', () => {
     expect(args[2]).toBe('a');
   });
 
+  it('does not pass folderId and tagIds to the page', async () => {
+    executeScript.mockResolvedValueOnce([]).mockResolvedValueOnce([{ result: { ok: false, kind: 'failed' } }]);
+    await readTab(3, [project('a', { folderId: 'f1', tagIds: ['t1'] })]);
+    const sent = (executeScript.mock.calls[1]![0] as { args: [string, Record<string, unknown>[], string] }).args[1]![0]!;
+    expect(sent).not.toHaveProperty('folderId');
+    expect(sent).not.toHaveProperty('tagIds');
+    expect(sent.id).toBe('a');
+  });
+
   it('maps reader failures and empty results to errors', async () => {
     executeScript.mockResolvedValueOnce([]).mockResolvedValueOnce([{ result: { ok: false, kind: 'unsupported' } }]);
     expect(await readTab(1, [])).toMatchObject({ ok: false, kind: 'unsupported' });

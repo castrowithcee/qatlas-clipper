@@ -1,5 +1,5 @@
 import { deepEqual } from './equal';
-import type { Config, Field, HeaderValues, Project, Target } from './schema';
+import type { Config, Field, Folder, Tag, HeaderValues, Project, Target } from './schema';
 import { pruneHeaderValues, type StoredState } from './storage';
 
 export type MergePreference = 'mine' | 'theirs';
@@ -10,6 +10,11 @@ export type MergeConflictKind =
   | 'scope'
   | 'content'
   | 'projectOrder'
+  | 'folder' // deleted on one side and changed on the other, or added differently on both
+  | 'folderOrder'
+  | 'tag'
+  | 'tagOrder'
+  | 'projectFolder'
   | 'field'
   | 'fieldOrder'
   | 'mapping'
@@ -28,6 +33,10 @@ export interface MergeConflict {
   targetId?: string;
   targetName?: string;
   headerName?: string;
+  folderId?: string;
+  folderName?: string;
+  tagId?: string;
+  tagName?: string;
 }
 
 export interface MergeResult {
@@ -55,11 +64,13 @@ export interface MergeInput {
 
 /**
  * Three-way merge of config and header values. Units: project (name, scope, fields, targets, site mappings,
- * order of fields and targets), project order, header value per target and name. A unit changed on one side
+ * order of fields and targets, folder, tag memberships), project order, folder (name) and folder order, tag (name) and
+ * tag order, header value per target and name. A unit changed on one side
  * only takes that change; equal changes do not conflict; different changes are conflicts, resolved for all
  * of them together by the caller's choice of `preferMine` or `preferTheirs`.
- * Not covered: a rename made on both sides is seen as delete plus add; a target id moved or added in two
- * projects can yield an invalid result that the writer's validation rejects.
+ * A folder or tag reference whose target is gone after the merge is removed. Not covered: a rename made on both
+ * sides is seen as delete plus add; a target id moved or added in two projects, or folders or tags with the same
+ * name added on both sides, can yield an invalid result that the writer's validation rejects.
  */
 export function mergeConfig(input: MergeInput): MergeResult {
   const withMine = run(input, 'mine');
@@ -188,13 +199,74 @@ function run(input: MergeInput, prefer: MergePreference): { state: StoredState; 
     prefer,
   );
   if (ord.conflict) conflicts.push({ kind: 'projectOrder' });
-  const config: Config = { ...mine.config, projects: ord.order.map((id) => merged.get(id) as Project) };
+  const { folders: _f, tags: _t, ...rest } = mine.config;
+  void _f;
+  void _t;
+  const folders = mergeNamed<Folder>('folder', input, 'folders', prefer, conflicts);
+  const tags = mergeNamed<Tag>('tag', input, 'tags', prefer, conflicts);
+  const folderIds = new Set(folders.map((f) => f.id));
+  const tagIds = new Set(tags.map((t) => t.id));
+  const config: Config = {
+    ...rest,
+    ...(folders.length > 0 || mine.config.folders ? { folders } : {}),
+    ...(tags.length > 0 || mine.config.tags ? { tags } : {}),
+    projects: ord.order.map((id) => dropDanglingRefs(merged.get(id) as Project, folderIds, tagIds)),
+  };
 
   const headerValues = mergeHeaderValues(input, config, prefer, conflicts);
   return { state: { config, headerValues }, conflicts };
 }
 
-const HANDLED_PROJECT_KEYS = new Set(['id', 'name', 'scope', 'content', 'fields', 'siteMappings', 'targets']);
+const HANDLED_PROJECT_KEYS = new Set(['id', 'name', 'scope', 'content', 'fields', 'siteMappings', 'targets', 'folderId', 'tagIds']);
+
+/** Removes a folder or tag reference whose target was deleted on the other side, instead of yielding an invalid config. */
+function dropDanglingRefs(project: Project, folderIds: Set<string>, tagIds: Set<string>): Project {
+  const { folderId, tagIds: tags, ...rest } = project;
+  const keptTags = tags?.filter((t) => tagIds.has(t));
+  return {
+    ...rest,
+    ...(folderId !== undefined && folderIds.has(folderId) && { folderId }),
+    ...(keptTags && (keptTags.length > 0 || tags?.length === 0) && { tagIds: keptTags }),
+  };
+}
+
+/** Folders or tags: each entry is a unit (its name), the list order another one. */
+function mergeNamed<T extends { id: string; name: string }>(
+  kind: 'folder' | 'tag',
+  { base, mine, theirs }: MergeInput,
+  key: 'folders' | 'tags',
+  prefer: MergePreference,
+  conflicts: MergeConflict[],
+): T[] {
+  const [lb, lm, lt] = [base, mine, theirs].map((s) => (s.config[key] ?? []) as T[]) as [T[], T[], T[]];
+  const map = (l: T[]) => new Map(l.map((x) => [x.id, x]));
+  const [mb, mm, mt] = [map(lb), map(lm), map(lt)];
+  const out = new Map<string, T>();
+  for (const id of union(lm.map((x) => x.id), lt.map((x) => x.id), lb.map((x) => x.id))) {
+    const r = pick3(mb.get(id), mm.get(id), mt.get(id), prefer);
+    const name = (mm.get(id) ?? mt.get(id) ?? mb.get(id))?.name;
+    if (r.conflict) conflicts.push(kind === 'folder' ? { kind, folderId: id, folderName: name } : { kind, tagId: id, tagName: name });
+    if (r.value) out.set(id, r.value);
+  }
+  const ord = mergeOrder(
+    lb.map((x) => x.id),
+    lm.map((x) => x.id),
+    lt.map((x) => x.id),
+    new Set(out.keys()),
+    prefer,
+  );
+  if (ord.conflict) conflicts.push({ kind: kind === 'folder' ? 'folderOrder' : 'tagOrder' });
+  return ord.order.map((id) => out.get(id) as T);
+}
+
+/** Tag ids of a project: each tag is decided on its own, so concurrent additions and removals never conflict. */
+function mergeTagIds(base: Project, mine: Project, theirs: Project): string[] | undefined {
+  if (deepEqual(mine.tagIds, theirs.tagIds)) return mine.tagIds;
+  const [b, m, t] = [base.tagIds ?? [], mine.tagIds ?? [], theirs.tagIds ?? []];
+  const kept = (id: string) => (m.includes(id) === t.includes(id) ? m.includes(id) : m.includes(id) === b.includes(id) ? t.includes(id) : m.includes(id));
+  const ids = union(m, t).filter(kept);
+  return ids.length > 0 || mine.tagIds || theirs.tagIds ? ids : undefined;
+}
 
 function mergeProject(
   baseOrig: Project,
@@ -277,6 +349,9 @@ function mergeProject(
 
   const content = pick3(base.content, mine.content, theirs.content, prefer);
   if (content.conflict) note({ kind: 'content' });
+  const folder = pick3(base.folderId, mine.folderId, theirs.folderId, prefer);
+  if (folder.conflict) note({ kind: 'projectFolder' });
+  const tagIds = mergeTagIds(base, mine, theirs);
 
   // Any property without its own handling above is merged per key, so a field added to the schema is never dropped silently.
   const extra: Record<string, unknown> = {};
@@ -292,6 +367,8 @@ function mergeProject(
     ...extra,
     // An absent value stays absent (it means "markdown"); it is not normalised, so nothing is rewritten silently.
     ...(content.value !== undefined && { content: content.value }),
+    ...(folder.value !== undefined && { folderId: folder.value }),
+    ...(tagIds !== undefined && { tagIds }),
     id: mine.id,
     name: name.value as string,
     scope: scope.value as Project['scope'],

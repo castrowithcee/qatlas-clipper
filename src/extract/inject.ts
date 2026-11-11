@@ -33,7 +33,7 @@ export function isUnreadableUrl(url: string): boolean {
 
 /**
  * Injects the reader into the tab (activeTab grant required) and returns its result. Reads only on call.
- * Only structure needed for matching is sent to the page: targets (header names) are stripped, tokens never leave
+ * Only structure needed for matching is sent to the page: targets (header names), folders and tags are stripped, tokens never leave
  * chrome.storage.local.
  */
 export async function readTab(tabId: number, projects: Project[], projectId?: string): Promise<ReadTabResult> {
@@ -42,7 +42,12 @@ export async function readTab(tabId: number, projects: Project[], projectId?: st
     if (!tab.url) return fail('no-access');
     if (isUnreadableUrl(tab.url)) return fail('unsupported');
 
-    const safeProjects = projects.map((p) => ({ ...p, targets: [] }));
+    // Folders and tags only order the UI; like targets they stay out of the page.
+    const safeProjects = projects.map(({ folderId: _folder, tagIds: _tags, ...p }) => {
+      void _folder;
+      void _tags;
+      return { ...p, targets: [] };
+    });
     await browser.scripting.executeScript({ target: { tabId }, files: ['/reader.js'] });
     const [injection] = await browser.scripting.executeScript({
       target: { tabId },

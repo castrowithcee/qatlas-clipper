@@ -392,3 +392,70 @@ describe('storedStateEquals', () => {
     expect(storedStateEquals(a, c)).toBe(false);
   });
 });
+
+describe('folders and tags', () => {
+  const proj = (id: string, extra: Record<string, unknown> = {}) => ({
+    id,
+    name: id,
+    scope: { allSites: true, domains: [] },
+    fields: [],
+    siteMappings: {},
+    targets: [],
+    ...extra,
+  });
+  const cfg = (extra: Record<string, unknown>) => ({ schemaVersion: 1, projects: [proj('a')], ...extra });
+  const issues = (input: unknown): string[] => {
+    try {
+      parseConfig(input);
+      return [];
+    } catch (e) {
+      return (e as ConfigError).issues;
+    }
+  };
+
+  it('accepts a config without the new values unchanged', () => {
+    const c = { schemaVersion: 1, projects: [proj('a')] };
+    expect(parseConfig(c)).toEqual(c);
+  });
+
+  it('accepts valid folders, tags and references and trims names', () => {
+    const c = parseConfig(cfg({ folders: [{ id: 'f1', name: ' Work ' }], tags: [{ id: 't1', name: 'x' }, { id: 't2', name: 'y' }], projects: [proj('a', { folderId: 'f1', tagIds: ['t1', 't2'] })] }));
+    expect(c.folders).toEqual([{ id: 'f1', name: 'Work' }]);
+    expect(c.projects[0]!.tagIds).toEqual(['t1', 't2']);
+  });
+
+  it.each([
+    ['duplicate folder id', { folders: [{ id: 'f', name: 'A' }, { id: 'f', name: 'B' }] }, 'folders[1].id'],
+    ['duplicate tag id', { tags: [{ id: 't', name: 'A' }, { id: 't', name: 'B' }] }, 'tags[1].id'],
+    ['folder name in other case', { folders: [{ id: 'f1', name: 'Work' }, { id: 'f2', name: ' work' }] }, 'folders[1].name'],
+    ['tag name in other case', { tags: [{ id: 't1', name: 'Work' }, { id: 't2', name: 'WORK' }] }, 'tags[1].name'],
+    ['empty name', { folders: [{ id: 'f1', name: '  ' }] }, 'folders[0].name'],
+    ['name over 60 characters', { tags: [{ id: 't1', name: 'x'.repeat(61) }] }, 'tags[0].name'],
+    ['bad id', { folders: [{ id: 'a b', name: 'A' }] }, 'folders[0].id'],
+    ['nested folder', { folders: [{ id: 'f1', name: 'A', parentId: 'f2' }] }, 'folders[0]'],
+    ['unknown folderId', { projects: [proj('a', { folderId: 'nope' })] }, 'projects[0].folderId'],
+    ['unknown tag id', { tags: [{ id: 't1', name: 'A' }], projects: [proj('a', { tagIds: ['t9'] })] }, 'projects[0].tagIds[0]'],
+    ['duplicate tag id in project', { tags: [{ id: 't1', name: 'A' }], projects: [proj('a', { tagIds: ['t1', 't1'] })] }, 'projects[0].tagIds[1]'],
+  ])('rejects %s', (_n, extra, path) => {
+    const found = issues(cfg(extra));
+    expect(found.some((m) => m.startsWith(`${path}:`))).toBe(true);
+  });
+
+  it('accepts 60 characters and never echoes input values in messages', () => {
+    expect(issues(cfg({ tags: [{ id: 't1', name: 'x'.repeat(60) }] }))).toEqual([]);
+    const marker = 'marker-id-value';
+    const found = issues(cfg({ folders: [{ id: marker, name: 'A' }, { id: marker, name: 'a' }], projects: [proj('a', { folderId: 'marker-ref' })] }));
+    expect(found.length).toBeGreaterThan(0);
+    expect(found.join('\n')).not.toContain('marker');
+  });
+
+  it('round-trips folders and tags through export and import', async () => {
+    const c = cfg({ folders: [{ id: 'f1', name: 'Work' }], tags: [{ id: 't1', name: 'Shop' }], projects: [proj('a', { folderId: 'f1', tagIds: ['t1'] })] });
+    const source = fakeStorage();
+    await saveConfig(c, source);
+    const json = await exportConfig(source);
+    const target = fakeStorage();
+    expect(await importFromText(json, target)).toEqual(c);
+    expect(await loadConfig(target)).toEqual(c);
+  });
+});

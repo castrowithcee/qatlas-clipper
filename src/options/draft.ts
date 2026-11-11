@@ -1,4 +1,4 @@
-import { ConfigError, parseConfig, type Config, type Field, type Project, type Scope, type Target } from '../config';
+import { ConfigError, parseConfig, type Config, type Field, type Folder, type Project, type Tag, type Scope, type Target } from '../config';
 
 export const newId = (): string => crypto.randomUUID();
 
@@ -59,6 +59,64 @@ export function newProject(name: string): Project {
 
 export function newTarget(name: string): Target {
   return { id: newId(), name, url: 'https://', headers: [], purpose: '' };
+}
+
+export function addFolder(config: Config, name: string): Config {
+  return { ...config, folders: [...(config.folders ?? []), { id: newId(), name }] };
+}
+
+export function renameFolder(config: Config, id: string, name: string): Config {
+  return { ...config, folders: (config.folders ?? []).map((f) => (f.id === id ? { ...f, name } : f)) };
+}
+
+/** Moves the folder at index `from` to index `to` in the display order. */
+export function moveFolder(config: Config, from: number, to: number): Config {
+  return { ...config, folders: moveTo(config.folders ?? [], from, to) };
+}
+
+/** Projects of the deleted folder stay and only lose their folder. */
+export function deleteFolder(config: Config, id: string): Config {
+  const projects = config.projects.map((p) => {
+    if (p.folderId !== id) return p;
+    const { folderId: _gone, ...rest } = p;
+    void _gone;
+    return rest;
+  });
+  return { ...config, folders: (config.folders ?? []).filter((f) => f.id !== id), projects };
+}
+
+/** `undefined` takes the project out of its folder. */
+export function setProjectFolder(project: Project, folderId: string | undefined): Project {
+  const { folderId: _old, ...rest } = project;
+  void _old;
+  return folderId === undefined ? rest : { ...rest, folderId };
+}
+
+export function addTag(config: Config, name: string): Config {
+  return { ...config, tags: [...(config.tags ?? []), { id: newId(), name }] };
+}
+
+export function renameTag(config: Config, id: string, name: string): Config {
+  return { ...config, tags: (config.tags ?? []).map((t) => (t.id === id ? { ...t, name } : t)) };
+}
+
+/** Removes the tag and its id from all projects. */
+export function deleteTag(config: Config, id: string): Config {
+  const projects = config.projects.map((p) => {
+    if (!p.tagIds?.includes(id)) return p;
+    const tagIds = p.tagIds.filter((t) => t !== id);
+    const { tagIds: _old, ...rest } = p;
+    void _old;
+    return tagIds.length > 0 ? { ...rest, tagIds } : rest;
+  });
+  return { ...config, tags: (config.tags ?? []).filter((t) => t.id !== id), projects };
+}
+
+/** An empty list removes the key, so a project without tags looks like one that never had any. */
+export function setProjectTags(project: Project, tagIds: string[]): Project {
+  const { tagIds: _old, ...rest } = project;
+  void _old;
+  return tagIds.length === 0 ? rest : { ...rest, tagIds: [...new Set(tagIds)] };
 }
 
 const TRANSLITERATION: Record<string, string> = { ä: 'ae', ö: 'oe', ü: 'ue', ß: 'ss', æ: 'ae', œ: 'oe', ø: 'o', đ: 'd', ł: 'l', þ: 'th' };
@@ -189,8 +247,11 @@ export function orphanMappings(project: Pick<Project, 'siteMappings' | 'fields'>
 
 /** Trim the scope and drop unused optional sources so that "empty input" means "not used". */
 export function normalize(config: Config): Config {
+  const trimName = <T extends Folder | Tag>(item: T): T => ({ ...item, name: item.name.trim() });
   return {
     ...config,
+    ...(config.folders && { folders: config.folders.map(trimName) }),
+    ...(config.tags && { tags: config.tags.map(trimName) }),
     projects: config.projects.map((p) => {
       const { pageType, ...scope } = p.scope;
       const trimmed = pageType?.trim();

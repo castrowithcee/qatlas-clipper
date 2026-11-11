@@ -421,3 +421,101 @@ describe('mergeConfig field format', () => {
     }
   });
 });
+
+describe('mergeConfig folders and tags', () => {
+  const withFT = (projects: Project[] = [project('a'), project('b')]): StoredState => ({
+    config: {
+      schemaVersion: 1,
+      projects,
+      folders: [{ id: 'f1', name: 'One' }, { id: 'f2', name: 'Two' }],
+      tags: [{ id: 't1', name: 'Red' }, { id: 't2', name: 'Blue' }],
+    },
+    headerValues: {},
+  });
+  const mod = (s: StoredState, fn: (c: Config) => Config): StoredState => ({ ...s, config: fn(structuredClone(s.config)) });
+  const run = (mine: StoredState, theirs: StoredState) => {
+    const r = mergeConfig({ base: withFT(), mine, theirs });
+    valid(r.preferMine);
+    valid(r.preferTheirs);
+    return r;
+  };
+  const rename = (list: { id: string; name: string }[] | undefined, id: string, name: string) => (list ?? []).map((x) => (x.id === id ? { ...x, name } : x));
+
+  it('merges renames of different folders and tags without conflict', () => {
+    const mine = mod(withFT(), (c) => ({ ...c, folders: rename(c.folders, 'f1', 'Uno'), tags: rename(c.tags, 't1', 'Crimson') }));
+    const theirs = mod(withFT(), (c) => ({ ...c, folders: rename(c.folders, 'f2', 'Dos'), tags: rename(c.tags, 't2', 'Navy') }));
+    const r = run(mine, theirs);
+    expect(r.conflicts).toEqual([]);
+    expect(r.preferMine.config.folders!.map((f) => f.name)).toEqual(['Uno', 'Dos']);
+    expect(r.preferMine.config.tags!.map((f) => f.name)).toEqual(['Crimson', 'Navy']);
+  });
+
+  it('reports the same folder or tag renamed differently', () => {
+    const mine = mod(withFT(), (c) => ({ ...c, folders: rename(c.folders, 'f1', 'A'), tags: rename(c.tags, 't1', 'X') }));
+    const theirs = mod(withFT(), (c) => ({ ...c, folders: rename(c.folders, 'f1', 'B'), tags: rename(c.tags, 't1', 'Y') }));
+    const r = run(mine, theirs);
+    expect(r.conflicts).toEqual([
+      { kind: 'folder', folderId: 'f1', folderName: 'A' },
+      { kind: 'tag', tagId: 't1', tagName: 'X' },
+    ]);
+    expect(r.preferMine.config.folders![0]!.name).toBe('A');
+    expect(r.preferTheirs.config.folders![0]!.name).toBe('B');
+    expect(r.preferTheirs.config.tags![0]!.name).toBe('Y');
+  });
+
+  it('reports a folder order changed differently on both sides', () => {
+    const three = mod(withFT(), (c) => ({ ...c, folders: [...c.folders!, { id: 'f3', name: 'Three' }] }));
+    const order = (s: StoredState, ids: string[]) => mod(s, (c) => ({ ...c, folders: ids.map((id) => c.folders!.find((f) => f.id === id)!) }));
+    const r = mergeConfig({ base: three, mine: order(three, ['f3', 'f1', 'f2']), theirs: order(three, ['f2', 'f3', 'f1']) });
+    valid(r.preferMine);
+    expect(r.conflicts.map((c) => c.kind)).toEqual(['folderOrder']);
+    expect(r.preferMine.config.folders!.map((f) => f.id)).toEqual(['f3', 'f1', 'f2']);
+    expect(r.preferTheirs.config.folders!.map((f) => f.id)).toEqual(['f2', 'f3', 'f1']);
+  });
+
+  it('removes the reference when a folder was deleted on one side and assigned on the other', () => {
+    const del = mod(withFT(), (c) => ({ ...c, folders: c.folders!.filter((f) => f.id !== 'f1') }));
+    const assign = mod(withFT(), (c) => ({ ...c, projects: c.projects.map((p) => (p.id === 'a' ? { ...p, folderId: 'f1' } : p)) }));
+    for (const [mine, theirs] of [[del, assign], [assign, del]] as const) {
+      const r = run(mine, theirs);
+      expect(r.conflicts).toEqual([]);
+      for (const s of [r.preferMine, r.preferTheirs]) {
+        expect(s.config.folders!.map((f) => f.id)).toEqual(['f2']);
+        expect(s.config.projects[0]).not.toHaveProperty('folderId');
+      }
+    }
+  });
+
+  it('removes a tag reference when the tag was deleted on the other side', () => {
+    const del = mod(withFT(), (c) => ({ ...c, tags: c.tags!.filter((t) => t.id !== 't1') }));
+    const assign = mod(withFT(), (c) => ({ ...c, projects: c.projects.map((p) => (p.id === 'a' ? { ...p, tagIds: ['t1', 't2'] } : p)) }));
+    const r = run(del, assign);
+    expect(r.conflicts).toEqual([]);
+    expect(r.preferMine.config.projects[0]!.tagIds).toEqual(['t2']);
+  });
+
+  it('merges tag assignments of one project per tag and folder moves per project', () => {
+    const b = withFT([project('a', { tagIds: ['t1'] }), project('b')]);
+    const mine = onA(b, (p) => ({ ...p, tagIds: ['t1', 't2'], folderId: 'f1' }));
+    const theirs = onA(b, (p) => ({ ...p, tagIds: [] }));
+    const r = mergeConfig({ base: b, mine, theirs });
+    valid(r.preferMine);
+    expect(r.conflicts).toEqual([]);
+    expect(r.preferMine.config.projects[0]).toMatchObject({ tagIds: ['t2'], folderId: 'f1' });
+  });
+
+  it('reports a project put in different folders', () => {
+    const mine = mod(withFT(), (c) => ({ ...c, projects: c.projects.map((p) => (p.id === 'a' ? { ...p, folderId: 'f1' } : p)) }));
+    const theirs = mod(withFT(), (c) => ({ ...c, projects: c.projects.map((p) => (p.id === 'a' ? { ...p, folderId: 'f2' } : p)) }));
+    const r = run(mine, theirs);
+    expect(r.conflicts).toEqual([{ kind: 'projectFolder', projectId: 'a', projectName: 'Project a' }]);
+    expect(r.preferMine.config.projects[0]!.folderId).toBe('f1');
+    expect(r.preferTheirs.config.projects[0]!.folderId).toBe('f2');
+  });
+
+  it('keeps a config without folders and tags free of the new keys', () => {
+    const r = merged(base(), base());
+    expect(r.preferMine.config).not.toHaveProperty('folders');
+    expect(r.preferMine.config).not.toHaveProperty('tags');
+  });
+});

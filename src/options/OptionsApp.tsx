@@ -475,7 +475,7 @@ function ConflictDialog({ conflict, onResolve }: { conflict: PendingConflict | u
     const project = c.projectName || t('options.projects.unnamed');
     const field = c.fieldLabel || c.fieldKey || t('options.fields.unnamed');
     const target = c.targetName || t('options.targets.unnamed');
-    return t(`options.conflict.${c.kind}`, { project, field, domain: c.domain ?? '', target, name: c.headerName ?? '' });
+    return t(`options.conflict.${c.kind}`, { project, field, domain: c.domain ?? '', target, name: c.headerName ?? '', folder: c.folderName ?? '', tag: c.tagName ?? '' });
   };
   return (
     <Dialog

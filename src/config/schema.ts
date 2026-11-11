@@ -84,6 +84,11 @@ export const targetSchema = z.strictObject({
   purpose: z.string(),
 });
 
+// Folders and tags only order the options page and the project choice; they never reach the webhook.
+const labelName = z.string().trim().min(1, 'must not be empty').max(60, 'must be at most 60 characters');
+export const folderSchema = z.strictObject({ id, name: labelName });
+export const tagSchema = z.strictObject({ id, name: labelName });
+
 export const CONTENT_FORMATS = ['none', 'markdown', 'html'] as const;
 export type ContentFormat = (typeof CONTENT_FORMATS)[number];
 
@@ -97,16 +102,60 @@ export const projectSchema = z.strictObject({
   targets: z.array(targetSchema),
   // Page content sent with the payload; an absent value means "markdown" (see contentFormatOf).
   content: z.enum(CONTENT_FORMATS).optional(),
+  // At most one folder (one level, no nesting) and any number of tags; absent means none.
+  folderId: id.optional(),
+  tagIds: z.array(id).optional(),
 });
+
+/** Minimal shape for the folder and tag cross-reference checks, shared with other schemas that carry folders, tags and projects. */
+export interface FoldersTagsRefs {
+  folders?: { id: string; name: string }[];
+  tags?: { id: string; name: string }[];
+  projects: { folderId?: string; tagIds?: string[] }[];
+}
+
+/**
+ * Checks unique ids and case-insensitively unique names of folders and tags, and that every project's folderId
+ * and tagIds point to existing entries without duplicates. Messages never contain input values.
+ */
+export function checkFoldersTags(value: FoldersTagsRefs, report: (path: (string | number)[], message: string) => void): void {
+  const check = (list: { id: string; name: string }[] | undefined, key: 'folders' | 'tags', what: string): Set<string> => {
+    const ids = new Set<string>();
+    const names = new Set<string>();
+    (list ?? []).forEach((item, i) => {
+      if (ids.has(item.id)) report([key, i, 'id'], `duplicate ${what} id`);
+      ids.add(item.id);
+      const name = item.name.trim().toLowerCase();
+      if (names.has(name)) report([key, i, 'name'], `duplicate ${what} name (ignoring case)`);
+      names.add(name);
+    });
+    return ids;
+  };
+  const folderIds = check(value.folders, 'folders', 'folder');
+  const tagIds = check(value.tags, 'tags', 'tag');
+  value.projects.forEach((p, pi) => {
+    if (p.folderId !== undefined && !folderIds.has(p.folderId)) report(['projects', pi, 'folderId'], 'refers to an unknown folder');
+    const seen = new Set<string>();
+    (p.tagIds ?? []).forEach((t, ti) => {
+      if (!tagIds.has(t)) report(['projects', pi, 'tagIds', ti], 'refers to an unknown tag');
+      else if (seen.has(t)) report(['projects', pi, 'tagIds', ti], 'duplicate tag');
+      seen.add(t);
+    });
+  });
+}
 
 export const configSchema = z
   .strictObject({
     schemaVersion: z.literal(CURRENT_SCHEMA_VERSION),
     // Order is meaningful: project order decides the order and preselection of matching projects.
     projects: z.array(projectSchema),
+    // Order is the display order. Absent means no folders or tags.
+    folders: z.array(folderSchema).optional(),
+    tags: z.array(tagSchema).optional(),
   })
   .superRefine((cfg, ctx) => {
     const dup = (path: (string | number)[], message: string) => ctx.addIssue({ code: 'custom', path, message });
+    checkFoldersTags(cfg, dup);
     const projectIds = new Set<string>();
     const targetIds = new Set<string>();
     cfg.projects.forEach((p, pi) => {
@@ -139,6 +188,8 @@ export const configSchema = z
 
 export type Scope = z.infer<typeof scopeSchema>;
 export type Field = z.infer<typeof fieldSchema>;
+export type Folder = z.infer<typeof folderSchema>;
+export type Tag = z.infer<typeof tagSchema>;
 export type Target = z.infer<typeof targetSchema>;
 export type Project = z.infer<typeof projectSchema>;
 
