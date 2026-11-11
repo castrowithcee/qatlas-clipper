@@ -7,7 +7,8 @@ import type { ReadTabResult } from '../src/extract/inject';
 import { DETECT_VALUES } from '../src/extract/detect';
 import { PopupApp, type PopupDeps } from '../src/popup/PopupApp';
 import { RESULTS_KEY } from '../src/send/results';
-import { SettingsProvider } from '../src/settings';
+import { SETTINGS_KEY, SettingsProvider } from '../src/settings';
+import { exportConfig } from '../src/config';
 import { de, en } from '../src/i18n/catalog';
 
 vi.mock('wxt/browser', () => ({ browser: { storage: { local: {} }, tabs: {}, runtime: {} } }));
@@ -59,9 +60,10 @@ const okRead = async (): Promise<ReadTabResult> => ({
   } as never,
 });
 
-function setup(lang: 'de' | 'en', over: Partial<PopupDeps> & { cfg?: unknown } = {}) {
+function setup(lang: 'de' | 'en', over: Partial<PopupDeps> & { cfg?: unknown; settings?: ReturnType<typeof fakeStorage> } = {}) {
+  const { settings = fakeStorage(), ...rest } = over;
   const deps: PopupDeps = {
-    storage: fakeStorage((over.cfg as Record<string, unknown>) ?? config()),
+    storage: fakeStorage((rest.cfg as Record<string, unknown>) ?? config()),
     draftStorage: fakeStorage(),
     resultStorage: fakeStorage(),
     read: okRead,
@@ -70,11 +72,11 @@ function setup(lang: 'de' | 'en', over: Partial<PopupDeps> & { cfg?: unknown } =
     openOptions: vi.fn(async () => undefined),
     close: vi.fn(),
     permissions: { contains: vi.fn(async () => true) },
-    ...over,
+    ...rest,
   };
   const user = userEvent.setup();
   const view = render(
-    <SettingsProvider storage={fakeStorage()} subscribe={() => () => undefined} media={media as never} browserLanguage={lang === 'de' ? 'de-DE' : 'en-US'}>
+    <SettingsProvider storage={settings} subscribe={() => () => undefined} media={media as never} browserLanguage={lang === 'de' ? 'de-DE' : 'en-US'}>
       <PopupApp {...deps} />
     </SettingsProvider>,
   );
@@ -332,5 +334,29 @@ describe('long values', () => {
     expect((document.querySelector('.popup-long-more')!.closest('.popup-long')!.querySelector('textarea') as HTMLTextAreaElement).value).toBe(`${longValue} END`);
     await user.click(screen.getByRole('button', { name: 'Preview' }));
     expect(screen.getByRole('dialog').textContent).toContain('END');
+  });
+});
+
+describe.each(['de', 'en'] as const)('highlight switch in the header (%s)', (lang) => {
+  const name = lang === 'de' ? de['popup.header.highlight'] : en['popup.header.highlight'];
+
+  it('has name, tooltip and pressed state, and saves a device setting outside the configuration export', async () => {
+    const settings = fakeStorage();
+    const { user, deps } = setup(lang, { settings });
+    const button = await screen.findByRole('button', { name });
+    expect(button.getAttribute('aria-pressed')).toBe('true');
+    expect(document.getElementById(button.getAttribute('aria-describedby')!)!.textContent).toBe(name);
+    await user.click(button);
+    expect(screen.getByRole('button', { name }).getAttribute('aria-pressed')).toBe('false');
+    expect((settings.data[SETTINGS_KEY] as { highlight: boolean }).highlight).toBe(false);
+    expect(await exportConfig(deps.storage!)).not.toMatch(/highlight/);
+    expect(JSON.stringify((deps.storage as ReturnType<typeof fakeStorage>).data)).not.toMatch(/highlight/);
+    await user.click(screen.getByRole('button', { name }));
+    expect((settings.data[SETTINGS_KEY] as { highlight: boolean }).highlight).toBe(true);
+  });
+
+  it('starts off when the stored setting says so', async () => {
+    setup(lang, { settings: fakeStorage({ [SETTINGS_KEY]: { highlight: false } }) });
+    expect((await screen.findByRole('button', { name })).getAttribute('aria-pressed')).toBe('false');
   });
 });

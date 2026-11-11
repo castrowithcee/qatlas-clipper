@@ -154,6 +154,25 @@ for (const lang of ['de', 'en'] as const) {
       await shot(popup, 'no-projects', tag);
       await popup.close();
 
+      // Mapped elements framed on the page, and the header with the switch on and off.
+      const framed = await context.newPage();
+      await framed.setViewportSize({ width: 1000, height: 640 });
+      await framed.emulateMedia({ colorScheme: theme });
+      await framed.goto(`${pages.origin}/picker-${theme}.html`);
+      const mapped = project([ok], [field('headline', 'Headline', true), field('price', 'Price', false)]);
+      mapped.projects[0]!.siteMappings = { '127.0.0.1': { headline: '#headline', price: '#price' } } as never;
+      await setConfig(serviceWorker, mapped);
+      popup = await openPopup(context, serviceWorker, extensionId, framed);
+      await expect(framed.locator('.frame .label')).toHaveCount(2);
+      await framed.screenshot({ path: join(OUT, `${tag}-highlight-page.png`) });
+      await shot(popup, 'highlight-on', tag);
+      await popup.getByRole('button', { name: /^(Highlight mapped|Zugeordnete Elemente)/ }).click();
+      await expect(framed.locator('.frame')).toHaveCount(0);
+      await shot(popup, 'highlight-off', tag);
+      await popup.getByRole('button', { name: /^(Highlight mapped|Zugeordnete Elemente)/ }).click();
+      await popup.close();
+      await framed.close();
+
       // Unreadable page.
       const internal = await context.newPage();
       await internal.goto('chrome://version/');

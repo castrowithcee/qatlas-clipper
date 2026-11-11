@@ -5,6 +5,8 @@ export interface HighlightConnection {
   update(items: HighlightItem[]): void;
   /** Ends the connection; the page script then removes all frames. Safe to call twice. */
   close(): void;
+  /** False once the port ended, e.g. after the page navigated or reloaded; the caller then connects again. */
+  alive(): boolean;
 }
 
 /**
@@ -27,6 +29,7 @@ export async function connectHighlight(tabId: number): Promise<HighlightConnecti
         open = false;
       }
     },
+    alive: () => open,
     close() {
       if (!open) return;
       open = false;

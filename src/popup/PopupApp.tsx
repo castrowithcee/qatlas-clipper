@@ -3,7 +3,10 @@ import { browser } from 'wxt/browser';
 import { defaultStorage, loadConfig, type Config, type Field, type StorageArea } from '../config';
 import { readTab, type ReadTabResult } from '../extract/inject';
 import type { ReadResult } from '../extract/result';
-import { useI18n } from '../settings';
+import { useI18n, useSettings } from '../settings';
+import { connectHighlight, type HighlightConnection } from '../highlight/connect';
+import type { HighlightItem } from '../highlight/messages';
+import { findSelector } from '../extract';
 import { Button } from '../ui/components';
 import { ALL_SITES_ORIGINS, defaultPermissions, originPattern, type PermissionsApi } from '../options/permissions';
 import { startPicker } from '../picker/start';
@@ -51,6 +54,8 @@ export interface PopupDeps {
   /** Re-read interval for the send state while a send is running. */
   pollMs?: number;
   close?: () => void;
+  /** Opens the highlight connection to the tab; its end removes the frames from the page. */
+  connectHighlight?: (tabId: number) => Promise<HighlightConnection>;
   /** 'sidepanel' fills the panel width and stays open while the picker runs (no close). */
   variant?: 'popup' | 'sidepanel';
   /** Increasing this number reads the active tab and the configuration again. */
@@ -101,6 +106,7 @@ export function PopupApp({
   send = requestSend,
   pollMs = 1000,
   close = () => window.close(),
+  connectHighlight: connect = connectHighlight,
   variant = 'popup',
   reloadToken = 0,
 }: PopupDeps) {
@@ -110,6 +116,7 @@ export function PopupApp({
   const [draftStorage] = useState(() => draftProp ?? defaultDraftStorage());
   const [resultStorage] = useState(() => resultProp ?? defaultResultStorage());
   const { t } = useI18n();
+  const { settings, update: updateSettings } = useSettings();
   const [state, setState] = useState<State>({ phase: 'loading' });
   const [reload, setReload] = useState(0);
   const [sendState, setSendState] = useState<SendState>({ results: {}, inFlight: [] });
@@ -182,6 +189,54 @@ export function PopupApp({
       requestId.current = -1;
     };
   }, [storage, draftStorage, resultStorage, getActiveTab, read, permissions, variant, reload, reloadToken]);
+
+  // Highlight frames: one connection per tab; its end (close, unmount, popup or panel gone) removes them from the page.
+  const hl = useRef<{ conn: Promise<HighlightConnection | null> } | null>(null);
+  const hlOps = useRef<Promise<void>>(Promise.resolve());
+  const readyTab = state.phase === 'ready' ? state.tabId : null;
+  const readyRead = state.phase === 'ready' ? state.read : null;
+  const highlightOn = settings.highlight;
+  const items: HighlightItem[] = (() => {
+    if (state.phase !== 'ready') return [];
+    const project = state.config.projects.find((p) => p.id === state.projectId);
+    if (!project) return [];
+    const out: HighlightItem[] = [];
+    for (const f of project.fields) {
+      const selector = findSelector(project.siteMappings, state.read.url, f.key);
+      if (selector) out.push({ label: f.label, selector });
+    }
+    return out;
+  })();
+  const itemsKey = JSON.stringify(items);
+
+  useEffect(() => {
+    if (readyTab === null || !highlightOn) return;
+    return () => {
+      const current = hl.current;
+      hl.current = null;
+      hlOps.current = hlOps.current.then(async () => (await current?.conn)?.close());
+    };
+  }, [readyTab, highlightOn]);
+
+  useEffect(() => {
+    if (readyTab === null || !highlightOn) return;
+    const list = JSON.parse(itemsKey) as HighlightItem[];
+    const tabId = readyTab;
+    hlOps.current = hlOps.current.then(async () => {
+      let h = hl.current;
+      let conn = h ? await h.conn : null;
+      // Navigation or reload ends the port: connect again (the page script is gone with the old page).
+      if (conn && !conn.alive()) conn = null;
+      if (!conn) {
+        // Nothing to frame and nothing to remove: do not touch the page.
+        if (list.length === 0) return;
+        h = { conn: connect(tabId).catch(() => null) };
+        hl.current = h;
+        conn = await h.conn;
+      }
+      conn?.update(list);
+    });
+  }, [readyTab, readyRead, highlightOn, itemsKey, connect]);
 
   const tabUrl = state.phase === 'ready' ? state.tabUrl : '';
   const anyInFlight = sendState.inFlight.length > 0;
@@ -373,6 +428,8 @@ export function PopupApp({
       value={projectId}
       onChange={(id) => void changeProject(id)}
       onOpenOptions={openOpts}
+      highlight={highlightOn}
+      onToggleHighlight={() => void updateSettings({ highlight: !highlightOn }).catch(() => undefined)}
     />
   );
 

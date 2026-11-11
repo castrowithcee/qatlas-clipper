@@ -59,9 +59,15 @@ const theme = () => document.documentElement.dataset.theme;
 
 describe('settings', () => {
   it('falls back to defaults for invalid data', () => {
-    expect(parseSettings({ language: 'fr', appearance: 3 })).toEqual({ language: 'auto', appearance: 'system', openAs: 'popup' });
-    expect(parseSettings('x')).toEqual({ language: 'auto', appearance: 'system', openAs: 'popup' });
-    expect(parseSettings({ language: 'de' })).toEqual({ language: 'de', appearance: 'system', openAs: 'popup' });
+    expect(parseSettings({ language: 'fr', appearance: 3 })).toEqual({ language: 'auto', appearance: 'system', openAs: 'popup', highlight: true });
+    expect(parseSettings('x')).toEqual({ language: 'auto', appearance: 'system', openAs: 'popup', highlight: true });
+    expect(parseSettings({ language: 'de' })).toEqual({ language: 'de', appearance: 'system', openAs: 'popup', highlight: true });
+  });
+
+  it('treats stored settings without the highlight key as on, and keeps an explicit off', () => {
+    expect(parseSettings({ language: 'de', appearance: 'dark', openAs: 'popup' }).highlight).toBe(true);
+    expect(parseSettings({ highlight: false }).highlight).toBe(false);
+    expect(parseSettings({ highlight: 'no' }).highlight).toBe(true);
   });
 
   it('auto follows the browser language; a fixed choice wins', async () => {
@@ -94,22 +100,22 @@ describe('settings', () => {
     expect(document.documentElement.lang).toBe('de');
     await user.click(screen.getByRole('radio', { name: 'Dunkel' }));
     expect(theme()).toBe('dark');
-    expect(storage.data[SETTINGS_KEY]).toEqual({ language: 'de', appearance: 'dark', openAs: 'popup' });
+    expect(storage.data[SETTINGS_KEY]).toEqual({ language: 'de', appearance: 'dark', openAs: 'popup', highlight: true });
   });
 
   it('reacts to a change made in another context', async () => {
     const { bus } = mount();
     await screen.findByTestId('probe');
-    act(() => bus.emit({ language: 'de', appearance: 'dark', openAs: 'popup' }));
+    act(() => bus.emit({ language: 'de', appearance: 'dark', openAs: 'popup', highlight: true }));
     expect(screen.getByTestId('probe').textContent).toBe('Einstellungen');
     expect(theme()).toBe('dark');
   });
 
   it('is not part of the exported configuration', async () => {
-    const storage = fakeStorage({ [SETTINGS_KEY]: { language: 'de', appearance: 'dark', openAs: 'sidepanel' } });
+    const storage = fakeStorage({ [SETTINGS_KEY]: { language: 'de', appearance: 'dark', openAs: 'sidepanel', highlight: false } });
     await saveConfig({ schemaVersion: 1, projects: [] }, storage);
     const text = await exportConfig(storage);
-    expect(text).not.toMatch(/language|appearance|openAs|settings/);
+    expect(text).not.toMatch(/language|appearance|openAs|highlight|settings/);
     expect(JSON.parse(text)).toEqual({ schemaVersion: 1, projects: [] });
     expect(SETTINGS_KEY).not.toBe(CONFIG_KEY);
     expect(SETTINGS_KEY).not.toBe(HEADER_VALUES_KEY);
@@ -140,7 +146,7 @@ describe('open as setting', () => {
     screen.getByRole('radio', { name: 'Side panel' }).click();
     expect(permissions.request).toHaveBeenCalledTimes(1);
     expect(permissions.request).toHaveBeenCalledWith(ALL);
-    await waitFor(() => expect(storage.data[SETTINGS_KEY]).toEqual({ language: 'auto', appearance: 'system', openAs: 'sidepanel' }));
+    await waitFor(() => expect(storage.data[SETTINGS_KEY]).toEqual({ language: 'auto', appearance: 'system', openAs: 'sidepanel', highlight: true }));
   });
 
   it('keeps the popup and explains when the request is declined', async () => {

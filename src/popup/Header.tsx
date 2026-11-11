@@ -7,13 +7,26 @@ interface Props {
   value: string;
   onChange: (id: string) => void;
   onOpenOptions: () => void;
+  highlight: boolean;
+  onToggleHighlight: () => void;
 }
 
-export function Header({ projects, matchingIds, value, onChange, onOpenOptions }: Props) {
+export function Header({ projects, matchingIds, value, onChange, onOpenOptions, highlight, onToggleHighlight }: Props) {
   const { t } = useI18n();
   return (
     <header className="popup-header">
       <div className="popup-header-top">
+        <Tooltip content={t('popup.header.highlight')}>
+          {(tip) => (
+            <IconButton
+              icon={highlight ? 'eye' : 'eye-off'}
+              label={t('popup.header.highlight')}
+              aria-pressed={highlight}
+              onClick={onToggleHighlight}
+              {...tip}
+            />
+          )}
+        </Tooltip>
         <Tooltip content={t('popup.header.options')}>
           {(tip) => <IconButton icon="settings" label={t('popup.header.options')} onClick={onOpenOptions} {...tip} />}
         </Tooltip>
