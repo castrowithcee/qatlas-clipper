@@ -3,6 +3,7 @@ import { createTranslator, resolveLanguage } from '../i18n';
 import { DEFAULT_SETTINGS, type Settings } from '../settings/schema';
 import { loadSettings, subscribeSettings } from '../settings/storage';
 import { DARK_QUERY, resolveTheme } from '../ui/theme';
+import { getActivePickerClose, setActivePicker } from './active';
 import { normalizeDomain, saveMapping } from './mapping';
 import { HOST_STYLE, OVERLAY_CSS } from './overlayStyle';
 import { generateSelector } from './selector';
@@ -21,13 +22,6 @@ export interface PickerOptions {
   subscribe?: (onChange: (settings: Settings) => void) => () => void;
 }
 
-/**
- * Every injection of the picker script gets its own copy of this module, but all copies share the isolated world's global
- * object. The running picker's close function lives there so a restarted picker can end the previous one completely.
- */
-const ACTIVE_KEY = Symbol.for('qatlas.picker.active');
-const globals = globalThis as unknown as Record<symbol, (() => void) | undefined>;
-
 const previewText = (el: Element): string => {
   const text = (el.textContent ?? '').replace(/\s+/g, ' ').trim();
   return text.length > PREVIEW_MAX_LENGTH ? `${text.slice(0, PREVIEW_MAX_LENGTH)}…` : text;
@@ -42,7 +36,7 @@ const ICON_PATHS = {
 
 /** Mounts the picker overlay on the page. A previously running picker, even from another script load, is closed first. */
 export function mountPicker(opts: PickerOptions): () => void {
-  globals[ACTIVE_KEY]?.();
+  getActivePickerClose()?.();
   const doc = opts.doc ?? document;
   const win = doc.defaultView ?? window;
 
@@ -224,7 +218,7 @@ export function mountPicker(opts: PickerOptions): () => void {
       opts.storage,
     ).then(
       () => {
-        if (globals[ACTIVE_KEY] !== close) return; // closed while saving
+        if (getActivePickerClose() !== close) return; // closed while saving
         savedSite = normalizeDomain(win.location.href);
         phase = 'saved';
         box.className = 'box picked';
@@ -260,7 +254,7 @@ export function mountPicker(opts: PickerOptions): () => void {
     win.removeEventListener('scroll', reposition, true);
     win.removeEventListener('resize', reposition);
     host.remove();
-    if (globals[ACTIVE_KEY] === close) globals[ACTIVE_KEY] = undefined;
+    if (getActivePickerClose() === close) setActivePicker(undefined);
   };
 
   cancel.addEventListener('click', close);
@@ -269,6 +263,6 @@ export function mountPicker(opts: PickerOptions): () => void {
   doc.addEventListener('keydown', onKey, true);
   win.addEventListener('scroll', reposition, true);
   win.addEventListener('resize', reposition);
-  globals[ACTIVE_KEY] = close;
+  setActivePicker(close);
   return close;
 }
