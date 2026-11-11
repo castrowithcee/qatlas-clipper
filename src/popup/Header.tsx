@@ -1,4 +1,5 @@
-import { IconButton, Select } from '../ui/components';
+import { useState } from 'react';
+import { Combobox, IconButton, type ComboboxGroup } from '../ui/components';
 import { useI18n } from '../settings';
 
 interface Props {
@@ -20,22 +21,29 @@ interface Props {
 
 export function Header({ projects, folders = [], tags = [], matchingIds, value, onChange, onOpenOptions, highlight, onToggleHighlight, switchTo, onSwitchView }: Props) {
   const { t } = useI18n();
-  const matching = projects.filter((p) => matchingIds.includes(p.id));
-  const rest = projects.filter((p) => !matchingIds.includes(p.id));
+  const [text, setText] = useState('');
+  const needle = text.trim().toLowerCase();
+  const known = new Map(folders.map((f) => [f.id, f.name]));
   type Entry = (typeof projects)[number];
+  const tagNames = (p: Entry) => tags.filter((x) => p.tagIds?.includes(x.id)).map((x) => x.name);
   const named = (p: Entry) => {
-    const own = tags.filter((x) => p.tagIds?.includes(x.id)).map((x) => x.name);
+    const own = tagNames(p);
     return own.length > 0 ? t('popup.project.withTags', { name: p.name, tags: own.join(', ') }) : p.name;
   };
-  const toOption = (p: Entry) => ({ value: p.id, label: t('popup.project.noMatch', { name: named(p) }) });
-  const known = new Set(folders.map((f) => f.id));
-  const options = [
-    ...matching.map((p) => ({ value: p.id, label: named(p) })),
-    ...rest.filter((p) => !p.folderId || !known.has(p.folderId)).map(toOption),
-  ];
-  const groups = folders
-    .map((f) => ({ label: f.name, options: rest.filter((p) => p.folderId === f.id).map(toOption) }))
-    .filter((g) => g.options.length > 0);
+  const folderOf = (p: Entry) => (p.folderId ? known.get(p.folderId) : undefined);
+  const fits = (p: Entry) =>
+    needle === '' || [p.name, folderOf(p) ?? '', ...tagNames(p)].some((n) => n.toLowerCase().includes(needle));
+  const toOption = (p: Entry) => ({ value: p.id, label: named(p) });
+  const visible = projects.filter(fits);
+  const rest = visible.filter((p) => !matchingIds.includes(p.id));
+  const sections: ComboboxGroup[] = [
+    { id: 'matching', label: t('popup.project.matching'), options: visible.filter((p) => matchingIds.includes(p.id)).map(toOption) },
+    { id: 'loose', label: t('popup.project.noFolder'), options: rest.filter((p) => !folderOf(p)).map(toOption) },
+    ...folders.map((f): ComboboxGroup => ({ id: `f-${f.id}`, label: f.name, icon: 'folder', options: rest.filter((p) => p.folderId === f.id).map(toOption) })),
+  ].filter((g) => g.options.length > 0);
+  // A single unlabeled section needs no heading.
+  const groups = sections.length === 1 && !sections[0]!.icon ? [{ ...sections[0]!, label: undefined }] : sections;
+  const selected = projects.find((p) => p.id === value);
   return (
     <header className="popup-header">
       <div className="popup-header-top">
@@ -45,12 +53,23 @@ export function Header({ projects, folders = [], tags = [], matchingIds, value, 
         )}
         <IconButton icon="settings" label={t('popup.header.options')} onClick={onOpenOptions} />
       </div>
-      <Select
+      <Combobox
         label={t('popup.project.label')}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        options={options}
+        text={text}
+        onTextChange={setText}
         groups={groups}
+        listLabel={t('popup.project.list')}
+        emptyText={t('popup.project.empty')}
+        noResultsText={t('popup.project.noResults')}
+        selectedValue={value}
+        closedText={selected ? named(selected) : ''}
+        icon="project"
+        autoActivate
+        onSelect={(id) => {
+          setText('');
+          if (id !== value) onChange(id);
+        }}
+        onCancel={() => setText('')}
       />
     </header>
   );

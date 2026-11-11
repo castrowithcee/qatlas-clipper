@@ -7,6 +7,7 @@ import type { ReadTabResult } from '../src/extract/inject';
 import { OPTIONS_FOCUS_KEY } from '../src/options/focus';
 import { PopupApp, type PopupDeps } from '../src/popup/PopupApp';
 import { LAST_PROJECT_KEY, MAX_DRAFTS, emptyDraft, loadDraft, saveDraft } from '../src/popup/draft';
+import { chooseProject, projectBox } from './helpers/projectChoice';
 
 vi.mock('wxt/browser', () => ({ browser: { storage: { local: {} }, tabs: {}, runtime: {} } }));
 
@@ -92,10 +93,12 @@ describe('popup', () => {
 
   it('orders matching projects first, preselects the first match, all selectable', async () => {
     const { user, read } = setup();
-    const select = (await screen.findByLabelText('Project')) as HTMLSelectElement;
-    expect([...select.options].map((o) => o.textContent)).toEqual(['Beta', 'Gamma', 'Alpha (no match)']);
-    expect(select.value).toBe('b');
-    await user.selectOptions(select, 'a');
+    const box = await projectBox();
+    expect(box.value).toBe('Beta');
+    await user.click(box);
+    expect(screen.getAllByRole('option').map((o) => o.textContent)).toEqual(['Beta', 'Gamma', 'Alpha']);
+    expect(screen.getByRole('option', { name: 'Beta' }).getAttribute('aria-selected')).toBe('true');
+    await user.click(screen.getByRole('option', { name: 'Alpha' }));
     expect(await screen.findByLabelText('Headline (required)')).toBeTruthy();
     expect(read).toHaveBeenLastCalledWith(7, expect.anything(), 'a');
     // Non-matching project: fields empty, source manual; required marked.
@@ -107,15 +110,15 @@ describe('popup', () => {
   it('preselects the last chosen project without a match, falls back to the first', async () => {
     const page = () => ({ ...basePage(), matching: [] });
     setup({ page, storage: fakeStorage({ ...stored(...PROJECTS), [LAST_PROJECT_KEY]: 'c' }) });
-    expect(((await screen.findByLabelText('Project')) as HTMLSelectElement).value).toBe('c');
+    expect((await projectBox()).value).toBe('Gamma');
     cleanup();
     setup({ page, storage: fakeStorage({ ...stored(...PROJECTS), [LAST_PROJECT_KEY]: 'gone' }) });
-    expect(((await screen.findByLabelText('Project')) as HTMLSelectElement).value).toBe('a');
+    expect((await projectBox()).value).toBe('Alpha');
   });
 
   it('persists the chosen project as last chosen', async () => {
     const { user, storage } = setup();
-    await user.selectOptions(await screen.findByLabelText('Project'), 'c');
+    await chooseProject(user, 'Gamma');
     await waitFor(() => expect(storage.data[LAST_PROJECT_KEY]).toBe('c'));
   });
 
@@ -212,7 +215,7 @@ describe('popup', () => {
 
   it('hands the selected project to the options page before opening it', async () => {
     const { user, deps, draftStorage } = setup();
-    await user.selectOptions(await screen.findByLabelText('Project'), 'a');
+    await chooseProject(user, 'Alpha');
     await user.click(screen.getByRole('button', { name: 'Open settings' }));
     await waitFor(() => expect(deps.openOptions).toHaveBeenCalledTimes(1));
     expect(draftStorage.data[OPTIONS_FOCUS_KEY]).toMatchObject({ projectId: 'a' });
@@ -223,7 +226,7 @@ describe('popup', () => {
     const read = vi.fn((tab: number, projects: unknown, projectId?: string) =>
       read.mock.calls.length > 1 ? new Promise<ReadTabResult>(() => undefined) : ready(tab, projects, projectId));
     const { user, deps, draftStorage } = setup({ read });
-    await user.selectOptions(await screen.findByLabelText('Project'), 'a');
+    await chooseProject(user, 'Alpha');
     await user.click(screen.getByRole('button', { name: 'Open settings' }));
     await waitFor(() => expect(deps.openOptions).toHaveBeenCalledTimes(1));
     expect(read).toHaveBeenLastCalledWith(7, expect.anything(), 'a');

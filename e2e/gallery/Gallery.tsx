@@ -1,7 +1,7 @@
 import { useState, type ReactNode, type Ref } from 'react';
 import { useI18n } from '../../src/settings';
 import {
-  Button, Checkbox, Chip, DataTable, DetailPanel, Dialog, Disclosure, EmptyState, ErrorState, ICON_NAMES, Icon, IconButton, LoadingState, Menu, type MenuEntry, type MenuTriggerProps, NotificationsProvider, RowActions, RowError, Select, Switch, TextField, Toast, TileGroup, useNotifications,
+  Button, Checkbox, Chip, Combobox, type ComboboxGroup, DataTable, DetailPanel, Dialog, Disclosure, EmptyState, ErrorState, ICON_NAMES, Icon, IconButton, LoadingState, Menu, type MenuEntry, type MenuTriggerProps, NotificationsProvider, RowActions, RowError, Select, Switch, TextField, Toast, TileGroup, useNotifications,
 } from '../../src/ui/components';
 import '../../src/ui/components/components.css';
 import '../../src/options/options.css';
@@ -22,6 +22,28 @@ function NotifyDemo() {
     <div className="gallery-row">
       <Button onClick={() => notify('success', 'Saved.')}>Show message</Button>
       <Button onClick={() => notify('error', 'Not saved: the webhook did not respond')}>Show error</Button>
+    </div>
+  );
+}
+
+const PICK_GROUPS: ComboboxGroup[] = [
+  { id: 'page', label: 'Fits this page', options: [{ value: 'a', label: 'Articles · News' }] },
+  { id: 'loose', label: 'No folder', options: [{ value: 'b', label: 'Products' }] },
+  { id: 'f1', label: 'Reviews', icon: 'folder', options: [{ value: 'c', label: 'Books' }, { value: 'd', label: 'Films' }] },
+];
+
+function ComboboxDemo() {
+  const [text, setText] = useState('');
+  const [value, setValue] = useState('a');
+  const needle = text.trim().toLowerCase();
+  const groups = PICK_GROUPS.map((g) => ({ ...g, options: g.options.filter((o) => g.label?.toLowerCase().includes(needle) || o.label.toLowerCase().includes(needle)) }));
+  const chosen = PICK_GROUPS.flatMap((g) => g.options).find((o) => o.value === value);
+  return (
+    <div className="gallery-combobox">
+      <Combobox
+        label="Project" text={text} onTextChange={setText} groups={groups} listLabel="Projects" emptyText="No projects" noResultsText="No matches"
+        selectedValue={value} closedText={chosen?.label ?? ''} icon="project" autoActivate onSelect={(v) => { setValue(v); setText(''); }} onCancel={() => setText('')}
+      />
     </div>
   );
 }
@@ -129,6 +151,7 @@ export function Gallery() {
         .gallery-section { padding: var(--space-4) 0 var(--space-5); border-bottom: 1px solid var(--color-border); }
         .gallery-row { display: flex; flex-wrap: wrap; gap: var(--space-3); align-items: flex-start; }
         .gallery-row > .q-field { flex: 1 1 14rem; }
+        .gallery-combobox { flex: 1 1 20rem; max-width: 28rem; }
         .gallery-chips { display: flex; gap: var(--space-2); padding: 0; margin: 0; list-style: none; }
         .gallery-icons { display: flex; flex-wrap: wrap; gap: var(--space-3); }
         .gallery-icons .q-icon { width: 1.5rem; height: 1.5rem; }
@@ -152,6 +175,9 @@ export function Gallery() {
         <Select label="Template" options={OPTIONS} defaultValue="a" help="The template decides which fields are read first." />
         <Select label="Template" options={OPTIONS} defaultValue="b" error="Choose a template that matches the page" />
         <Select label="Disabled" options={OPTIONS} disabled />
+      </Section>
+      <Section id="combobox" title="Combobox">
+        <ComboboxDemo />
       </Section>
       <Section id="toggles" title="Switch and checkbox">
         <Switch label="Send automatically" defaultChecked />

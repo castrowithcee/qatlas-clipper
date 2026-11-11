@@ -12,3 +12,4 @@ export { MarkdownView } from './Markdown';
 export { DetailPanel } from './DetailPanel';
 export { DataTable, RowActions, RowError, type DataTableColumn } from './DataTable';
 export { Menu, type MenuEntry, type MenuTriggerProps } from './Menu';
+export { Combobox, type ComboboxGroup, type ComboboxOption } from './Combobox';

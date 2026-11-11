@@ -93,6 +93,37 @@ for (const lang of ['de', 'en'] as const) {
       await popup.keyboard.press('Escape');
       await expect(more).toBeFocused();
 
+      // Project choice open and a search without hits: matching, unfoldered and foldered projects with tags.
+      // The list is clamped into the window, so the window must be tall enough to review it.
+      await popup.close();
+      const named = (id: string, name: string, extra: object) => ({ ...project([target(`t-${id}`, 'Test hook', webhook.url)]).projects[0], id, name, ...extra });
+      const elsewhere = { allSites: false, domains: ['other.example'] };
+      await setConfig(serviceWorker, {
+        schemaVersion: 1,
+        folders: [{ id: 'f1', name: 'Reviews' }, { id: 'f2', name: 'Shop' }],
+        tags: [{ id: 't1', name: 'news' }, { id: 't2', name: 'draft' }],
+        projects: [
+          named('articles', 'Articles', { tagIds: ['t1'] }),
+          named('notes', 'Notes', { scope: elsewhere }),
+          named('books', 'Books', { scope: elsewhere, folderId: 'f1', tagIds: ['t2'] }),
+          named('films', 'Films', { scope: elsewhere, folderId: 'f1' }),
+          named('products', 'Products', { scope: elsewhere, folderId: 'f2' }),
+        ],
+      });
+      popup = await open();
+      const choice = popup.getByRole('combobox', { name: /^(Project|Projekt)$/ });
+      await popup.setViewportSize({ width: 384, height: 480 });
+      await choice.click();
+      await expect(popup.getByRole('listbox')).toBeVisible();
+      await expect(popup.getByRole('option')).toHaveCount(5);
+      await shot(popup, 'project-choice', tag, 480);
+      await choice.fill('zzz');
+      await expect(popup.getByRole('status').filter({ hasText: /^(Keine Treffer|No matches)$/ })).toBeVisible();
+      await shot(popup, 'project-choice-empty', tag, 480);
+      await popup.keyboard.press('Escape');
+      await expect(popup.getByRole('listbox')).toBeHidden();
+      await expect(choice).toHaveValue(/^Articles/);
+
       // Sending.
       await popup.close();
       await setConfig(serviceWorker, project([target('slow', 'Test hook', slow.url)]));

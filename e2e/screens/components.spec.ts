@@ -5,7 +5,7 @@ import { join, resolve } from 'node:path';
 const OUT = resolve(process.env.SCREENS_DIR ?? 'test-results/screens');
 mkdirSync(OUT, { recursive: true });
 
-const SECTIONS = ['buttons', 'fields', 'toggles', 'tooltip', 'toasts', 'states', 'disclosure', 'table', 'chips', 'tiles', 'menu', 'icons'];
+const SECTIONS = ['buttons', 'fields', 'toggles', 'tooltip', 'toasts', 'states', 'disclosure', 'table', 'chips', 'tiles', 'combobox', 'menu', 'icons'];
 
 async function open(page: Page, theme: string, lang = 'en') {
   await page.goto(`/?theme=${theme}&lang=${lang}`);
@@ -61,6 +61,24 @@ for (const theme of ['light', 'dark']) {
         await expect(page.getByRole('dialog')).toBeHidden();
         await expect(open1).toBeFocused();
       }
+    });
+
+    test('combobox open and without matches', async ({ page }) => {
+      await open(page, theme);
+      const box = page.getByRole('combobox', { name: 'Project' });
+      // Top of the window, so the list opens below the input.
+      await page.getByTestId('combobox').evaluate((el) => el.scrollIntoView({ block: 'start' }));
+      await box.focus();
+      await expect(page.getByRole('listbox', { name: 'Projects' })).toBeVisible();
+      await expect(page.getByRole('option', { name: 'Articles · News' })).toHaveAttribute('aria-selected', 'true');
+      const top = (await page.getByTestId('combobox').boundingBox())!.y;
+      await page.screenshot({ clip: { x: 0, y: top, width: 480, height: 400 }, path: join(OUT, `${theme}-combobox-open.png`) });
+      await page.keyboard.type('zzz');
+      await expect(page.getByText('No matches')).toBeVisible();
+      await page.screenshot({ clip: { x: 0, y: top, width: 480, height: 200 }, path: join(OUT, `${theme}-combobox-empty.png`) });
+      await page.keyboard.press('Escape');
+      await expect(page.getByRole('listbox')).toBeHidden();
+      await expect(box).toHaveValue('Articles · News');
     });
 
     test('menu open', async ({ page }) => {

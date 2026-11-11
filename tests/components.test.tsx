@@ -3,10 +3,10 @@ import { useState, type Ref } from 'react';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import {
-  Button, Checkbox, Chip, DataTable, DetailPanel, Dialog, Disclosure, EmptyState, ErrorState, Icon, IconButton, LoadingState, Menu, type MenuEntry, type MenuTriggerProps, Select, Switch, TextField, Toast, Tooltip, TileGroup, ICON_NAMES, type IconName, NotificationsProvider, TOAST_DURATION_MS, useNotifications, type ToastKind,
+  Button, Checkbox, Chip, Combobox, DataTable, DetailPanel, Dialog, Disclosure, EmptyState, ErrorState, Icon, IconButton, LoadingState, Menu, type MenuEntry, type MenuTriggerProps, Select, Switch, TextField, Toast, Tooltip, TileGroup, ICON_NAMES, type IconName, NotificationsProvider, TOAST_DURATION_MS, useNotifications, type ToastKind,
 } from '../src/ui/components';
 import { de, en } from '../src/i18n/catalog';
 
@@ -574,5 +574,87 @@ describe('TileGroup', () => {
     screen.getByRole('radio', { name: 'Two' }).focus();
     await user.keyboard('{ArrowLeft}');
     expect((screen.getByRole('radio', { name: 'One' }) as HTMLInputElement).checked).toBe(true);
+  });
+});
+
+describe('Combobox', () => {
+  const GROUPS = [
+    { id: 'g1', label: 'First <b>', icon: 'folder' as const, options: [{ value: 'a', label: 'Alpha' }, { value: 'b', label: 'Beta' }] },
+    { id: 'g2', label: 'Second', options: [{ value: 'c', label: 'Gamma' }] },
+  ];
+  function Harness({ groups = GROUPS, onSelect = () => undefined, empty = false }: { groups?: typeof GROUPS; onSelect?: (v: string) => void; empty?: boolean }) {
+    const [text, setText] = useState('');
+    const shown = groups.map((g) => ({ ...g, options: g.options.filter((o) => o.label.toLowerCase().includes(text.toLowerCase())) }));
+    return (
+      <Combobox
+        label="Pick" text={text} onTextChange={setText} groups={empty ? [] : shown} onSelect={onSelect} listLabel="Entries"
+        emptyText="Nothing here" noResultsText="No hits" selectedValue="b" closedText="Beta" onCancel={() => setText('')}
+      />
+    );
+  }
+
+  it('follows the combobox pattern and starts on the selected option', async () => {
+    const user = userEvent.setup();
+    render(<Harness />);
+    const box = screen.getByRole('combobox', { name: 'Pick' }) as HTMLInputElement;
+    expect(box.getAttribute('aria-expanded')).toBe('false');
+    expect(box.value).toBe('Beta');
+    await user.click(box);
+    expect(box.getAttribute('aria-expanded')).toBe('true');
+    expect(box.getAttribute('aria-controls')).toBe(screen.getByRole('listbox').id);
+    expect(box.getAttribute('aria-activedescendant')).toBe(screen.getByRole('option', { name: 'Beta' }).id);
+    expect(screen.getByRole('option', { name: 'Beta' }).getAttribute('aria-selected')).toBe('true');
+    expect(screen.getByRole('option', { name: 'Alpha' }).getAttribute('aria-selected')).toBe('false');
+    // Heading text is plain text, group rows are no options.
+    expect(screen.getAllByRole('option')).toHaveLength(3);
+    expect(screen.getByRole('group', { name: 'First <b>' })).toBeTruthy();
+    expect(screen.getByRole('listbox').querySelector('b')).toBeNull();
+  });
+
+  it('skips group rows with the arrow keys, Enter selects, Escape closes without selecting', async () => {
+    const user = userEvent.setup();
+    const onSelect = vi.fn();
+    render(<Harness onSelect={onSelect} />);
+    const box = screen.getByRole('combobox', { name: 'Pick' });
+    await user.click(box);
+    await user.keyboard('{ArrowDown}');
+    expect(box.getAttribute('aria-activedescendant')).toBe(screen.getByRole('option', { name: 'Gamma' }).id);
+    await user.keyboard('{ArrowDown}');
+    expect(box.getAttribute('aria-activedescendant')).toBe(screen.getByRole('option', { name: 'Gamma' }).id);
+    await user.keyboard('{ArrowUp}{ArrowUp}');
+    expect(box.getAttribute('aria-activedescendant')).toBe(screen.getByRole('option', { name: 'Alpha' }).id);
+    await user.keyboard('{Escape}');
+    expect(box.getAttribute('aria-expanded')).toBe('false');
+    expect(screen.queryByRole('listbox')).toBeNull();
+    expect(onSelect).not.toHaveBeenCalled();
+    // The first arrow key reopens on the selected option, the second moves on.
+    await user.keyboard('{ArrowDown}{ArrowDown}{Enter}');
+    expect(onSelect).toHaveBeenCalledWith('c');
+    expect(box.getAttribute('aria-expanded')).toBe('false');
+  });
+
+  it('shows "no hits" after a search without result and a different text for an empty list', async () => {
+    const user = userEvent.setup();
+    const { unmount } = render(<Harness />);
+    const box = screen.getByRole('combobox', { name: 'Pick' });
+    await user.type(box, 'zzz');
+    expect(screen.queryByRole('listbox')).toBeNull();
+    expect(box.getAttribute('aria-controls')).toBeNull();
+    expect(within(screen.getByRole('status')).getByText('No hits')).toBeTruthy();
+    unmount();
+    render(<Harness empty />);
+    await user.click(screen.getByRole('combobox', { name: 'Pick' }));
+    expect(screen.getByRole('status').textContent).toBe('Nothing here');
+  });
+
+  it('selects with the pointer and keeps the input focused', async () => {
+    const user = userEvent.setup();
+    const onSelect = vi.fn();
+    render(<Harness onSelect={onSelect} />);
+    const box = screen.getByRole('combobox', { name: 'Pick' });
+    await user.click(box);
+    await user.click(screen.getByRole('option', { name: 'Gamma' }));
+    expect(onSelect).toHaveBeenCalledWith('c');
+    expect(document.activeElement).toBe(box);
   });
 });

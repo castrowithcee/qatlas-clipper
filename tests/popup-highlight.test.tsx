@@ -8,6 +8,7 @@ import type { HighlightConnection } from '../src/highlight/connect';
 import { PopupApp } from '../src/popup/PopupApp';
 import { SETTINGS_KEY, SettingsProvider } from '../src/settings';
 import { en } from '../src/i18n/catalog';
+import { chooseProject } from './helpers/projectChoice';
 
 vi.mock('wxt/browser', () => ({ browser: { storage: { local: {} }, tabs: {}, runtime: {} } }));
 
@@ -96,7 +97,7 @@ describe('highlight connection of the popup and side panel', () => {
     const { conns, connect } = fakeConnect();
     const { user } = setup({ connect });
     await waitFor(() => expect(conns[0]?.update).toHaveBeenCalled());
-    await user.selectOptions(await screen.findByLabelText('Project'), 'b');
+    await chooseProject(user, 'b');
     await waitFor(() => expect(conns[0]!.update).toHaveBeenLastCalledWith([{ label: 'Price', selector: '.p' }]));
     expect(conns).toHaveLength(1);
   });

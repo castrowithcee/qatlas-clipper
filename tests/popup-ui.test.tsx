@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { CONFIG_KEY, type StorageArea } from '../src/config';
 import type { ReadTabResult } from '../src/extract/inject';
@@ -382,17 +382,33 @@ describe.each(['popup', 'sidepanel'] as const)('project choice with tags (%s)', 
   };
 
   it('puts the tags behind the name in tag-list order and keeps the grouping', async () => {
-    const { view } = setup('en', { cfg, variant } as never);
-    const select = (await screen.findByLabelText(en['popup.project.label'])) as HTMLSelectElement;
-    const noMatch = (name: string) => en['popup.project.noMatch'].replace('{name}', name);
-    const top = [...select.children].filter((c) => c.tagName === 'OPTION').map((c) => c.textContent);
-    expect(top).toEqual(['Match · One, Two <b>', noMatch('Loose')]);
-    const groups = [...select.querySelectorAll('optgroup')].map((g) => [g.label, [...g.querySelectorAll('option')].map((o) => o.textContent)]);
-    expect(groups).toEqual([['Zeta', [noMatch('InZeta · One')]]]);
-    expect(select.querySelector('b')).toBeNull();
+    const { user, view } = setup('en', { cfg, variant } as never);
+    await user.click(await screen.findByRole('combobox', { name: en['popup.project.label'] }));
+    expect(sections()).toEqual([
+      [en['popup.project.matching'], ['Match · One, Two <b>']],
+      [en['popup.project.noFolder'], ['Loose']],
+      ['Zeta', ['InZeta · One']],
+    ]);
+    expect(screen.getByRole('listbox').querySelector('b')).toBeNull();
+    view.unmount();
+  });
+
+  it('searches by tag name', async () => {
+    const { user, view } = setup('en', { cfg, variant } as never);
+    await user.type(await screen.findByRole('combobox', { name: en['popup.project.label'] }), 'two');
+    // A single section needs no heading; the group is named like the list.
+    expect(sections()).toEqual([[en['popup.project.list'], ['Match · One, Two <b>']]]);
     view.unmount();
   });
 });
+
+/** Heading and option texts of the open project list, in order. */
+function sections() {
+  return within(screen.getByRole('listbox')).getAllByRole('group').map((g) => [
+    g.getAttribute('aria-labelledby') ? document.getElementById(g.getAttribute('aria-labelledby')!)!.textContent : g.getAttribute('aria-label'),
+    within(g).getAllByRole('option').map((o) => o.textContent),
+  ]);
+}
 
 describe.each(['popup', 'sidepanel'] as const)('project choice with folders (%s)', (variant) => {
   const proj = (id: string, name: string, folderId?: string) => ({
@@ -406,15 +422,56 @@ describe.each(['popup', 'sidepanel'] as const)('project choice with folders (%s)
     },
   };
 
-  it('lists matching first, then unfoldered, then folders in folder order', async () => {
-    const { view } = setup('en', { cfg, variant } as never);
-    const select = (await screen.findByLabelText(en['popup.project.label'])) as HTMLSelectElement;
-    const noMatch = (name: string) => en['popup.project.noMatch'].replace('{name}', name);
-    const top = [...select.children].filter((c) => c.tagName === 'OPTION').map((c) => c.textContent);
-    expect(top).toEqual(['Match', noMatch('Loose')]);
-    const groups = [...select.querySelectorAll('optgroup')].map((g) => [g.label, [...g.querySelectorAll('option')].map((o) => o.textContent)]);
-    expect(groups).toEqual([['Zeta', [noMatch('InZeta'), noMatch('InZeta2')]], ['Alpha <b>', [noMatch('InAlpha')]]]);
-    expect(select.querySelector('b')).toBeNull();
+  const open = async () => {
+    const ui = setup('en', { cfg, variant } as never);
+    const box = (await screen.findByRole('combobox', { name: en['popup.project.label'] })) as HTMLInputElement;
+    return { ...ui, box };
+  };
+
+  it('lists matching first, then unfoldered, then folders in folder order, indented under the folder', async () => {
+    const { user, view, box } = await open();
+    expect(box.value).toBe('Match');
+    await user.click(box);
+    expect(sections()).toEqual([
+      [en['popup.project.matching'], ['Match']],
+      [en['popup.project.noFolder'], ['Loose']],
+      ['Zeta', ['InZeta', 'InZeta2']],
+      ['Alpha <b>', ['InAlpha']],
+    ]);
+    expect(screen.getByRole('listbox').querySelector('b')).toBeNull();
+    expect(screen.getByRole('option', { name: 'InZeta' }).className).toContain('is-indented');
+    view.unmount();
+  });
+
+  it('searches project, folder and tag names and drops groups without hits', async () => {
+    const { user, view, box } = await open();
+    await user.type(box, 'zeta');
+    expect(sections()).toEqual([['Zeta', ['InZeta', 'InZeta2']]]);
+    await user.clear(box);
+    await user.type(box, 'inalpha');
+    expect(sections()).toEqual([['Alpha <b>', ['InAlpha']]]);
+    await user.clear(box);
+    await user.type(box, 'zz');
+    expect(screen.queryByRole('listbox')).toBeNull();
+    expect(screen.getByText(en['popup.project.noResults'])).toBeTruthy();
+    expect(screen.queryByText(en['popup.project.empty'])).toBeNull();
+    view.unmount();
+  });
+
+  it('selects with the keyboard; Escape closes without changing the choice', async () => {
+    const { user, view, box } = await open();
+    await user.click(box);
+    expect(box.getAttribute('aria-expanded')).toBe('true');
+    expect(box.getAttribute('aria-activedescendant')).toBe(screen.getByRole('option', { name: 'Match' }).id);
+    await user.keyboard('{Escape}');
+    expect(box.getAttribute('aria-expanded')).toBe('false');
+    expect(box.value).toBe('Match');
+    await user.keyboard('{ArrowDown}{ArrowDown}');
+    // Heading rows are skipped: the second option is the first one behind the heading.
+    expect(box.getAttribute('aria-activedescendant')).toBe(screen.getByRole('option', { name: 'Loose' }).id);
+    await user.keyboard('{Enter}');
+    await waitFor(() => expect(box.value).toBe('Loose'));
+    expect(box.getAttribute('aria-expanded')).toBe('false');
     view.unmount();
   });
 });

@@ -28,7 +28,8 @@ test('the popup gear reuses the open options tab, shows the selected project and
   const page = await context.newPage();
   await page.goto(`${pages.origin}/jsonld.html`);
   const popup = await openPopup(context, serviceWorker, extensionId, page);
-  await popup.getByLabel('Project').selectOption('second');
+  await popup.getByRole('combobox', { name: 'Project' }).click();
+  await popup.getByRole('option', { name: 'Second' }).click();
   const optionsPages = () => context.pages().filter((p) => p.url().startsWith(`chrome-extension://${extensionId}/options.html`));
   expect(optionsPages()).toHaveLength(1);
   await popup.getByRole('button', { name: 'Open settings' }).click();
