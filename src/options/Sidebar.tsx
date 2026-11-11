@@ -3,14 +3,14 @@ import type { Config, Folder, Project } from '../config';
 import { useI18n } from '../settings';
 import { Button, Dialog, Icon, Menu, TextField, type MenuEntry } from '../ui/components';
 import { folderNameError } from './draft';
-import { HELP_HASH, IMPORT_EXPORT_HASH, projectHash, SETTINGS_HASH } from './route';
+import { HELP_HASH, IMPORT_EXPORT_HASH, projectHash, SETTINGS_HASH, TAGS_HASH } from './route';
 
-export type NavTarget = { view: 'project'; id: string } | { view: 'settings' } | { view: 'import-export' } | { view: 'help' };
+export type NavTarget = { view: 'project'; id: string } | { view: 'tags' } | { view: 'settings' } | { view: 'import-export' } | { view: 'help' };
 
 interface Props {
   projects: Project[];
   folders?: Folder[];
-  /** The whole draft; only read to check folder names. */
+  /** The whole draft; read to check folder names and for the tag list of the filter. */
   config: Config;
   current: NavTarget | undefined;
   dirty: boolean;
@@ -34,8 +34,21 @@ export function Brand() {
 }
 
 export function Sidebar({ projects, folders = [], config, current, dirty, onAdd, onAddFolder, onRenameFolder, onMoveFolder, onDeleteFolder }: Props) {
-  const { t } = useI18n();
+  const { t, tn } = useI18n();
   const [dialog, setDialog] = useState<FolderDialog>();
+  // The tag filter is view state of this page only; it is never stored (not in the configuration, not in storage).
+  const [chosen, setChosen] = useState<string[]>([]);
+  // Folders closed by hand while a filter is on; reset whenever the filter changes.
+  const [shut, setShut] = useState<Record<string, boolean>>({});
+  const tags = config.tags ?? [];
+  const active = chosen.filter((id) => tags.some((x) => x.id === id));
+  const filtering = active.length > 0;
+  const visible = (p: Project) => !filtering || (p.tagIds ?? []).some((id) => active.includes(id));
+  const changeFilter = (next: string[]) => {
+    setChosen(next);
+    setShut({});
+  };
+  const shown = projects.filter(visible).length;
   // Expansion is view state only; it is never part of the configuration.
   const [open, setOpen] = useState<Record<string, boolean>>({});
   const currentId = current?.view === 'project' ? current.id : undefined;
@@ -58,6 +71,7 @@ export function Sidebar({ projects, folders = [], config, current, dirty, onAdd,
     <li key={p.id}>{link(projectHash(p.id), isCurrent('project', p.id), p.name || t('options.projects.unnamed'))}</li>
   );
   const titleId = 'options-nav-projects';
+  const filterId = 'options-nav-filter';
   return (
     <aside className="options-sidebar">
       <Brand />
@@ -72,11 +86,41 @@ export function Sidebar({ projects, folders = [], config, current, dirty, onAdd,
       <nav aria-label={t('options.nav.label')}>
         <div className="options-nav-group">
           <p id={titleId} className="options-nav-title">{t('options.projects.title')}</p>
+          {tags.length > 0 && (
+            <div role="group" aria-labelledby={filterId} className="options-tag-filter">
+              <p id={filterId} className="options-nav-title">{t('options.filter.label')}</p>
+              <ul className="options-tag-filter-list">
+                {tags.map((x) => {
+                  const on = active.includes(x.id);
+                  return (
+                    <li key={x.id}>
+                      <button
+                        type="button"
+                        className="options-tag-toggle"
+                        aria-pressed={on}
+                        onClick={() => changeFilter(on ? active.filter((id) => id !== x.id) : [...active, x.id])}
+                      >
+                        {x.name}
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+              <p className="q-hint options-filter-hint">{t('options.filter.hint')}</p>
+              {filtering && (
+                <div className="options-filter-active" role="status">
+                  <span>{tn('options.filter.active', shown)}</span>
+                  <Button onClick={() => changeFilter([])}>{t('options.filter.reset')}</Button>
+                </div>
+              )}
+            </div>
+          )}
           <ul aria-labelledby={titleId} className="options-nav-projects">
-            {projects.filter((p) => !p.folderId || !folders.some((f) => f.id === p.folderId)).map(projectItem)}
+            {projects.filter((p) => (!p.folderId || !folders.some((f) => f.id === p.folderId)) && visible(p)).map(projectItem)}
             {folders.map((f, index) => {
-              const inside = projects.filter((p) => p.folderId === f.id);
-              const expanded = open[f.id] ?? f.id === currentFolder;
+              const inside = projects.filter((p) => p.folderId === f.id && visible(p));
+              if (filtering && inside.length === 0) return null;
+              const expanded = filtering ? !shut[f.id] : (open[f.id] ?? f.id === currentFolder);
               const listId = `options-folder-${f.id}`;
               const name = f.name || t('options.folders.unnamed');
               const entries: MenuEntry[] = [
@@ -93,7 +137,7 @@ export function Sidebar({ projects, folders = [], config, current, dirty, onAdd,
                       className="options-folder-toggle"
                       aria-expanded={expanded}
                       aria-controls={listId}
-                      onClick={() => setOpen((o) => ({ ...o, [f.id]: !expanded }))}
+                      onClick={() => (filtering ? setShut((o) => ({ ...o, [f.id]: expanded })) : setOpen((o) => ({ ...o, [f.id]: !expanded })))}
                     >
                       <Icon name={expanded ? 'chevron-down' : 'chevron-right'} />
                       <span className="options-folder-name">{name}</span>
@@ -116,6 +160,7 @@ export function Sidebar({ projects, folders = [], config, current, dirty, onAdd,
           {t('options.folders.add')}
         </Button>
         <ul className="options-nav-areas">
+          <li>{link(TAGS_HASH, isCurrent('tags'), t('options.nav.tags'))}</li>
           <li>{link(SETTINGS_HASH, isCurrent('settings'), t('options.nav.settings'))}</li>
           <li>{link(IMPORT_EXPORT_HASH, isCurrent('import-export'), t('options.nav.importExport'))}</li>
           <li>{link(HELP_HASH, isCurrent('help'), t('options.nav.help'))}</li>

@@ -21,10 +21,11 @@ import { defaultPermissions, originPattern, originPatterns, type PermissionStatu
 import { HelpSection } from './HelpSection';
 import { ImportExport } from './ImportExport';
 import { ProjectEditor } from './ProjectEditor';
+import { TagsSection } from './TagsSection';
 import { Brand, Sidebar, type NavTarget } from './Sidebar';
 import { defaultFocusChannel, takeOptionsFocus, type FocusChannel } from './focus';
 import { navigate, parseHash, projectHash, useHash } from './route';
-import { addFolder, deleteFolder, moveFolder, moveItem, newProject, renameFolder, normalize, unmappedIssues, validate } from './draft';
+import { addFolder, addTagToProject, deleteFolder, moveFolder, moveItem, newProject, renameFolder, normalize, unmappedIssues, validate } from './draft';
 import { SettingsSection, useI18n } from '../settings';
 import { Button, Dialog, Disclosure, EmptyState, ErrorState, LoadingState, NotificationsProvider, useNotifications } from '../ui/components';
 import './options.css';
@@ -282,7 +283,7 @@ function Editor({ initial, initialValues, storage, permissions, subscribe, onRel
   const selected = draft.projects[selectedIndex];
   const notFound = route.view === 'project' && !selected;
   const projectView = route.view === 'project' || route.view === 'home';
-  const current: NavTarget | undefined = route.view === 'settings' || route.view === 'import-export' || route.view === 'help' ? route : selected ? { view: 'project', id: selected.id } : undefined;
+  const current: NavTarget | undefined = route.view === 'tags' || route.view === 'settings' || route.view === 'import-export' || route.view === 'help' ? route : selected ? { view: 'project', id: selected.id } : undefined;
 
   const edit = (projects: Project[]) => {
     commit({ draft: { ...live.current.draft, projects } });
@@ -404,7 +405,8 @@ function Editor({ initial, initialValues, storage, permissions, subscribe, onRel
     }
   };
 
-  const summary = unmappedIssues(issues, selectedIndex);
+  // Tag names are shown in the tag list itself, so the summary does not repeat them there.
+  const summary = unmappedIssues(issues, route.view === 'tags' ? -1 : selectedIndex).filter((i) => route.view !== 'tags' || !/^tags\[\d+\]\.name$/.test(i.path));
   const projectName = (i: number) => draft.projects[i]?.name || t('options.projects.fallbackName', { n: i + 1 });
 
   return (
@@ -422,7 +424,7 @@ function Editor({ initial, initialValues, storage, permissions, subscribe, onRel
         onDeleteFolder={(id) => editConfig((c) => deleteFolder(c, id))}
       />
     )}>
-      {projectView && (
+      {(projectView || route.view === 'tags') && (
         <>
           <div className="options-bar">
             <Button variant="primary" onClick={save} disabled={busy || conflict !== undefined}>
@@ -444,6 +446,10 @@ function Editor({ initial, initialValues, storage, permissions, subscribe, onRel
               </ul>
             </div>
           )}
+        </>
+      )}
+      {projectView && (
+        <>
           {notFound ? (
             <EmptyState
               title={t('options.notFound.title')}
@@ -468,6 +474,8 @@ function Editor({ initial, initialValues, storage, permissions, subscribe, onRel
               index={selectedIndex}
               count={draft.projects.length}
               folders={draft.folders ?? []}
+              tags={draft.tags ?? []}
+              onCreateTag={(name) => editConfig((c) => addTagToProject(c, selected.id, name))}
               onMove={(d) => edit(moveItem(draft.projects, selectedIndex, d))}
               onDelete={deleteSelected}
               issues={issues}
@@ -481,6 +489,7 @@ function Editor({ initial, initialValues, storage, permissions, subscribe, onRel
           )}
         </>
       )}
+      {route.view === 'tags' && <TagsSection config={draft} issues={issues} onEdit={editConfig} />}
       {route.view === 'settings' && <SettingsSection />}
       {route.view === 'help' && <HelpSection />}
       {route.view === 'import-export' && <ImportExport storage={storage} permissions={permissions} dirty={dirty} onImported={onReload} onImporting={(active) => { importing.current = active; }} />}

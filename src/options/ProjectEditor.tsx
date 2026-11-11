@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { contentFormatOf, type ContentFormat, type Folder, type HeaderValues, type Project } from '../config';
+import { contentFormatOf, type ContentFormat, type Folder, type HeaderValues, type Project, type Tag } from '../config';
 import { FieldEditor } from './FieldEditor';
 import { ScopeEditor } from './ScopeEditor';
-import { deleteField, deleteMapping, errorsAt, renameFieldKey, setProjectFolder, type Issue } from './draft';
+import { deleteField, deleteMapping, errorsAt, renameFieldKey, setProjectFolder, setProjectTags, type Issue } from './draft';
 import { useI18n } from '../settings';
 import { Button, Dialog, IconButton, Select, TextField, Tooltip } from '../ui/components';
+import { TagInput } from './TagInput';
 import { TargetEditor } from './TargetEditor';
 import type { PermissionStatus } from './permissions';
 
@@ -13,6 +14,10 @@ interface Props {
   index: number;
   count: number;
   folders?: Folder[];
+  /** The central tag list of the draft. */
+  tags?: Tag[];
+  /** Creates a tag with this name in the draft and assigns it to this project. */
+  onCreateTag?: (name: string) => void;
   onMove: (delta: -1 | 1) => void;
   onDelete: () => void;
   issues: Issue[];
@@ -25,7 +30,7 @@ interface Props {
   onFieldRenamed?: (projectId: string, from: string, to: string) => void;
 }
 
-export function ProjectEditor({ project, index, count, folders = [], onMove, onDelete, issues, onChange, headerValues, onHeaderValues, permissionStatus, onRequestPermission, onFieldRenamed }: Props) {
+export function ProjectEditor({ project, index, count, folders = [], tags = [], onCreateTag, onMove, onDelete, issues, onChange, headerValues, onHeaderValues, permissionStatus, onRequestPermission, onFieldRenamed }: Props) {
   const { t } = useI18n();
   const base = `projects[${index}]`;
   const nameError = project.name.trim() === '' ? t('options.project.nameMissing') : errorsAt(issues, `${base}.name`)[0];
@@ -40,6 +45,14 @@ export function ProjectEditor({ project, index, count, folders = [], onMove, onD
         error={errorsAt(issues, `${base}.folderId`)[0]}
         options={[{ value: '', label: t('options.project.folder.none') }, ...folders.map((f) => ({ value: f.id, label: f.name }))]}
         onChange={(e) => onChange(setProjectFolder(project, e.target.value || undefined))}
+      />
+      <TagInput
+        tags={tags}
+        assignedIds={project.tagIds ?? []}
+        error={issues.find((i) => i.path === `${base}.tagIds` || i.path.startsWith(`${base}.tagIds[`))?.message}
+        onAssign={(id) => onChange(setProjectTags(project, [...(project.tagIds ?? []), id]))}
+        onRemove={(id) => onChange(setProjectTags(project, (project.tagIds ?? []).filter((x) => x !== id)))}
+        onCreate={(name) => onCreateTag?.(name)}
       />
       <ScopeEditor scope={project.scope} basePath={base} issues={issues} onChange={(scope) => onChange({ ...project, scope })} />
       <FieldEditor

@@ -9,10 +9,12 @@ mkdirSync(OUT, { recursive: true });
 const config = {
   schemaVersion: 1,
   folders: [{ id: 'clients', name: 'Clients' }, { id: 'archive', name: 'Archive' }],
+  tags: [{ id: 'urgent', name: 'Urgent' }, { id: 'internal', name: 'Internal' }, { id: 'reading', name: 'Reading' }],
   projects: [
     {
       id: 'articles',
       name: 'Articles',
+      tagIds: ['reading', 'internal'],
       scope: { allSites: false, domains: ['example.com', 'example.org'], pageKind: 'article' },
       fields: [
         { key: 'headline', label: 'Headline', required: true, sources: { detect: 'title', schemaOrgPath: 'Article.headline' } },
@@ -26,8 +28,8 @@ const config = {
       ],
     },
     { id: 'products', name: 'Products', scope: { allSites: true, domains: [] }, fields: [], siteMappings: {}, targets: [] },
-    { id: 'shop', name: 'Shop orders', folderId: 'clients', scope: { allSites: true, domains: [] }, fields: [], siteMappings: {}, targets: [] },
-    { id: 'blog', name: 'Blog posts', folderId: 'clients', scope: { allSites: true, domains: [] }, fields: [], siteMappings: {}, targets: [] },
+    { id: 'shop', name: 'Shop orders', folderId: 'clients', tagIds: ['urgent'], scope: { allSites: true, domains: [] }, fields: [], siteMappings: {}, targets: [] },
+    { id: 'blog', name: 'Blog posts', folderId: 'clients', tagIds: ['reading'], scope: { allSites: true, domains: [] }, fields: [], siteMappings: {}, targets: [] },
     { id: 'old', name: 'Old notes', folderId: 'archive', scope: { allSites: true, domains: [] }, fields: [], siteMappings: {}, targets: [] },
   ],
 };
@@ -67,6 +69,22 @@ for (const lang of ['de', 'en'] as const) {
       if ((await archive.locator('button.options-folder-toggle').getAttribute('aria-expanded')) === 'true') await archive.locator('button.options-folder-toggle').click();
       await expect(archive.locator('button.options-folder-toggle')).toHaveAttribute('aria-expanded', 'false');
       await shot(page.getByRole('complementary'), 'sidebar-folders', tag);
+      // Tag field of the project: assigned tags as chips and the input with suggestions.
+      await expect(page.getByRole('list', { name: t('Zugewiesene Tags', 'Assigned tags') }).getByText('Reading')).toBeVisible();
+      await page.getByRole('combobox', { name: 'Tags' }).focus();
+      await page.keyboard.press('ArrowDown');
+      await expect(page.getByRole('listbox')).toBeVisible();
+      await shot(page, 'project-tags', tag);
+      await page.keyboard.press('Escape');
+      await page.getByRole('combobox', { name: 'Tags' }).blur();
+      // Active filter: only projects with a chosen tag, folders without a hit hidden, the others expanded.
+      await page.getByRole('button', { name: 'Urgent', exact: true }).click();
+      await page.getByRole('button', { name: 'Reading', exact: true }).click();
+      await expect(page.getByText(t('Gefiltert: 3 Projekte sichtbar', 'Filtered: 3 projects shown'))).toBeVisible();
+      await expect(folderRows).toHaveCount(1);
+      await shot(page.getByRole('complementary'), 'sidebar-filter', tag);
+      await page.getByRole('button', { name: t('Filter zurücksetzen', 'Reset filter') }).click();
+      await expect(folderRows).toHaveCount(2);
       await shot(sections.nth(0), 'scope', tag);
       await shot(sections.nth(1), 'fields', tag);
 
@@ -108,6 +126,10 @@ for (const lang of ['de', 'en'] as const) {
 
       // Settings, import and export, and a project address that does not exist.
       const nav = page.getByRole('navigation', { name: t('Optionen', 'Options') });
+      await nav.getByRole('link', { name: 'Tags' }).click();
+      await expect(nav.getByRole('link', { name: 'Tags' })).toHaveAttribute('aria-current', 'page');
+      await expect(page.getByTestId('options-tag')).toHaveCount(3);
+      await shot(page, 'tags', tag);
       await nav.getByRole('link', { name: t('Einstellungen', 'Settings') }).click();
       await expect(nav.getByRole('link', { name: t('Einstellungen', 'Settings') })).toHaveAttribute('aria-current', 'page');
       await shot(page, 'settings', tag);

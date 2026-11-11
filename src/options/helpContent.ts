@@ -21,6 +21,7 @@ const ul = (...keys: MessageKey[]): HelpBlock => ({ kind: 'ul', keys });
 export const HELP_SECTIONS: HelpSectionDef[] = [
   { id: 'project', title: 'help.project.title', blocks: [p('help.project.p1'), p('help.project.p2'), p('help.project.p3'), p('help.project.p4')] },
   { id: 'folders', title: 'help.folders.title', blocks: [p('help.folders.p1'), p('help.folders.p2'), p('help.folders.p3'), p('help.folders.p4')] },
+  { id: 'tags', title: 'help.tags.title', blocks: [p('help.tags.p1'), p('help.tags.p2'), p('help.tags.p3'), p('help.tags.p4'), p('help.tags.p5')] },
   {
     id: 'fields',
     title: 'help.fields.title',

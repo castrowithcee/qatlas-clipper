@@ -16,6 +16,12 @@ export const helpDe = {
   'help.folders.p2': 'Mit „Ordner anlegen“ unter „Projekt anlegen“ legst du einen Ordner an. Das Menü am Ordner bietet „Umbenennen“, „Nach oben“, „Nach unten“ und „Ordner löschen“. Ein Name kommt nur einmal vor, Groß- und Kleinschreibung zählt dabei nicht.',
   'help.folders.p3': 'Einem Projekt weist du den Ordner im Projekt unter „Ordner“ zu; „Ohne Ordner“ nimmt es wieder heraus. Beim Löschen eines Ordners bleiben seine Projekte erhalten und stehen danach ohne Ordner.',
   'help.folders.p4': 'Ordner ordnen nur die Optionsseite und die Projektauswahl. In der Projektauswahl beim Erfassen stehen die zur Seite passenden Projekte oben, die übrigen darunter nach Ordnern gruppiert, Projekte ohne Ordner zuerst. Ordner ändern nichts an dem, was gesendet wird. Wie alle Änderungen gelten sie erst, wenn du speicherst. Zur Sicherung der ganzen Konfiguration gehören die Ordner mit dazu.',
+  'help.tags.title': 'Tags',
+  'help.tags.p1': 'Tags kennzeichnen Projekte quer zu den Ordnern, etwa nach Kunde, Zweck oder Gerät. Ein Projekt trägt beliebig viele Tags. Alle Tags stehen in einer gemeinsamen Liste.',
+  'help.tags.p2': 'Unter „Tags“ in der Seitenleiste legst du Tags an, benennst sie um und löschst sie. Eine Umbenennung gilt in allen Projekten. Beim Löschen siehst du, aus wie vielen Projekten der Tag entfernt wird. Ein Name kommt nur einmal vor, Groß- und Kleinschreibung zählt dabei nicht.',
+  'help.tags.p3': 'Einem Projekt weist du Tags im Projekt unter „Tags“ zu: Tippe einen Namen, wähle einen Vorschlag mit den Pfeiltasten und Enter oder tippe einen neuen Namen, der den Tag anlegt. Mit dem Entfernen-Knopf am Tag nimmst du ihn wieder heraus.',
+  'help.tags.p4': 'In der Seitenleiste filterst du die Projektliste nach einem oder mehreren Tags: Es bleiben die Projekte mit mindestens einem gewählten Tag, Ordner ohne Treffer verschwinden. „Filter zurücksetzen“ zeigt wieder alles. Der Filter wird nicht gespeichert; nach dem Neuladen der Seite ist er aus.',
+  'help.tags.p5': 'In der Projektauswahl beim Erfassen stehen die Tags hinter dem Projektnamen. Tags ordnen nur die Optionsseite und die Projektauswahl und gehen nie an den Webhook. Wie alle Änderungen gelten sie erst, wenn du speicherst.',
 
   'help.fields.title': 'Felder',
   'help.fields.p1': 'Ein Feld ist eine Angabe, die im Popup ausgelesen und mitgesendet wird. Für den Wert gibt es drei Wege:',
@@ -82,7 +88,7 @@ export const helpDe = {
   'help.openAs.p4': 'Das Popup braucht diesen Zugriff nicht: Es liest nur die Seite, auf der du es öffnest. Browser ohne Seitenleiste bleiben beim Popup.',
 
   'help.io.title': 'Import und Export',
-  'help.io.p1': 'Der Export speichert die gespeicherte Konfiguration als JSON-Datei: Projekte, Ordner, Felder, Ziele und Zuordnungen per Klick. Ungespeicherte Änderungen sind nicht enthalten. Die Einstellungen dieses Geräts (Sprache, Darstellung, Öffnen als, Rahmen) gehören nicht dazu.',
+  'help.io.p1': 'Der Export speichert die gespeicherte Konfiguration als JSON-Datei: Projekte, Ordner, Tags, Felder, Ziele und Zuordnungen per Klick. Ungespeicherte Änderungen sind nicht enthalten. Die Einstellungen dieses Geräts (Sprache, Darstellung, Öffnen als, Rahmen) gehören nicht dazu.',
   'help.io.p2': 'Zugangsschlüssel und Werte eigener Header werden nie exportiert. Sie bleiben auf diesem Gerät; nach einem Import trägst du sie neu ein.',
   'help.io.p3': 'Importieren kannst du aus einer Datei oder von einer Adresse. Vor dem Ersetzen siehst du eine Vorschau und musst bestätigen. Der Import ersetzt die gesamte Konfiguration.',
 } as const;
@@ -104,6 +110,12 @@ export const helpEn: Record<keyof typeof helpDe, string> = {
   'help.folders.p2': 'Use "Add folder" below "Add project" to create a folder. The menu on a folder offers "Rename", "Move up", "Move down" and "Delete folder". A name can only be used once, ignoring upper and lower case.',
   'help.folders.p3': 'You assign a project to a folder in the project under "Folder"; "No folder" takes it out again. When you delete a folder, its projects are kept and then have no folder.',
   'help.folders.p4': 'Folders only organize the options page and the project choice. When capturing, the projects that match the page come first, the others follow grouped by folder, projects without a folder first. Folders change nothing about what is sent. Like all changes, they only apply once you save. The folders are part of the backup of the whole configuration.',
+  'help.tags.title': 'Tags',
+  'help.tags.p1': 'Tags mark projects across folders, for example by client, purpose or device. A project carries any number of tags. All tags live in one shared list.',
+  'help.tags.p2': 'Under "Tags" in the sidebar you add, rename and delete tags. A rename applies in all projects. When you delete a tag, you see how many projects it is removed from. A name can only be used once, ignoring upper and lower case.',
+  'help.tags.p3': 'You assign tags to a project in the project under "Tags": type a name, pick a suggestion with the arrow keys and Enter, or type a new name, which creates the tag. The remove button on a tag takes it out again.',
+  'help.tags.p4': 'In the sidebar you filter the project list by one or more tags: the projects with at least one chosen tag stay, folders without a match disappear. "Reset filter" shows everything again. The filter is not saved; after reloading the page it is off.',
+  'help.tags.p5': 'In the project choice when capturing, the tags follow the project name. Tags only organize the options page and the project choice and are never sent to the webhook. Like all changes, they only apply once you save.',
 
   'help.fields.title': 'Fields',
   'help.fields.p1': 'A field is a detail that the popup reads and sends along. There are three ways to get its value:',
@@ -170,7 +182,7 @@ export const helpEn: Record<keyof typeof helpDe, string> = {
   'help.openAs.p4': 'The popup does not need this access: it reads only the page where you open it. Browsers without a side panel stay with the popup.',
 
   'help.io.title': 'Import and export',
-  'help.io.p1': 'The export saves the stored configuration as a JSON file: projects, folders, fields, targets and mappings by click. Unsaved changes are not included. The settings of this device (language, appearance, open as, frames) are not part of it.',
+  'help.io.p1': 'The export saves the stored configuration as a JSON file: projects, folders, tags, fields, targets and mappings by click. Unsaved changes are not included. The settings of this device (language, appearance, open as, frames) are not part of it.',
   'help.io.p2': 'Access keys and values of custom headers are never exported. They stay on this device; after an import you enter them again.',
   'help.io.p3': 'You can import from a file or from an address. Before replacing, you see a preview and must confirm. The import replaces the whole configuration.',
 };
