@@ -38,6 +38,7 @@ export const HELP_SECTIONS: HelpSectionDef[] = [
     title: 'help.fixed.title',
     blocks: [p('help.fixed.p1'), ul('help.fixed.li1', 'help.fixed.li2', 'help.fixed.li3', 'help.fixed.li4'), p('help.fixed.p2')],
   },
+  { id: 'send', title: 'help.send.title', blocks: [p('help.send.p1'), p('help.send.p2'), p('help.send.p3')] },
   { id: 'targets', title: 'help.targets.title', blocks: [p('help.targets.p1'), ul('help.targets.li1', 'help.targets.li2', 'help.targets.li3')] },
   {
     id: 'payload',

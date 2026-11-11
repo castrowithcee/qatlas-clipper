@@ -129,7 +129,7 @@ function ShareExport({ request, storage, dirty, onClose }: Props & { request: Sh
         actions={
           <>
             <Button onClick={() => setWarning(false)}>{t('options.cancel')}</Button>
-            <Button variant="danger" onClick={() => { setTargets(true); setWarning(false); }}>{t('options.share.warn.ok')}</Button>
+            <Button variant="primary" onClick={() => { setTargets(true); setWarning(false); }}>{t('options.share.warn.ok')}</Button>
           </>
         }
       >

@@ -90,19 +90,36 @@ describe('tag area', () => {
     expect((await loadConfig(storage)).tags?.map((x) => x.name)).toEqual(['Client', 'Draft', 'Archive', 'Gadget']);
   });
 
-  it('renames a tag for all projects and rejects a taken name', async () => {
+  const menuOf = (user: User, name: string, item: string) => async () => {
+    await user.click(screen.getByRole('button', { name: `Options for tag ${name}` }));
+    await user.click(await screen.findByRole('menuitem', { name: item }));
+  };
+
+  it('renames a tag in its row for all projects; a taken name is a field error and Escape keeps the name', async () => {
     const storage = base();
     const { user } = await mount(storage, '#/tags');
-    await user.click(screen.getByRole('button', { name: 'Rename tag Draft' }));
-    const dialog = await screen.findByRole('dialog', { name: 'Rename tag' });
-    const input = within(dialog).getByLabelText('Tag name');
+    await menuOf(user, 'Draft', 'Rename')();
+    const input = screen.getByRole('textbox', { name: 'Rename tag Draft' });
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(input === document.activeElement).toBe(true);
     await user.clear(input);
     await user.type(input, 'CLIENT');
-    expect(within(dialog).getByText('A tag with this name already exists.')).toBeTruthy();
-    await user.click(within(dialog).getByRole('button', { name: 'Rename' }));
-    expect(screen.getByRole('dialog', { name: 'Rename tag' })).toBeTruthy();
-    await user.clear(input);
-    await user.type(input, 'Review');
+    expect(screen.getByText('A tag with this name already exists.')).toBeTruthy();
+    expect(input.getAttribute('aria-invalid')).toBe('true');
+    await user.keyboard('{Enter}');
+    expect(screen.getByRole('textbox', { name: 'Rename tag Draft' })).toBeTruthy();
+    // Leaving the field with an invalid name keeps it open.
+    await user.tab();
+    expect(screen.getByRole('textbox', { name: 'Rename tag Draft' })).toBeTruthy();
+    await user.click(input);
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('textbox', { name: 'Rename tag Draft' })).toBeNull();
+    expect(rows()[1]).toEqual(['Draft', '2 projects']);
+    expect(screen.queryByRole('button', { name: 'Save changes' })).toBeNull();
+    await menuOf(user, 'Draft', 'Rename')();
+    const again = screen.getByRole('textbox', { name: 'Rename tag Draft' });
+    await user.clear(again);
+    await user.type(again, 'Review');
     await user.keyboard('{Enter}');
     expect(rows()[1]).toEqual(['Review', '2 projects']);
     for (const [id, expected] of [['p1', ['Client', 'Review']], ['p2', ['Review']]] as const) {
@@ -115,19 +132,36 @@ describe('tag area', () => {
     expect((await loadConfig(storage)).tags?.[1]?.name).toBe('Review');
   });
 
+  it('has a compact list with a menu per row, the danger item only behind a separator', async () => {
+    await mount(base(), '#/tags');
+    const row = screen.getAllByTestId('options-tag')[0]!;
+    expect(row.querySelector('.q-button--danger')).toBeNull();
+    expect(within(row).queryByRole('button', { name: /Rename|Delete/ })).toBeNull();
+    const user = userEvent.setup();
+    await user.click(within(row).getByRole('button', { name: 'Options for tag Client' }));
+    const menu = screen.getByRole('menu');
+    const kinds = Array.from(menu.children).map((c) => c.getAttribute('role'));
+    expect(kinds).toEqual(['menuitem', 'separator', 'menuitem']);
+    expect(within(menu).getByRole('menuitem', { name: 'Delete tag' }).className).toContain('q-menu-item--danger');
+    // The intro text sits in the tooltip of the info button at the heading.
+    const info = within(screen.getByRole('main')).getByRole('button', { name: 'More information' });
+    expect(document.getElementById(info.getAttribute('aria-describedby')!)?.textContent).toMatch(/Tags mark projects across folders, for example by client/);
+    expect(document.querySelector('.options-tags-view > p')).toBeNull();
+  });
+
   it('asks before deleting, names the number of projects and uses the danger color', async () => {
     const storage = base();
     const { user } = await mount(storage, '#/tags');
-    await user.click(screen.getByRole('button', { name: 'Delete tag Draft' }));
+    await menuOf(user, 'Draft', 'Delete tag')();
     const dialog = await screen.findByRole('dialog', { name: 'Delete tag?' });
     expect(dialog.textContent).toContain('removed from 2 projects');
     expect(within(dialog).getByRole('button', { name: 'Delete tag' }).className).toContain('q-button--danger');
     await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
     expect(rows()).toHaveLength(3);
-    await user.click(screen.getByRole('button', { name: 'Delete tag Archive' }));
+    await menuOf(user, 'Archive', 'Delete tag')();
     expect((await screen.findByRole('dialog')).textContent).toContain('removed from 1 project;');
     await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete tag' }));
-    await user.click(screen.getByRole('button', { name: 'Delete tag Draft' }));
+    await menuOf(user, 'Draft', 'Delete tag')();
     await user.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Delete tag' }));
     expect(rows()).toEqual([['Client', '1 project']]);
     await save(user);
@@ -180,6 +214,45 @@ describe('tags in the project editor', () => {
     await save(user);
     await vi_saved();
     expect((await loadConfig(storage)).projects[3]?.tagIds).toBeUndefined();
+  });
+
+  it('is a token field: chips stand in the field before the input, there is no add button and the hint is the placeholder', async () => {
+    await mount(base(), projectHash('p1'));
+    const wrap = field().closest('.q-combobox')!;
+    expect(wrap.contains(screen.getByRole('list', { name: 'Assigned tags' }))).toBe(true);
+    expect(chips()).toEqual(['Client', 'Draft']);
+    expect(wrap.querySelector('ul')!.compareDocumentPosition(field()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Add tag' })).toBeNull();
+    expect(field().placeholder).toBe('Type a tag and Enter');
+    expect(screen.queryByText(/Type a name and press Enter/)).toBeNull();
+  });
+
+  it('marks the last chip with Backspace in an empty input and removes it with the second press', async () => {
+    const { user } = await mount(base(), projectHash('p1'));
+    field().focus();
+    await user.keyboard('{Backspace}');
+    expect(chips()).toEqual(['Client', 'Draft']);
+    const marked = () => document.querySelector('.q-chip[data-marked]')?.textContent;
+    expect(marked()).toBe('Draft');
+    await user.keyboard('{Backspace}');
+    expect(chips()).toEqual(['Client']);
+    // Typing resets the mark; Backspace in a filled input only deletes characters.
+    await user.keyboard('{Backspace}');
+    expect(marked()).toBe('Client');
+    await user.keyboard('ab');
+    expect(marked()).toBeUndefined();
+    await user.keyboard('{Backspace}{Backspace}');
+    expect(chips()).toEqual(['Client']);
+    expect(field().value).toBe('');
+  });
+
+  it('picks a suggestion with the mouse and removes a chip with its icon', async () => {
+    const { user } = await mount(base(), projectHash('p4'));
+    await user.click(field());
+    await user.click(within(screen.getByRole('listbox')).getByRole('option', { name: 'Draft' }));
+    expect(chips()).toEqual(['Draft']);
+    await user.click(screen.getByRole('button', { name: 'Remove tag Draft' }));
+    expect(screen.queryByRole('list', { name: 'Assigned tags' })).toBeNull();
   });
 
   it('creates and assigns a new tag by typing a name, with the same name rules', async () => {

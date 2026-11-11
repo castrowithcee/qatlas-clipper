@@ -143,10 +143,10 @@ for (const lang of ['de', 'en'] as const) {
       await setConfig(serviceWorker, project([target('slow', 'Test hook', slow.url)]));
       popup = await open();
       await popup.getByRole('button', { name: /Test hook/ }).click();
-      await expect(popup.getByRole('button', { name: /…/ })).toBeDisabled();
+      await expect(popup.getByRole('button', { name: /^(Sending to|Wird an)/ })).toBeDisabled();
       await shot(popup, 'sending', tag);
       slow.release();
-      await expect(popup.getByRole('status').filter({ hasText: /^(Gesendet|Sent)/ })).toBeVisible();
+      await expect(popup.getByRole('status').filter({ hasText: /(Gesendet|Sent)/ })).toBeVisible();
       await popup.close();
 
       // Success with link.
@@ -157,20 +157,49 @@ for (const lang of ['de', 'en'] as const) {
       await shot(popup, 'success', tag);
       await popup.close();
 
-      // HTTP error and unreachable target, two targets in one popup.
+      // Two targets: the split button with its menu open (name and shortened address, no query string).
+      const chooseTarget = (popup_: Page) => popup_.getByRole('button', { name: /^(Choose target to send to|Ziel zum Senden wählen)$/ });
+      await setConfig(serviceWorker, project([ok, target('second', 'Second hook', 'https://hooks.example.com/api/in?token=SECRET')]));
+      popup = await open();
+      await popup.setViewportSize({ width: 384, height: 600 });
+      await chooseTarget(popup).click();
+      await expect(popup.getByRole('menu')).toBeVisible();
+      await expect(popup.getByRole('menuitem')).toHaveCount(2);
+      await expect(popup.getByRole('menu')).not.toContainText('SECRET');
+      await shot(popup, 'two-targets-menu', tag, 600);
+      await popup.keyboard.press('Escape');
+      await popup.close();
+
+      // HTTP error and unreachable target: the result of the latest send stands under the head.
       await setConfig(serviceWorker, project([target('err', 'Error hook', webhook.errorUrl), target('down', 'Offline hook', 'http://localhost:9/none')]));
       popup = await open();
-      await popup.getByRole('button', { name: /Error hook/ }).click();
-      await popup.getByRole('button', { name: /Offline hook/ }).click();
-      await expect(popup.getByRole('alert')).toHaveCount(2);
+      await chooseTarget(popup).click();
+      await popup.getByRole('menuitem', { name: /Error hook/ }).click();
+      await expect(popup.getByRole('alert')).toContainText('Error hook');
       await shot(popup, 'error', tag);
+      await chooseTarget(popup).click();
+      await popup.getByRole('menuitem', { name: /Offline hook/ }).click();
+      await expect(popup.getByRole('alert')).toContainText('Offline hook');
+      await shot(popup, 'error-offline', tag);
+      await popup.close();
+
+      // Many fields, scrolled down: the head stays at the top.
+      const many = Array.from({ length: 16 }, (_, i) => field(`f${i}`, `Field ${i + 1}`, false));
+      await setConfig(serviceWorker, project([ok], many));
+      popup = await open();
+      await expect(popup.getByRole('textbox', { name: 'Field 16' })).toBeVisible();
+      await popup.setViewportSize({ width: 384, height: 420 });
+      await popup.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+      await expect.poll(() => popup.evaluate(() => window.scrollY)).toBeGreaterThan(200);
+      expect((await popup.locator('header.popup-header').boundingBox())!.y).toBeLessThanOrEqual(1);
+      await popup.screenshot({ path: join(OUT, `${tag}-scrolled.png`) });
       await popup.close();
 
       // Missing permission.
       await setConfig(serviceWorker, project([target('far', 'Remote hook', 'https://hooks.example.com/in')]));
       popup = await open();
       await popup.getByRole('button', { name: /Remote hook/ }).click();
-      await expect(popup.getByRole('alert')).toBeVisible();
+      await expect(popup.getByRole('alert')).toContainText('Remote hook');
       await shot(popup, 'no-permission', tag);
       await popup.close();
 

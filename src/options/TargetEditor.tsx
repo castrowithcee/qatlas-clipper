@@ -78,8 +78,10 @@ export function TargetEditor({ targets, basePath, issues, values, onValues, stat
 
   return (
     <section aria-labelledby={`${id}-title`} className="options-section">
-      <h3 id={`${id}-title`}>{t('options.targets.title')}</h3>
-      <p className="q-hint">{t('options.targets.hint')}</p>
+      <h3>
+        <span id={`${id}-title`}>{t('options.targets.title')}</span>{' '}
+        <IconButton icon="info" label={t('ui.moreInfo')} tooltip={t('options.targets.hint')} className="q-help" />
+      </h3>
       {targets.length === 0 ? (
         <EmptyState title={t('options.targets.empty')} />
       ) : (
@@ -150,9 +152,13 @@ export function TargetEditor({ targets, basePath, issues, values, onValues, stat
       <p className="q-sr-only" role="status">
         {reorder.announcement}
       </p>
-      <Button id={`${id}-add`} icon="plus" onClick={add}>
-        {t('options.targets.add')}
-      </Button>
+      {targets.length === 0 ? (
+        <Button id={`${id}-add`} variant="primary" icon="plus" onClick={add}>
+          {t('options.targets.add')}
+        </Button>
+      ) : (
+        <IconButton id={`${id}-add`} icon="plus" label={t('options.targets.add')} onClick={add} />
+      )}
       <DetailPanel
         open={openTarget !== undefined}
         onClose={() => setOpenId(undefined)}
@@ -298,9 +304,7 @@ function TargetDetails({ target, path, issues, values, onValues, status, canRequ
               </Button>
             </div>
           ))}
-          <Button icon="plus" onClick={() => onChange({ ...target, headers: [...target.headers, ''] })}>
-            {t('options.targets.header.add')}
-          </Button>
+          <IconButton icon="plus" label={t('options.targets.header.add')} onClick={() => onChange({ ...target, headers: [...target.headers, ''] })} />
         </fieldset>
       </Disclosure>
     </>

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Combobox, IconButton, type ComboboxGroup } from '../ui/components';
 import { sortByLabel } from '../config';
 import { useI18n, useSettings } from '../settings';
@@ -18,9 +18,11 @@ interface Props {
   /** Target view of the switch; undefined hides it (no side panel API). */
   switchTo?: 'popup' | 'sidepanel';
   onSwitchView?: () => void;
+  /** The send control; last in the focus order. Absent without a target. */
+  send?: ReactNode;
 }
 
-export function Header({ projects, folders = [], tags = [], matchingIds, value, onChange, onOpenOptions, highlight, onToggleHighlight, switchTo, onSwitchView }: Props) {
+export function Header({ projects, folders = [], tags = [], matchingIds, value, onChange, onOpenOptions, highlight, onToggleHighlight, switchTo, onSwitchView, send }: Props) {
   const { t } = useI18n();
   const { settings, language } = useSettings();
   const [text, setText] = useState('');
@@ -50,13 +52,6 @@ export function Header({ projects, folders = [], tags = [], matchingIds, value, 
   const selected = projects.find((p) => p.id === value);
   return (
     <header className="popup-header">
-      <div className="popup-header-top">
-        <IconButton icon={highlight ? 'eye' : 'eye-off'} label={t('popup.header.highlight')} aria-pressed={highlight} onClick={onToggleHighlight} />
-        {switchTo && (
-          <IconButton icon={switchTo} label={t(switchTo === 'sidepanel' ? 'popup.header.toSidepanel' : 'popup.header.toPopup')} onClick={onSwitchView} />
-        )}
-        <IconButton icon="settings" label={t('popup.header.options')} onClick={onOpenOptions} />
-      </div>
       <Combobox
         label={t('popup.project.label')}
         text={text}
@@ -75,6 +70,14 @@ export function Header({ projects, folders = [], tags = [], matchingIds, value, 
         }}
         onCancel={() => setText('')}
       />
+      <div className="popup-header-actions">
+        <IconButton icon={highlight ? 'eye' : 'eye-off'} label={t('popup.header.highlight')} aria-pressed={highlight} onClick={onToggleHighlight} />
+        {switchTo && (
+          <IconButton icon={switchTo} label={t(switchTo === 'sidepanel' ? 'popup.header.toSidepanel' : 'popup.header.toPopup')} onClick={onSwitchView} />
+        )}
+        <IconButton icon="settings" label={t('popup.header.options')} onClick={onOpenOptions} />
+        {send}
+      </div>
     </header>
   );
 }
