@@ -197,6 +197,9 @@ for (const lang of ['de', 'en'] as const) {
       await expect(framed.locator('.frame .label')).toHaveCount(2);
       await framed.screenshot({ path: join(OUT, `${tag}-highlight-page.png`) });
       await shot(popup, 'highlight-on', tag);
+      // Every field is click-mapped here: the picker buttons all show the mapped motif.
+      await expect(popup.getByRole('button', { name: /(Assigned by click|Per Klick zugeordnet)/ })).toHaveCount(2);
+      await shot(popup, 'all-mapped', tag);
       await popup.getByRole('button', { name: /^(Highlight mapped|Zugeordnete Elemente)/ }).click();
       await expect(framed.locator('.frame')).toHaveCount(0);
       await shot(popup, 'highlight-off', tag);

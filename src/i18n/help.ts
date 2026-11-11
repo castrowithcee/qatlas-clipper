@@ -28,7 +28,7 @@ export const helpDe = {
   'help.fields.li1': 'Automatisch erkennen: Der Wert wird aus der Seite gelesen, zum Beispiel Titel, Beschreibung, Autor oder Preis.',
   'help.fields.li2': 'Auf der Seite anklicken: Du startest die Auswahl im Popup und klickst das Element mit dem Wert auf der Seite an.',
   'help.fields.li3': 'Selbst eingeben: Du trägst den Wert im Popup selbst ein, als freien Text oder aus einer Auswahlliste.',
-  'help.fields.p2': 'Jeden Wert kannst du im Popup vor dem Senden ändern. Mit „Neues Feld“ im Popup ergänzt du ein Feld, ohne die Optionen zu öffnen.',
+  'help.fields.p2': 'Jeden Wert kannst du im Popup vor dem Senden ändern. Mit „Neues Feld“ und dem Plus-Symbol „Feld hinzufügen“ ergänzt du im Popup ein Feld, ohne die Optionen zu öffnen.',
   'help.fields.p3': 'Ein Pflichtfeld muss ausgefüllt sein, sonst wird nicht gesendet. Das Popup markiert, was noch fehlt.',
   'help.fields.p4': 'Unter „Erweitert“ stehen Einstellungen für Kenner, etwa ein eigener schema.org-Pfad oder ein Meta-Tag. Normalerweise brauchst du sie nicht.',
 
@@ -36,7 +36,7 @@ export const helpDe = {
   'help.click.p1': 'Bei einem Feld mit diesem Weg startest du im Popup die Auswahl und klickst das Element mit dem Wert auf der Seite an. Mit Esc brichst du ab. Ist ein Element nicht eindeutig, wählst du ein anderes.',
   'help.click.p2': 'Dein Klick wird sofort gespeichert, ohne Rückfrage. Eine kurze Meldung nennt die Website, für die die Zuordnung gilt.',
   'help.click.p3': 'Die Zuordnung gilt je Website. Auf weiteren Seiten derselben Website wird dasselbe Element wieder verwendet, du klickst also nur einmal. Auf einer anderen Website klickst du neu. Als Website zählt die Domain ohne „www.“; blog.example.com und example.com sind also verschiedene Websites.',
-  'help.click.p4': 'Neu wählen oder aufheben: Im Menü des Feldes im Popup stehen „Auf dieser Website neu wählen“ und „Zuordnung für diese Website aufheben“. In den Optionen listet das Feld unter „Zuordnungen per Klick“ alle gespeicherten Websites und lässt dich jede aufheben.',
+  'help.click.p4': 'Am Picker-Symbol neben dem Feld erkennst du die Zuordnung: Ein Fenster mit Zeiger heißt „Per Klick zugeordnet“, ein Zeiger mit Strahlen „Element anklicken“. Der Hinweis am Symbol nennt zusätzlich, woher der Wert kommt. Neu wählen oder aufheben: Im Menü des Feldes im Popup stehen „Auf dieser Website neu wählen“ und „Zuordnung für diese Website aufheben“. In den Optionen listet das Feld unter „Zuordnungen per Klick“ alle gespeicherten Websites und lässt dich jede aufheben.',
   'help.click.p5': 'Solange Popup oder Seitenleiste offen sind, trägt jedes zugeordnete Element auf der Seite einen Rahmen mit dem Namen des Feldes. Mit dem Auge-Symbol im Kopf blendest du die Rahmen aus und wieder ein. Das ist eine Einstellung dieses Geräts; sie gehört nicht zur Konfiguration und wird nicht exportiert.',
 
   'help.formats.title': 'Formate',
@@ -48,7 +48,7 @@ export const helpDe = {
   'help.formats.p3': 'Der Seiteninhalt hat sein eigenes Format, das du je Projekt einstellst: Markdown (Standard), HTML oder Aus. Gesendet wird der erkannte Hauptinhalt der Seite ohne Kopf, Navigation und Fußbereich, gekürzt auf höchstens 100.000 Zeichen.',
 
   'help.fixed.title': 'Immer gesendete Werte',
-  'help.fixed.p1': 'Einige Angaben gehen bei jedem Senden mit, auch ohne Feld. Im Popup stehen sie ausgegraut unter „Wird immer mitgesendet“:',
+  'help.fixed.p1': 'Einige Angaben gehen bei jedem Senden mit, auch ohne Feld. Im Popup stehen sie kompakt und ausgegraut unter „Wird immer mitgesendet“:',
   'help.fixed.li1': 'Titel der Seite.',
   'help.fixed.li2': 'Adresse der Seite.',
   'help.fixed.li3': 'Domain: der Name der Website in Kleinbuchstaben ohne „www.“, zum Beispiel example.com.',
@@ -90,10 +90,10 @@ export const helpDe = {
   'help.io.title': 'Import und Export',
   'help.io.p1': 'Der Export speichert die gespeicherte Konfiguration als JSON-Datei: Projekte, Ordner, Tags, Felder, Ziele und Zuordnungen per Klick. Ungespeicherte Änderungen sind nicht enthalten. Die Einstellungen dieses Geräts (Sprache, Darstellung, Öffnen als, Rahmen) gehören nicht dazu.',
   'help.io.p2': 'Zugangsschlüssel und Werte eigener Header werden nie exportiert. Sie bleiben auf diesem Gerät; nach einem Import trägst du sie neu ein.',
-  'help.io.p3': 'Importieren kannst du aus einer Datei oder von einer Adresse. Vor dem Ersetzen siehst du eine Vorschau und musst bestätigen. Der Import ersetzt die gesamte Konfiguration.',
-  'help.io.p4': 'Sicherung und Teilen sind verschieden: Der Export oben ist die Sicherung der ganzen Konfiguration samt Zielen. Zum Weitergeben exportierst du einzelne Projekte oder Ordner: mit „Exportieren“ im Menü des Projekts oder des Ordners oder unter „Auswahl exportieren“, wo du beliebige Ordner und Projekte ankreuzt.',
+  'help.io.p3': 'Unter „Sicherung“ stellst du die Konfiguration aus einer Datei oder von einer Adresse wieder her. Vor dem Ersetzen siehst du eine Vorschau mit jeder Zieladresse der Datei und musst bestätigen. Enthält die Datei keine Projekte, warnt die Vorschau: Danach sind keine Projekte mehr vorhanden. Die Wiederherstellung ersetzt die gesamte Konfiguration.',
+  'help.io.p4': 'Sicherung und Teilen sind verschieden: Die „Sicherung“ oben sichert die ganze Konfiguration samt Zielen. Zum Weitergeben exportierst du einzelne Projekte oder Ordner: mit „Exportieren“ im Menü des Projekts oder des Ordners oder unter „Projekte teilen“ mit „Auswahl exportieren…“, wo du beliebige Ordner und Projekte ankreuzt. Das Kästchen „Alle Projekte und Ordner“ wählt alle oder keine; ohne Auswahl ist der Export gesperrt.',
   'help.io.p5': 'Beim Teilen gehen die Ziele nur mit, wenn du „Ziele mitexportieren“ einschaltest und die Warnung bestätigst: Wer die Datei hat, kann an diese Adressen senden. Zugangsschlüssel und Werte eigener Header sind nie enthalten. Exportiert wird immer der gespeicherte Stand.',
-  'help.io.p6': 'Zum Übernehmen wählst du im Menü am Titel „Projekte“ „Projekt aus Datei“ oder „Ordner aus Datei“ oder unter „Auswahl importieren“ eine Teilen-Datei (oder eine Sicherung). Im Dialog wählst du Projekte und Ordner. Ein Projekt, das es schon gibt, wird standardmäßig als Kopie angelegt; mit „Ersetzen“ wird es aktualisiert. Enthält die Datei keine Ziele, behält ein ersetztes Projekt seine Ziele. Deine übrige Konfiguration bleibt.',
+  'help.io.p6': 'Zum Übernehmen wählst du im Menü am Titel „Projekte“ „Projekt aus Datei“ oder „Ordner aus Datei“ oder unter „Projekte teilen“ mit „Auswahl aus Datei importieren“ eine Teilen-Datei (oder eine Sicherung). Im Dialog wählst du Projekte und Ordner. Ein Projekt, das es schon gibt, wird standardmäßig als Kopie angelegt; mit „Ersetzen“ wird es aktualisiert. Enthält die Datei keine Ziele, behält ein ersetztes Projekt seine Ziele. Deine übrige Konfiguration bleibt.',
   'help.io.p7': 'Enthält die Datei Ziele, nennt der Dialog jede Adresse vor dem Übernehmen: Erfasste Daten gehen dorthin. Zugangsschlüssel stehen nie in einer Datei; du trägst sie nach dem Import neu ein. Der Zugriff auf die Adressen wird nicht angefragt; du erteilst ihn in der Zielliste des Projekts. Auf einem weiteren eigenen Gerät richtest du so Projekte ein: dort exportieren, hier importieren, Schlüssel eintragen.',
 } as const;
 
@@ -126,7 +126,7 @@ export const helpEn: Record<keyof typeof helpDe, string> = {
   'help.fields.li1': 'Detect automatically: the value is read from the page, for example title, description, author or price.',
   'help.fields.li2': 'Click on the page: you start picking in the popup and click the element that holds the value on the page.',
   'help.fields.li3': 'Enter myself: you type the value in the popup, as free text or from a list of choices.',
-  'help.fields.p2': 'You can change every value in the popup before sending. With "New field" in the popup you add a field without opening the options.',
+  'help.fields.p2': 'You can change every value in the popup before sending. With "New field" and the plus icon "Add field" you add a field in the popup without opening the options.',
   'help.fields.p3': 'A required field must be filled in, otherwise nothing is sent. The popup marks what is still missing.',
   'help.fields.p4': 'Under "Advanced" there are settings for experts, such as a custom schema.org path or a meta tag. You normally do not need them.',
 
@@ -134,7 +134,7 @@ export const helpEn: Record<keyof typeof helpDe, string> = {
   'help.click.p1': 'For a field with this way, you start the selection in the popup and click the element with the value on the page. Esc cancels. If an element is not unique, choose another one.',
   'help.click.p2': 'Your click is saved at once, without confirmation. A short message names the website the mapping applies to.',
   'help.click.p3': 'The mapping applies per website. On other pages of the same website the same element is used again, so you click only once. On a different website you click anew. A website is the domain without "www."; blog.example.com and example.com are different websites.',
-  'help.click.p4': 'To choose again or remove it: the field menu in the popup offers "Pick again on this website" and "Remove assignment for this website". In the options, the field lists every saved website under "Click mappings" and lets you remove each one.',
+  'help.click.p4': 'The picker icon next to the field shows the assignment: a window with a pointer means "Assigned by click", a pointer with rays means "Click an element". Its tooltip also names where the value comes from. To choose again or remove it: the field menu in the popup offers "Pick again on this website" and "Remove assignment for this website". In the options, the field lists every saved website under "Click mappings" and lets you remove each one.',
   'help.click.p5': 'While the popup or side panel is open, every mapped element on the page carries a frame with the name of the field. The eye icon in the header hides and shows the frames. This is a setting of this device; it is not part of the configuration and is not exported.',
 
   'help.formats.title': 'Formats',
@@ -146,7 +146,7 @@ export const helpEn: Record<keyof typeof helpDe, string> = {
   'help.formats.p3': 'The page content has its own format, which you set per project: Markdown (default), HTML or Off. What is sent is the detected main content of the page without header, navigation and footer, cut at 100,000 characters at most.',
 
   'help.fixed.title': 'Values that are always sent',
-  'help.fixed.p1': 'Some details go along with every send, even without a field. In the popup they appear greyed out under "Always sent":',
+  'help.fixed.p1': 'Some details go along with every send, even without a field. In the popup they appear compact and greyed out under "Always sent":',
   'help.fixed.li1': 'Title of the page.',
   'help.fixed.li2': 'Address of the page.',
   'help.fixed.li3': 'Domain: the name of the website in lower case without "www.", for example example.com.',
@@ -188,9 +188,9 @@ export const helpEn: Record<keyof typeof helpDe, string> = {
   'help.io.title': 'Import and export',
   'help.io.p1': 'The export saves the stored configuration as a JSON file: projects, folders, tags, fields, targets and mappings by click. Unsaved changes are not included. The settings of this device (language, appearance, open as, frames) are not part of it.',
   'help.io.p2': 'Access keys and values of custom headers are never exported. They stay on this device; after an import you enter them again.',
-  'help.io.p3': 'You can import from a file or from an address. Before replacing, you see a preview and must confirm. The import replaces the whole configuration.',
-  'help.io.p4': 'Backup and sharing are different: the export above is the backup of the whole configuration including targets. To pass something on, export single projects or folders: with "Export" in the menu of the project or the folder or under "Export selection", where you tick any folders and projects.',
+  'help.io.p3': 'Under "Backup" you restore the configuration from a file or from an address. Before replacing, you see a preview with every target address of the file and must confirm. If the file contains no projects, the preview warns that no projects are left afterwards. The restore replaces the whole configuration.',
+  'help.io.p4': 'Backup and sharing are different: the "Backup" above saves the whole configuration including targets. To pass something on, export single projects or folders: with "Export" in the menu of the project or the folder or under "Share projects" with "Export selection…", where you tick any folders and projects. The box "All projects and folders" selects all or none; without a selection the export is disabled.',
   'help.io.p5': 'When sharing, targets are only included if you switch on "Export targets too" and confirm the warning: anyone with the file can send to these addresses. Access keys and values of custom headers are never included. The saved state is always what is exported.',
-  'help.io.p6': 'To take something over, choose "Project from file" or "Folder from file" in the menu on the "Projects" title, or a share file (or a backup) under "Import selection". In the dialog you choose projects and folders. A project that already exists is added as a copy by default; "Replace" updates it. If the file contains no targets, a replaced project keeps its targets. The rest of your configuration stays.',
+  'help.io.p6': 'To take something over, choose "Project from file" or "Folder from file" in the menu on the "Projects" title, or a share file (or a backup) under "Share projects" with "Import selection from file". In the dialog you choose projects and folders. A project that already exists is added as a copy by default; "Replace" updates it. If the file contains no targets, a replaced project keeps its targets. The rest of your configuration stays.',
   'help.io.p7': 'If the file contains targets, the dialog names every address before you take it over: captured data goes there. Access keys are never in a file; you enter them again after the import. Access to the addresses is not requested; you allow it in the project\'s target list. This is how you set up projects on another device of your own: export there, import here, enter the keys.',
 };

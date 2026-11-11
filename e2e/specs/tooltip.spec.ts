@@ -40,5 +40,5 @@ test('tooltips at the right edge stay inside the popup window', async ({ context
   await expect(popup.getByRole('textbox', { name: 'Headline' })).toHaveValue('Example Headline');
 
   await expectTooltipInsideWindow(popup, popup.getByRole('button', { name: 'Open settings' }), 'Open settings');
-  await expectTooltipInsideWindow(popup, popup.getByRole('img', { name: 'Detected automatically' }), 'Detected automatically');
+  await expectTooltipInsideWindow(popup, popup.getByRole('button', { name: 'Headline: Detected automatically – click an element' }), 'Detected automatically – click an element');
 });

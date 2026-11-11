@@ -174,14 +174,14 @@ for (const lang of ['de', 'en'] as const) {
       await expect(nav.getByRole('link', { name: t('Einstellungen', 'Settings') })).toHaveAttribute('aria-current', 'page');
       await shot(page, 'settings', tag);
       await nav.getByRole('link', { name: t('Import und Export', 'Import and export') }).click();
-      await expect(page.getByLabel(t('Aus Datei', 'From file'), { exact: true })).toBeVisible();
+      await expect(page.getByRole('button', { name: t('Aus Datei wiederherstellen', 'Restore from file') })).toBeVisible();
       await shot(page, 'import-export', tag);
       // Export manager: mixed folder state, the shared export dialog and the targets warning.
       const tree = page.getByRole('list', { name: t('Ordner und Projekte', 'Folders and projects') });
       await tree.getByRole('checkbox', { name: 'Articles' }).check();
       await tree.getByRole('checkbox', { name: 'Shop orders' }).check();
       await shot(page, 'export-manager', tag);
-      await page.getByRole('button', { name: t('Exportieren…', 'Export…') }).click();
+      await page.getByRole('button', { name: t('Auswahl exportieren…', 'Export selection…') }).click();
       const share = page.getByRole('dialog', { name: t('Auswahl exportieren', 'Export selection') });
       const targetsSwitch = share.getByRole('switch', { name: t('Ziele mitexportieren', 'Export targets too') });
       await expect(targetsSwitch).not.toBeChecked();
@@ -216,7 +216,9 @@ for (const lang of ['de', 'en'] as const) {
       await expect(importDialog.getByRole('alert')).toContainText('https://hooks.example.com');
       await shot(importDialog, 'import-dialog', tag);
       await importDialog.getByRole('button', { name: t('Abbrechen', 'Cancel') }).click();
-      await page.getByLabel(t('Aus Datei', 'From file'), { exact: true }).setInputFiles({
+      const restoreChooser = page.waitForEvent('filechooser');
+      await page.getByRole('button', { name: t('Aus Datei wiederherstellen', 'Restore from file') }).click();
+      await (await restoreChooser).setFiles({
         name: 'config.json',
         mimeType: 'application/json',
         buffer: Buffer.from(JSON.stringify({ schemaVersion: 1, projects: [] })),

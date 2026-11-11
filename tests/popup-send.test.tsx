@@ -83,7 +83,7 @@ describe('popup send', () => {
   it('keeps line breaks of a multi-line value when shown, edited and sent', async () => {
     const value = '**Contact**\nErika Example\nhead of purchasing';
     const { user, deps } = setup({ fields: { title: { value, source: 'selector' } } });
-    const area = (await screen.findByLabelText(/^Headline/)) as HTMLTextAreaElement;
+    const area = (await screen.findByLabelText(/^Headline \(required\)$/)) as HTMLTextAreaElement;
     expect(area.tagName).toBe('TEXTAREA');
     expect(area.value).toBe(value);
     await user.type(area, '{Enter}info@example.com');
@@ -111,14 +111,14 @@ describe('popup send', () => {
     await user.click(await sendButton());
     expect((await screen.findByRole('alert')).textContent).toBe('Please fill in the marked required fields.');
     expect(deps.send).not.toHaveBeenCalled();
-    expect(screen.getByLabelText(/^Headline/).getAttribute('aria-invalid')).toBe('true');
+    expect(screen.getByLabelText(/^Headline \(required\)$/).getAttribute('aria-invalid')).toBe('true');
     // Whitespace only counts as empty; fixing the field clears the hint.
-    await user.type(screen.getByLabelText(/^Headline/), '  ');
+    await user.type(screen.getByLabelText(/^Headline \(required\)$/), '  ');
     await user.click(screen.getByRole('button', { name: 'Send to Hook' }));
     expect(deps.send).not.toHaveBeenCalled();
-    await user.type(screen.getByLabelText(/^Headline/), 'x');
+    await user.type(screen.getByLabelText(/^Headline \(required\)$/), 'x');
     expect(screen.queryByText(/Required fields missing/)).toBeNull();
-    expect(screen.getByLabelText(/^Headline/).getAttribute('aria-invalid')).toBeNull();
+    expect(screen.getByLabelText(/^Headline \(required\)$/).getAttribute('aria-invalid')).toBeNull();
   });
 
   it('blocks without host permission and offers the options page', async () => {
@@ -139,7 +139,7 @@ describe('popup send', () => {
 
   it('sends the built payload and shows status, message text and link', async () => {
     const { user, deps } = setup();
-    const title = (await screen.findByLabelText(/^Headline/)) as HTMLInputElement;
+    const title = (await screen.findByLabelText(/^Headline \(required\)$/)) as HTMLInputElement;
     await user.clear(title);
     await user.type(title, 'Edited');
     await user.type(screen.getByLabelText('Note'), 'my note');

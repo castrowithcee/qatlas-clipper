@@ -4,7 +4,7 @@ import { AddFieldRow } from './AddFieldRow';
 import { LongValue } from './LongValue';
 import type { FieldResult } from '../extract';
 import type { IconName } from '../ui/components';
-import { Field, Icon, IconButton, Menu, Tooltip, type MenuEntry } from '../ui/components';
+import { Field, IconButton, Menu, Tooltip, type MenuEntry } from '../ui/components';
 import { useI18n } from '../settings';
 import type { MessageKey, Translator } from '../i18n';
 
@@ -27,23 +27,20 @@ export function sourceInfo(field: FieldConfig, found: FieldResult | undefined, e
   return { icon: 'auto', text: t('popup.source.auto') };
 }
 
-function SourceMark({ icon, text }: SourceInfo) {
-  return (
-    <Tooltip content={text}>
-      {(tip) => (
-        // Focusable so keyboard users reach the tooltip; the label carries the same text.
-        <span role="img" aria-label={text} tabIndex={0} className="popup-source" {...tip}>
-          <Icon name={icon} />
-        </span>
-      )}
-    </Tooltip>
-  );
+/** Picker button motif, tooltip and the origin part of its accessible name. */
+export function pickInfo(source: SourceInfo, found: FieldResult | undefined, mapped: boolean, i18n: Pick<Translator, 't'>): { icon: IconName; tip: string } {
+  const { t } = i18n;
+  if (mapped || found?.source === 'selector') return { icon: 'click-mapped', tip: t('popup.pick.click') };
+  if (found && found.source !== 'manual') return { icon: 'pick-element', tip: t('popup.pick.from', { source: source.text }) };
+  return { icon: 'pick-element', tip: t('popup.field.pickTip') };
 }
 
 interface RowProps {
   field: FieldConfig;
   value: string;
+  /** Origin of the read value, ignoring user edits. */
   source: SourceInfo;
+  found: FieldResult | undefined;
   invalid: boolean;
   onChange: (v: string) => void;
   onPick: () => void;
@@ -56,7 +53,7 @@ interface RowProps {
 /** What the field menu can change. */
 export type FieldPatch = { required: boolean } | { format: FieldFormat };
 
-function FieldRow({ field, value, source, invalid, onChange, onPick, mapped, onUpdate, onRemoveMapping }: RowProps) {
+function FieldRow({ field, value, source, found, invalid, onChange, onPick, mapped, onUpdate, onRemoveMapping }: RowProps) {
   const { t } = useI18n();
   const way = valueWay(field);
   const effective = fieldFormatOf(field, way === 'click');
@@ -77,6 +74,7 @@ function FieldRow({ field, value, source, invalid, onChange, onPick, mapped, onU
       }
     }
   }
+  const pick = pickInfo(source, found, mapped, { t });
   const choice = field.sources.manual?.type === 'choice' ? field.sources.manual.values : null;
   return (
     <Field
@@ -103,8 +101,7 @@ function FieldRow({ field, value, source, invalid, onChange, onPick, mapped, onU
               markdown={way !== 'manual' && effective === 'markdown'}
             />
           )}
-          <SourceMark {...source} />
-          <IconButton icon="pick-element" label={t('popup.field.pick', { label: field.label })} tooltip={t('popup.field.pickTip')} onClick={onPick} />
+          <IconButton icon={pick.icon} label={t('popup.field.pick', { label: field.label, tip: pick.tip })} tooltip={pick.tip} onClick={onPick} />
           <Menu label={t('popup.menu.button', { label: field.label })} tooltip={t('popup.menu.tip')} entries={entries} />
         </div>
       )}
@@ -165,7 +162,8 @@ export function FieldForm({ fields, found, edits, invalidKeys, note, fixed, onCh
             key={field.key}
             field={field}
             value={edited ?? read?.value ?? ''}
-            source={sourceInfo(field, read, edited !== undefined, i18n)}
+            source={sourceInfo(field, read, false, i18n)}
+            found={read}
             invalid={invalidKeys.includes(field.key)}
             onChange={(v) => onChange(field.key, v)}
             onPick={() => onPick(field)}

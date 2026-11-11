@@ -82,11 +82,11 @@ describe('popup', () => {
     const { user } = setup();
     const input = await screen.findByLabelText('Price');
     expect(input).toHaveProperty('value', '12');
-    expect(screen.getByRole('img', { name: 'Detected automatically' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Price: Detected automatically – click an element' })).toBeTruthy();
     await user.clear(input);
     await user.type(input, '15');
     expect(input).toHaveProperty('value', '15');
-    expect(screen.getByRole('img', { name: 'Enter it yourself' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Price: Detected automatically – click an element' })).toBeTruthy();
     expect(screen.getByText('Article')).toBeTruthy();
     expect(screen.getByText('example.com')).toBeTruthy();
   });
@@ -128,7 +128,7 @@ describe('popup', () => {
     page.matching = ['a'];
     page.fields = { a: { title: { value: 'Old', source: 'schemaOrg' }, kind: { value: '', source: 'manual' } } };
     const first = setup({ draftStorage, page: () => page, projects: PROJECTS });
-    const title = await screen.findByLabelText(/^Headline/);
+    const title = await screen.findByLabelText(/^Headline \(required\)$/);
     await first.user.clear(title);
     await first.user.type(title, 'Mine');
     await first.user.type(screen.getByLabelText('Note'), 'remember');
@@ -137,7 +137,7 @@ describe('popup', () => {
 
     page = { ...page, fields: { a: { title: { value: 'New', source: 'selector' }, kind: { value: 'Draft', source: 'selector' } } } };
     setup({ draftStorage, page: () => page });
-    expect(((await screen.findByLabelText(/^Headline/)) as HTMLInputElement).value).toBe('Mine');
+    expect(((await screen.findByLabelText(/^Headline \(required\)$/)) as HTMLInputElement).value).toBe('Mine');
     expect((screen.getByLabelText('Note') as HTMLTextAreaElement).value).toBe('remember');
     expect((screen.getByLabelText('Kind') as HTMLSelectElement).value).toBe('Final');
     cleanup();
@@ -146,13 +146,13 @@ describe('popup', () => {
     const other = fakeStorage();
     await saveDraft(other, { ...emptyDraft(page.url), projectId: 'a', note: 'n' });
     setup({ draftStorage: other, page: () => page });
-    expect(((await screen.findByLabelText(/^Headline/)) as HTMLInputElement).value).toBe('New');
+    expect(((await screen.findByLabelText(/^Headline \(required\)$/)) as HTMLInputElement).value).toBe('New');
     cleanup();
 
     // Another URL does not see the draft.
     const elsewhere = { ...page, url: 'https://example.com/other' };
     setup({ draftStorage, page: () => elsewhere });
-    expect(((await screen.findByLabelText(/^Headline/)) as HTMLInputElement).value).toBe('New');
+    expect(((await screen.findByLabelText(/^Headline \(required\)$/)) as HTMLInputElement).value).toBe('New');
     expect((screen.getByLabelText('Note') as HTMLTextAreaElement).value).toBe('');
   });
 
@@ -175,14 +175,14 @@ describe('popup', () => {
   it('Map starts the picker and closes the popup; shows an error if it fails', async () => {
     const { user, deps } = setup();
     await screen.findByLabelText('Price');
-    await user.click(screen.getByRole('button', { name: 'Click Price on the page' }));
+    await user.click(screen.getByRole('button', { name: /^Price: / }));
     await waitFor(() => expect(deps.close).toHaveBeenCalledTimes(1));
     expect(deps.pick).toHaveBeenCalledWith(7, 'b', 'price');
     cleanup();
 
     const failing = setup({ pick: vi.fn(async () => { throw new Error('boom'); }) });
     await screen.findByLabelText('Price');
-    await failing.user.click(screen.getByRole('button', { name: 'Click Price on the page' }));
+    await failing.user.click(screen.getByRole('button', { name: /^Price: / }));
     expect((await screen.findByRole('alert')).textContent).toBe('Starting the picker failed.');
     expect(failing.deps.close).not.toHaveBeenCalled();
   });
@@ -191,7 +191,7 @@ describe('popup', () => {
     const { user, deps, view } = setup({ variant: 'sidepanel' });
     await screen.findByLabelText('Price');
     expect(view.container.querySelector('main')!.className).toContain('popup-panel');
-    await user.click(screen.getByRole('button', { name: 'Click Price on the page' }));
+    await user.click(screen.getByRole('button', { name: /^Price: / }));
     await waitFor(() => expect(deps.pick).toHaveBeenCalledWith(7, 'b', 'price'));
     await new Promise((r) => setTimeout(r, 20));
     expect(deps.close).not.toHaveBeenCalled();
@@ -291,7 +291,7 @@ describe('popup: add field while capturing', () => {
     await user.clear(price);
     await user.type(price, '99');
     await user.type(screen.getByLabelText('New field'), 'Extra');
-    await user.click(screen.getByRole('button', { name: 'Add' }));
+    await user.click(screen.getByRole('button', { name: 'Add field' }));
     await waitFor(() => expect(deps.close).toHaveBeenCalled());
     expect(screen.getByLabelText('Price')).toHaveProperty('value', '99');
     expect(screen.getByLabelText('Extra')).toBeTruthy();
@@ -305,7 +305,7 @@ describe('popup: add field while capturing', () => {
     configOf(storage).projects[0]!.name = 'Renamed';
     configOf(storage).projects[1]!.fields.push(field('other', 'Other') as never);
     await user.type(screen.getByLabelText('New field'), 'Mine');
-    await user.click(screen.getByRole('button', { name: 'Add' }));
+    await user.click(screen.getByRole('button', { name: 'Add field' }));
     await waitFor(() => expect(deps.close).toHaveBeenCalled());
     expect(storedProject(storage, 'a').name).toBe('Renamed');
     expect(storedProject(storage, 'b').fields.map((f: { key: string }) => f.key)).toEqual(['price', 'other', 'mine']);
@@ -319,7 +319,7 @@ describe('popup: add field while capturing', () => {
       throw new Error('quota');
     };
     await user.type(screen.getByLabelText('New field'), 'Mine');
-    await user.click(screen.getByRole('button', { name: 'Add' }));
+    await user.click(screen.getByRole('button', { name: 'Add field' }));
     expect(await screen.findByText('The field could not be saved.')).toBeTruthy();
     expect(screen.getByLabelText('New field')).toHaveProperty('value', 'Mine');
     expect(deps.pick).not.toHaveBeenCalled();
@@ -330,7 +330,7 @@ describe('popup: add field while capturing', () => {
     const storage = fakeStorage(stored(...PROJECTS));
     const { user, deps } = setup({ storage });
     const input = await screen.findByLabelText('New field');
-    expect(screen.getByRole('button', { name: 'Add' })).toHaveProperty('disabled', true);
+    expect(screen.getByRole('button', { name: 'Add field' })).toHaveProperty('disabled', true);
     await user.type(input, '   {Enter}');
     expect(deps.pick).not.toHaveBeenCalled();
     expect(storedProject(storage, 'b').fields).toHaveLength(1);
