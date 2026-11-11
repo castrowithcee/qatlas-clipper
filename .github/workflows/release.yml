@@ -31,7 +31,8 @@ jobs:
       - run: npm run typecheck
       - run: npm run lint
       - run: npm test
-      - run: npx playwright install --with-deps chromium
+      # No --with-deps: the runner image ships the libraries, and apt mirrors are not always reachable.
+      - run: npx playwright install chromium
       - run: npm run e2e
       - uses: actions/upload-artifact@v4
         if: failure()
