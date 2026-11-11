@@ -2,7 +2,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { CONFIG_KEY, type StorageArea } from '../src/config';
+import { CONFIG_KEY, exportConfig, type StorageArea } from '../src/config';
+import { LAST_TARGETS_KEY, pickTarget, shortAddress } from '../src/popup/lastTarget';
 import type { ReadTabResult } from '../src/extract/inject';
 import { PopupApp, type PopupDeps } from '../src/popup/PopupApp';
 import { IN_FLIGHT_KEY, RESULTS_KEY } from '../src/send/results';
@@ -109,7 +110,7 @@ describe('popup send', () => {
   it('blocks an empty required field and marks it invalid', async () => {
     const { user, deps } = setup({ fields: {} });
     await user.click(await sendButton());
-    expect((await screen.findByRole('alert')).textContent).toBe('Please fill in the marked required fields.');
+    expect((await screen.findByRole('alert')).textContent).toContain('Please fill in the marked required fields.');
     expect(deps.send).not.toHaveBeenCalled();
     expect(screen.getByLabelText(/^Headline \(required\)$/).getAttribute('aria-invalid')).toBe('true');
     // Whitespace only counts as empty; fixing the field clears the hint.
@@ -250,5 +251,135 @@ describe('popup send', () => {
     setup({ resultStorage: first.resultStorage });
     expect(await screen.findByText(SENT)).toBeTruthy();
     expect(screen.getByRole('link').getAttribute('href')).toBe('https://example.com/item/1');
+  });
+});
+
+const second = { id: 't2', name: 'Second', url: 'https://second.example.com/api/hook?token=SECRET#frag', headers: [], purpose: '' };
+const withLast = (targets: unknown[], last: unknown) => fakeStorage({ ...config(targets), [LAST_TARGETS_KEY]: last });
+const sentTo = (deps: PopupDeps) => (deps.send as ReturnType<typeof vi.fn>).mock.calls.map((c) => (c[0] as { targetId: string }).targetId);
+const arrow = () => screen.findByRole('button', { name: 'Choose target to send to' });
+
+describe.each(['popup', 'sidepanel'] as const)('send control in the fixed head (%s)', (variant) => {
+  it('shows one icon button with the target in name and tooltip, no arrow, and sends to it', async () => {
+    const { user, deps } = setup({ variant });
+    const button = await sendButton();
+    expect(button.textContent).toBe('');
+    expect(button.querySelector('svg')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Choose target to send to' })).toBeNull();
+    await user.hover(button);
+    expect((await screen.findByRole('tooltip')).textContent).toBe('Send to Hook');
+    await user.click(button);
+    await screen.findByText(SENT);
+    expect(sentTo(deps)).toEqual(['t1']);
+  });
+
+  it('puts the send button last in the head and the result directly below it', async () => {
+    const { user } = setup({ variant });
+    await user.click(await sendButton());
+    const status = await screen.findByText(SENT);
+    const header = document.querySelector('header.popup-header')!;
+    const focusable = Array.from(header.querySelectorAll('input, button')).map((n) => n.getAttribute('aria-label') ?? n.getAttribute('role'));
+    expect(focusable[0]).toBe('combobox');
+    expect(focusable[focusable.length - 1]).toBe('Send to Hook');
+    expect(header.nextElementSibling?.contains(status)).toBe(true);
+    expect(header.nextElementSibling?.textContent).toContain('Target: Hook');
+  });
+
+  it('sends to the first target without a remembered one and uses the arrow only with several targets', async () => {
+    const { user, deps } = setup({ variant, targets: [target, second] });
+    await user.click(await sendButton());
+    await screen.findByText(SENT);
+    expect(sentTo(deps)).toEqual(['t1']);
+    expect(await arrow()).toBeTruthy();
+  });
+
+  it('sends to the remembered target of this project with the main part', async () => {
+    const { user, deps } = setup({ variant, targets: [target, second], storage: withLast([target, second], { p: 't2' }) });
+    await user.click(await screen.findByRole('button', { name: 'Send to Second' }));
+    await screen.findByText(SENT);
+    expect(sentTo(deps)).toEqual(['t2']);
+  });
+
+  it('ignores a remembered target that no longer exists or belongs to another project', async () => {
+    const { user, deps } = setup({ variant, targets: [target, second], storage: withLast([target, second], { p: 'gone', other: 't2' }) });
+    await user.click(await sendButton());
+    await screen.findByText(SENT);
+    expect(sentTo(deps)).toEqual(['t1']);
+    expect(pickTarget([target], { p: 't2' }, 'p')).toBe(target);
+    expect(pickTarget([target, second], { other: 't2' }, 'p')).toBe(target);
+  });
+
+  it('lists name and shortened address in the menu, sends at once on choice and remembers it', async () => {
+    const storage = withLast([target, second], {});
+    const { user, deps } = setup({ variant, targets: [target, second], storage });
+    await user.click(await arrow());
+    const item = await screen.findByRole('menuitem', { name: /Second/ });
+    expect(item.textContent).toContain('second.example.com/api/hook');
+    expect(item.textContent).not.toMatch(/SECRET|token|frag/);
+    await user.click(item);
+    await screen.findByText(SENT);
+    expect(sentTo(deps)).toEqual(['t2']);
+    expect(storage.data[LAST_TARGETS_KEY]).toEqual({ p: 't2' });
+    expect(document.querySelector('header.popup-header')!.nextElementSibling?.textContent).toContain('Target: Second');
+    expect(await screen.findByRole('button', { name: 'Send to Second' })).toBeTruthy();
+  });
+
+  it('keeps the remembered target out of the export', async () => {
+    const storage = withLast([target, second], {});
+    const { user } = setup({ variant, targets: [target, second], storage });
+    await user.click(await arrow());
+    await user.click(await screen.findByRole('menuitem', { name: /Second/ }));
+    await screen.findByText(SENT);
+    expect(storage.data[LAST_TARGETS_KEY]).toEqual({ p: 't2' });
+    const exported = await exportConfig(storage);
+    expect(exported).not.toContain('popupLastTargets');
+  });
+
+  it('shows missing required fields and missing permission under the head with the target name', async () => {
+    const first = setup({ variant, fields: {} });
+    await first.user.click(await sendButton());
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent).toContain('Target: Hook');
+    expect(document.querySelector('header.popup-header')!.nextElementSibling?.contains(alert)).toBe(true);
+    cleanup();
+    const { user } = setup({ variant, permissions: { contains: vi.fn(async () => false) } });
+    await user.click(await sendButton());
+    const hint = await screen.findByRole('alert');
+    expect(hint.textContent).toContain('Target: Hook');
+    expect(document.querySelector('header.popup-header')!.nextElementSibling?.contains(hint)).toBe(true);
+  });
+
+  it('sends once on a double click and announces the busy state at the button', async () => {
+    let resolve!: (o: SendOutcome) => void;
+    const send = vi.fn(() => new Promise<SendOutcome>((r) => (resolve = r)));
+    const { deps } = setup({ variant, send });
+    const button = (await sendButton()) as HTMLButtonElement;
+    button.click();
+    button.click();
+    const busy = (await screen.findByRole('button', { name: 'Sending to Hook' })) as HTMLButtonElement;
+    expect(busy.disabled).toBe(true);
+    expect(busy.getAttribute('aria-busy')).toBe('true');
+    expect(screen.getByRole('status').textContent).toBe('Sending to Hook');
+    expect(deps.send).toHaveBeenCalledTimes(1);
+    resolve(success);
+    await screen.findByText(SENT);
+  });
+
+  it('has no send button without a target', async () => {
+    setup({ variant, targets: [] });
+    expect(await screen.findByText('This project has no target yet')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /^Send to/ })).toBeNull();
+  });
+});
+
+describe('shortAddress', () => {
+  it('keeps host and path start only', () => {
+    const withCredentials = new URL('https://hooks.example.com/a/b?token=x#y');
+    withCredentials.username = 'user';
+    withCredentials.password = 'pw';
+    expect(shortAddress(withCredentials.href)).toBe('hooks.example.com/a/b');
+    expect(shortAddress('https://hooks.example.com/')).toBe('hooks.example.com');
+    expect(shortAddress('https://hooks.example.com/' + 'x'.repeat(80)).length).toBe(32);
+    expect(shortAddress('not a url')).toBe('');
   });
 });

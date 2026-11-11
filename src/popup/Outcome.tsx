@@ -29,11 +29,13 @@ type Kind = 'success' | 'error' | 'warning';
 const ICON: Record<Kind, IconName> = { success: 'check', error: 'error', warning: 'alert' };
 
 /** Meaning comes from icon and text, the colored edge only supports it. */
-export function Notice({ kind, title, children }: { kind: Kind; title: string; children?: ReactNode }) {
+export function Notice({ kind, title, target, children }: { kind: Kind; title: string; target?: string; children?: ReactNode }) {
+  const { t } = useI18n();
   return (
     <div role={kind === 'success' ? 'status' : 'alert'} className={`popup-outcome popup-outcome--${kind}`}>
       <Icon name={ICON[kind]} />
       <div className="popup-outcome-body">
+        {target !== undefined && <p className="popup-outcome-target">{t('popup.send.resultFor', { name: target })}</p>}
         <p className="popup-outcome-title">{title}</p>
         {children}
       </div>
@@ -41,12 +43,12 @@ export function Notice({ kind, title, children }: { kind: Kind; title: string; c
   );
 }
 
-export function MissingHint() {
+export function MissingHint({ target }: { target?: string }) {
   const { t } = useI18n();
-  return <Notice kind="warning" title={t('popup.send.missing')} />;
+  return <Notice kind="warning" title={t('popup.send.missing')} target={target} />;
 }
 
-export function ResultView({ outcome, at, onRetry }: { outcome: SendOutcome; at: string; onRetry: () => void }) {
+export function ResultView({ outcome, at, onRetry, target }: { outcome: SendOutcome; at: string; onRetry: () => void; target?: string }) {
   const { t, number, date } = useI18n();
   if (outcome.kind === 'no-permission') return null;
   if (outcome.kind === 'success') {
@@ -56,7 +58,7 @@ export function ResultView({ outcome, at, onRetry }: { outcome: SendOutcome; at:
       ? t('popup.send.done')
       : t('popup.send.ok', { time: date(when, { timeStyle: 'short' }) });
     return (
-      <Notice kind="success" title={title}>
+      <Notice kind="success" title={title} target={target}>
         {outcome.message && <p className="popup-outcome-text">{outcome.message}</p>}
         {outcome.url !== undefined &&
           (href ? (
@@ -72,7 +74,7 @@ export function ResultView({ outcome, at, onRetry }: { outcome: SendOutcome; at:
       ? t('popup.send.fail.http', { status: number(outcome.status, { useGrouping: false }) })
       : t(FAILURE_TEXT[outcome.kind]);
   return (
-    <Notice kind="error" title={title}>
+    <Notice kind="error" title={title} target={target}>
       {outcome.kind === 'http-error' && outcome.text && <p className="popup-outcome-text">{outcome.text}</p>}
       <Button className="popup-retry" onClick={onRetry}>{t('ui.retry')}</Button>
     </Notice>

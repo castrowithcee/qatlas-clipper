@@ -56,10 +56,15 @@ export const helpDe = {
   'help.fixed.p2': 'Außerdem gehen der Name des Projekts und des Ziels, deine Notiz und der Zeitpunkt des Sendens mit.',
 
   'help.targets.title': 'Ziele',
-  'help.targets.p1': 'Ein Ziel ist ein Webhook, also eine Webadresse, die die gesendeten Angaben entgegennimmt. Jedes Projekt hat eigene Ziele. Im Popup sendest du mit einem Klick an ein Ziel.',
+  'help.targets.p1': 'Ein Ziel ist ein Webhook, also eine Webadresse, die die gesendeten Angaben entgegennimmt. Jedes Projekt hat eigene Ziele.',
   'help.targets.li1': 'Webhook-Adresse: erlaubt ist https, http nur für localhost. Gesendet wird nur an diese Adresse.',
   'help.targets.li2': 'Zugriff erlauben: Der Browser fragt, ob die Erweiterung diese Adresse ansprechen darf. Ohne Erlaubnis wird nicht gesendet. „Zugriff fehlt“ zeigt das an, „Erlauben“ holt es nach. Auch beim Speichern fragt die Erweiterung danach.',
   'help.targets.li3': 'Zugangsschlüssel (optional, unter „Erweitert“): nur nötig, wenn der Dienst danach fragt. Er geht nur an dieses Ziel, bleibt auf diesem Gerät und wird nie exportiert. Für andere Anmeldungen gibt es eigene Header.',
+
+  'help.send.title': 'Senden',
+  'help.send.p1': 'Im Kopf von Popup und Seitenleiste steht rechts das Senden-Symbol (Papierflieger); der Kopf bleibt beim Scrollen stehen. Der Name des Ziels steht im Tooltip: „An <Ziel> senden“. Ohne Ziel gibt es das Symbol nicht, stattdessen führt ein Hinweis zu den Optionen.',
+  'help.send.p2': 'Hat das Projekt mehrere Ziele, hat das Symbol einen Pfeil. Das Symbol sendet an das zuletzt gewählte Ziel des Projekts, ohne Wahl an das erste. Der Pfeil öffnet die Liste der Ziele mit Name und Anfang der Adresse; ein Klick auf ein Ziel sendet sofort und merkt es für dieses Projekt. Das gemerkte Ziel ist eine Einstellung dieses Geräts; es gehört nicht zur Konfiguration und wird nicht exportiert. Es wird immer nur an ein Ziel gesendet.',
+  'help.send.p3': 'Das Ergebnis, fehlende Pflichtfelder oder fehlender Zugriff stehen direkt unter dem Kopf, mit dem Namen des Ziels. Während des Sendens ist das Symbol gesperrt. Ein Fehler bleibt stehen, bis du erneut sendest.',
 
   'help.payload.title': 'Gesendete Daten und Antwort',
   'help.payload.p1': 'Dieser Abschnitt richtet sich an alle, die einen Webhook bauen. Bei jedem Senden geht eine POST-Anfrage mit einem JSON-Objekt an das Ziel. Das Beispiel zeigt ein Projekt mit den Feldern „title“ und „price“, wobei für „price“ kein Wert vorlag.',
@@ -154,10 +159,15 @@ export const helpEn: Record<keyof typeof helpDe, string> = {
   'help.fixed.p2': 'The name of the project and of the target, your note and the time of sending go along as well.',
 
   'help.targets.title': 'Targets',
-  'help.targets.p1': 'A target is a webhook, that is, a web address that receives the sent details. Each project has its own targets. In the popup you send to a target with one click.',
+  'help.targets.p1': 'A target is a webhook, that is, a web address that receives the sent details. Each project has its own targets.',
   'help.targets.li1': 'Webhook address: https is allowed, http only for localhost. Data is sent only to this address.',
   'help.targets.li2': 'Allow access: the browser asks whether the extension may contact this address. Without permission nothing is sent. "Access missing" shows this, "Allow" grants it later. The extension also asks when you save.',
   'help.targets.li3': 'Access key (optional, under "Advanced"): only needed if the service asks for it. It goes only to this target, stays on this device and is never exported. For other kinds of sign-in there are custom headers.',
+
+  'help.send.title': 'Sending',
+  'help.send.p1': 'The send icon (paper plane) sits at the right of the header of the popup and the side panel; the header stays in place while you scroll. The tooltip names the target: "Send to <target>". Without a target there is no icon; a note leads to the options instead.',
+  'help.send.p2': 'If the project has several targets, the icon has an arrow. The icon sends to the project\'s most recently chosen target, or to the first one if none was chosen. The arrow opens the list of targets with name and the start of the address; a click on a target sends at once and remembers it for this project. The remembered target is a setting of this device; it is not part of the configuration and is not exported. Only one target is sent to at a time.',
+  'help.send.p3': 'The result, missing required fields or missing access appear right below the header, with the name of the target. While sending, the icon is locked. An error stays until you send again.',
 
   'help.payload.title': 'Sent data and response',
   'help.payload.p1': 'This section is for anyone building a webhook. Every send makes a POST request with a JSON object to the target. The example shows a project with the fields "title" and "price", where "price" had no value.',

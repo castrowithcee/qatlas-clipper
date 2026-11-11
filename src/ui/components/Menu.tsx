@@ -8,6 +8,8 @@ import './components.css';
 /** Shared by all selectable entries; labels are rendered as text only. */
 interface EntryBase {
   label: string;
+  /** Second line in muted text, e.g. a shortened address; rendered as text only. */
+  detail?: string;
   /** Leading icon. */
   icon?: IconName;
   /** Shown but not selectable and skipped by the arrow keys. */
@@ -168,7 +170,14 @@ export function Menu({ label, icon = 'ellipsis-vertical', tooltip, entries, butt
       >
         <span className="q-menu-mark" aria-hidden="true">{mark}</span>
         {entry.kind !== 'action' && entry.icon && <Icon name={entry.icon} />}
-        {entry.label}
+        {entry.detail === undefined ? (
+          entry.label
+        ) : (
+          <span className="q-menu-text">
+            <span>{entry.label}</span>
+            <span className="q-menu-detail">{entry.detail}</span>
+          </span>
+        )}
       </button>
     );
   };

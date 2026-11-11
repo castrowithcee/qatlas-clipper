@@ -7,8 +7,17 @@ body { font-family: var(--font-sans); font-size: var(--font-size-base); line-hei
 .popup .q-field { margin-bottom: var(--space-2); max-width: none; }
 .popup .q-label-row { min-height: 1.5rem; }
 
-.popup-header { margin-bottom: var(--space-2); }
-.popup-header-top { display: flex; align-items: center; justify-content: flex-end; gap: var(--space-2); margin-bottom: var(--space-2); }
+/* Fixed head: stays on top while the fields scroll; the negative margin lets its background cover the popup padding. */
+.popup-header {
+  position: sticky; top: 0; z-index: 10; display: flex; align-items: flex-end; gap: var(--space-2);
+  margin: calc(var(--space-3) * -1) calc(var(--space-3) * -1) var(--space-2); padding: var(--space-3) var(--space-3) var(--space-2);
+  background: var(--color-bg); border-bottom: 1px solid var(--color-border);
+}
+.popup-header .q-field { flex: 1; min-width: 0; margin-bottom: 0; }
+.popup-header-actions { display: flex; align-items: center; flex: none; gap: var(--space-1); }
+.popup-result { margin-bottom: var(--space-2); }
+.popup-result:empty { display: none; }
+.popup-outcome-target { color: var(--color-text-muted); font-size: var(--font-size-small); }
 
 /* Always-sent values: same look as a field, but read-only and muted (text-muted on surface keeps AA contrast). */
 .popup-fixed { margin: 0 0 var(--space-2); padding: 0; border: 0; min-width: 0; }
@@ -42,10 +51,6 @@ body { font-family: var(--font-sans); font-size: var(--font-size-base); line-hei
 .popup-long-edit { display: block; width: 100%; min-height: 12rem; max-height: 60vh; resize: vertical; field-sizing: fixed; }
 
 .popup-error { color: var(--color-danger); margin: var(--space-1) 0; }
-.popup-send { margin-top: var(--space-3); }
-.popup-target { margin-bottom: var(--space-2); }
-.popup-send-button { width: 100%; }
-.popup-spinner { width: 1rem; height: 1rem; border-width: 2px; }
 .popup-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .popup-actions { display: flex; justify-content: center; margin-top: var(--space-2); }
 

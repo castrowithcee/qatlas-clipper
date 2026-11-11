@@ -1,7 +1,7 @@
 import { useState, type ReactNode, type Ref } from 'react';
 import { useI18n } from '../../src/settings';
 import {
-  Button, Checkbox, Chip, Combobox, type ComboboxGroup, DataTable, DetailPanel, Dialog, Disclosure, EmptyState, ErrorState, ICON_NAMES, Icon, IconButton, LoadingState, Menu, type MenuEntry, type MenuTriggerProps, NotificationsProvider, RowActions, RowError, Select, Switch, TextField, Toast, TileGroup, useNotifications,
+  Button, Checkbox, Chip, Combobox, type ComboboxGroup, DataTable, DetailPanel, Dialog, Disclosure, EmptyState, ErrorState, ICON_NAMES, Icon, IconButton, LoadingState, Menu, type MenuEntry, type MenuTriggerProps, NotificationsProvider, RowActions, RowError, Select, SplitButton, Switch, TextField, Toast, TileGroup, useNotifications,
 } from '../../src/ui/components';
 import '../../src/ui/components/components.css';
 import '../../src/options/options.css';
@@ -234,6 +234,22 @@ export function Gallery() {
             entries={MENU_ENTRIES}
             trigger={ActionsTrigger}
           />
+        </div>
+      </Section>
+      <Section id="split" title="Split button">
+        <div style={{ minHeight: '10rem' }} className="gallery-row">
+          <SplitButton icon="send" label="Send to Hook" menuLabel="Choose target" onMain={() => {}} />
+          <SplitButton
+            icon="send"
+            label="Send to Hook"
+            menuLabel="Choose target"
+            onMain={() => {}}
+            options={[
+              { id: 'a', label: 'Hook', detail: 'hooks.example.com/in' },
+              { id: 'b', label: 'Second', detail: 'second.example.com/api/hook' },
+            ]}
+          />
+          <SplitButton icon="send" label="Send to Hook" busyLabel="Sending to Hook" busy menuLabel="Choose target" onMain={() => {}} />
         </div>
       </Section>
       <Section id="chips" title="Chips">
