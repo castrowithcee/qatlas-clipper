@@ -179,10 +179,10 @@
 .q-button--icon.q-chip-remove { min-width: 1.75rem; min-height: 1.75rem; padding: var(--space-1); border-radius: 50%; }
 
 /* Tile group: the radio stays in the layout (invisible) so native keyboard handling and focus apply. */
-.q-tiles { border: 0; padding: 0; margin: 0 0 var(--space-3); min-width: 0; max-width: 28rem; }
+.q-tiles { border: 0; padding: 0; margin: 0 0 var(--space-5); min-width: 0; }
 .q-tiles > legend { padding: 0; margin-bottom: var(--space-1); }
-.q-tiles-row { display: flex; flex-wrap: wrap; gap: var(--space-2); }
-.q-tile { position: relative; flex: 1 1 6rem; display: flex; }
+.q-tiles-row { display: grid; grid-template-columns: repeat(auto-fill, 9rem); gap: var(--space-2); }
+.q-tile { position: relative; display: flex; }
 .q-tile-input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
 .q-tile-body {
   position: relative; box-sizing: border-box; flex: 1;

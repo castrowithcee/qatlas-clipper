@@ -335,6 +335,41 @@ describe('options page', () => {
     expect((await loadConfig(storage)).projects[0]?.siteMappings).toEqual({ 'example.com': { headline: 'h1' } });
   });
 
+  it('moves the hints into tooltips and turns the add actions into icon buttons', async () => {
+    const hint = 'These are the details that are read and sent in the popup.';
+    const storage = fakeStorage(stored(project('p1', 'A', { scope: { allSites: false, domains: ['example.com'] }, fields: [], targets: [] })));
+    const user = await mount(storage);
+    const tipOf = (button: HTMLElement) => document.getElementById(button.getAttribute('aria-describedby') ?? '');
+    // Empty areas keep a labelled primary action.
+    expect(screen.getByRole('button', { name: 'Add field' }).className).toContain('q-button--primary');
+    expect(screen.getByRole('button', { name: 'Add target' }).className).toContain('q-button--primary');
+    const helpOf = (heading: string) => within(screen.getByRole('heading', { name: new RegExp(heading) })).getByRole('button', { name: 'More information' });
+    for (const [heading, text] of [['Fields', hint], ['Targets', 'Webhooks that receive the captured details.']] as const) {
+      expect(screen.queryAllByText(text).filter((e) => e.getAttribute('role') !== 'tooltip')).toEqual([]);
+      const button = helpOf(heading);
+      expect(tipOf(button)?.textContent).toBe(text);
+      expect(tipOf(button)?.hidden).toBe(true);
+      await user.tab();
+      act(() => button.focus());
+      expect(tipOf(button)?.hidden).toBe(false);
+    }
+    const site = screen.getByLabelText('Add website');
+    expect(site.getAttribute('placeholder')).toBe('example.com');
+    expect(screen.queryAllByText(/You can also paste a full address/).filter((e) => e.getAttribute('role') !== 'tooltip')).toEqual([]);
+    // With rows the add actions are icon buttons: same name, same action, tooltip on focus.
+    await addField(user, 'Status');
+    await closeDetails(user);
+    const add = screen.getByRole('button', { name: 'Add field' });
+    expect(add.className).toContain('q-button--icon');
+    expect(add.textContent).toBe('');
+    await user.click(screen.getByRole('button', { name: 'Add target' }));
+    await closeDetails(user);
+    const addTarget = screen.getByRole('button', { name: 'Add target' });
+    expect(addTarget.className).toContain('q-button--icon');
+    act(() => addTarget.focus());
+    expect(screen.getAllByRole('tooltip').some((t) => t.textContent === 'Add target' && !t.hidden)).toBe(true);
+  });
+
   it('drops site mappings of a deleted field', async () => {
     const f = { key: 'title', label: 'Title', required: false, sources: {} };
     const storage = fakeStorage(stored(project('p1', 'A', { fields: [f], siteMappings: { 'example.com': { title: 'h1' } } })));
@@ -1126,7 +1161,7 @@ describe('options page language', () => {
     }
     expect(within(screen.getByRole('main')).getByRole('button', { name: de['options.project.menu'].replace('{name}', 'A') })).toBeTruthy();
     await user.click(screen.getByRole('button', { name: de['options.fields.open'].replace('{name}', 'Headline') }));
-    for (const key of ['options.fields.title', 'options.fields.way.label', 'options.fields.add.button', 'options.fields.required', 'options.mappings.title', 'options.fields.deleteButton'] as const) {
+    for (const key of ['options.fields.title', 'options.fields.way.label', 'options.fields.required', 'options.mappings.title', 'options.fields.deleteButton'] as const) {
       expect(screen.getAllByText(de[key]).length, key).toBeGreaterThan(0);
     }
     const detect = screen.getByLabelText(de['options.fields.detect.label']) as HTMLSelectElement;

@@ -100,7 +100,11 @@ describe('share export of a project', () => {
     expect((sw as HTMLInputElement).checked).toBe(false);
 
     await user.click(sw);
-    await user.click(within(await screen.findByRole('dialog', { name: 'Export targets too?' })).getByRole('button', { name: 'Export targets too' }));
+    const confirm = within(await screen.findByRole('dialog', { name: 'Export targets too?' })).getByRole('button', { name: 'Export targets too' });
+    // Nothing is deleted, so the confirmation is not red.
+    expect(confirm.className).toContain('q-button--primary');
+    expect(confirm.className).not.toContain('danger');
+    await user.click(confirm);
     await waitFor(() => expect((sw as HTMLInputElement).checked).toBe(true));
     await user.click(within(d).getByRole('button', { name: 'Export' }));
     await screen.findByText(done);

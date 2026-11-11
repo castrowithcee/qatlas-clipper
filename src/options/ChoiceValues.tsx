@@ -1,6 +1,6 @@
 import { useId, useState, type KeyboardEvent } from 'react';
 import { useI18n } from '../settings';
-import { Button, Chip, TextField } from '../ui/components';
+import { Chip, IconButton, TextField } from '../ui/components';
 
 interface Props {
   values: string[];
@@ -61,9 +61,7 @@ export function ChoiceValues({ values, error, onChange }: Props) {
           onKeyDown={onKeyDown}
           onBlur={add}
         />
-        <Button icon="plus" onClick={add}>
-          {t('options.fields.values.add')}
-        </Button>
+        <IconButton icon="plus" label={t('options.fields.values.add')} onClick={add} />
       </div>
     </div>
   );
