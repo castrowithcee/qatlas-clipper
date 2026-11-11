@@ -791,12 +791,32 @@ describe('options page', () => {
       expect(screen.getByRole('dialog', { name: 't2' })).toBeTruthy();
       await user.keyboard('{Escape}');
       expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Edit target t2' }));
-      await user.click(screen.getByRole('button', { name: 'Move up target t2' }));
       const names = () => screen.getAllByRole('row').slice(1).map((r) => r.querySelector('.options-field-name')?.firstChild?.textContent);
+      expect(screen.queryByRole('button', { name: /Move up target/ })).toBeNull();
+      act(() => screen.getByRole('button', { name: 'Move target t2' }).focus());
+      await user.keyboard('{ArrowUp}');
       expect(names()).toEqual(['t2', 't1']);
+      expect(screen.getByText('t2: position 1 of 2')).toBeTruthy();
+      expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Move target t2' }));
       await user.click(screen.getByRole('button', { name: 'Save changes' }));
       await screen.findByText('Saved.');
       expect((await loadConfig(storage)).projects[0]!.targets.map((x) => x.id)).toEqual(['t2', 't1']);
+    });
+
+    it('reorders targets by dragging the grip onto another row', async () => {
+      const storage = fakeStorage(stored(project('p1', 'A', { targets: [target('t1', 'https://example.com/a'), target('t2', 'https://example.com/b'), target('t3', 'https://example.com/c')] })));
+      await mount(storage);
+      const dataTransfer = { effectAllowed: '', dropEffect: '', setData: vi.fn(), setDragImage: vi.fn() };
+      const rows = screen.getAllByRole('row');
+      fireEvent.dragStart(screen.getByRole('button', { name: 'Move target t1' }), { dataTransfer });
+      fireEvent.dragOver(rows[3]!, { dataTransfer });
+      expect(rows[3]!.className).toContain('is-drop-after');
+      fireEvent.drop(rows[3]!, { dataTransfer });
+      expect(screen.getAllByRole('row').slice(1).map((r) => r.querySelector('.options-field-name')?.firstChild?.textContent)).toEqual(['t2', 't3', 't1']);
+      expect(screen.getByText('t1: position 3 of 3')).toBeTruthy();
+      await userEvent.setup().click(screen.getByRole('button', { name: 'Save changes' }));
+      await screen.findByText('Saved.');
+      expect((await loadConfig(storage)).projects[0]!.targets.map((x) => x.id)).toEqual(['t2', 't3', 't1']);
     });
 
     it('keeps Advanced closed without a key or header and opens it for a key or a header', async () => {

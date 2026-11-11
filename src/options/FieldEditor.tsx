@@ -1,10 +1,11 @@
-import { useEffect, useId, useRef, useState, type DragEvent, type KeyboardEvent, type MouseEvent } from 'react';
+import { useEffect, useId, useRef, useState, type KeyboardEvent, type MouseEvent } from 'react';
 import { FIELD_FORMATS, fieldFormatOf, type Field, type FieldFormat, type Project } from '../config';
 import { DETECT_VALUES } from '../extract/detect';
 import { useI18n } from '../settings';
 import type { MessageKey } from '../i18n';
 import { Button, Checkbox, DataTable, DetailPanel, Disclosure, EmptyState, Icon, IconButton, RowActions, RowError, Select, TextField, Tooltip, type IconName } from '../ui/components';
 import { ChoiceValues } from './ChoiceValues';
+import { useReorder } from './reorder';
 import { errorsAt, followIds, isValidFieldKey, mappedSites, moveTo, newField, newId, orphanMappings, setValueWay, valueWay, type Issue, type ValueWay } from './draft';
 
 type Detect = (typeof DETECT_VALUES)[number];
@@ -91,10 +92,6 @@ export function FieldEditor({ fields, siteMappings, basePath, issues, onChange, 
   const [label, setLabel] = useState('');
   const [labelError, setLabelError] = useState<string>();
   const [openId, setOpenId] = useState<string>();
-  const [announcement, setAnnouncement] = useState('');
-  const [drag, setDrag] = useState<{ from: number; over: number }>();
-  // The grip to focus after a move: a moved row can lose the focus when the DOM is reordered.
-  const focusGrip = useRef<string | undefined>(undefined);
   // The row whose open button gets the focus back when the details close.
   const returnTo = useRef<string | undefined>(undefined);
 
@@ -102,13 +99,6 @@ export function FieldEditor({ fields, siteMappings, basePath, issues, onChange, 
   const openField = fields[openIndex];
   const shownId = openField ? openId : undefined;
   const nameOf = (f: Field) => f.label || t('options.fields.unnamed');
-
-  useEffect(() => {
-    const row = focusGrip.current;
-    if (row === undefined) return;
-    focusGrip.current = undefined;
-    document.getElementById(`${id}-grip-${row}`)?.focus();
-  });
 
   // Runs after the dialog's own focus handling, since the effects of a parent come after those of its children.
   useEffect(() => {
@@ -144,40 +134,17 @@ export function FieldEditor({ fields, siteMappings, basePath, issues, onChange, 
     }
   };
 
-  const move = (from: number, to: number) => {
-    if (to < 0 || to >= fields.length || from === to) return;
-    onChange(moveTo(fields, from, to));
-    setAnnouncement(t('options.fields.moved', { name: nameOf(fields[from] as Field), position: to + 1, count: fields.length }));
-  };
-
-  const onGripKey = (e: KeyboardEvent<HTMLButtonElement>, index: number, row: string) => {
-    const delta = e.key === 'ArrowUp' ? -1 : e.key === 'ArrowDown' ? 1 : 0;
-    if (delta === 0) return;
-    e.preventDefault();
-    focusGrip.current = row;
-    move(index, index + delta);
-  };
+  const reorder = useReorder({
+    sizeOf: () => fields.length,
+    onMove: ({ from, to }) => onChange(moveTo(fields, from.index, to.index)),
+    announce: ({ from, to }) => t('options.fields.moved', { name: nameOf(fields[from.index] as Field), position: to.index + 1, count: fields.length }),
+  });
 
   const onRowClick = (e: MouseEvent<HTMLTableRowElement>, row: string) => {
     const control = e.target instanceof Element ? e.target.closest('button, a, input, select, textarea, [tabindex]') : null;
     if (control && e.currentTarget.contains(control)) return;
     setOpenId(row);
   };
-
-  const dropProps = (index: number) => ({
-    onDragOver: (e: DragEvent<HTMLTableRowElement>) => {
-      if (!drag) return;
-      e.preventDefault();
-      e.dataTransfer.dropEffect = 'move';
-      if (drag.over !== index) setDrag({ ...drag, over: index });
-    },
-    onDrop: (e: DragEvent<HTMLTableRowElement>) => {
-      if (!drag) return;
-      e.preventDefault();
-      move(drag.from, index);
-      setDrag(undefined);
-    },
-  });
 
   const remove = (index: number) => {
     // The focus goes to the row that takes the place of the deleted one; without rows to the input for a new field.
@@ -215,32 +182,23 @@ export function FieldEditor({ fields, siteMappings, basePath, issues, onChange, 
             const sites = mappedSites({ siteMappings }, f.key);
             const invalid = hasErrors(fieldErrors(t, fields, i, basePath, issues, sites.map(([s]) => s)));
             const source = sourceOf(f, t);
-            const drop = drag && drag.over === i && drag.from !== i ? (drag.from < i ? 'is-drop-after' : 'is-drop-before') : undefined;
+            const { row: rowProps, grip } = reorder.item(row, name, i);
             return (
               <tr
                 key={row}
                 data-invalid={invalid || undefined}
-                className={['options-field-row', drag?.from === i ? 'is-dragged' : undefined, drop].filter(Boolean).join(' ')}
+                className={['options-field-row', rowProps.className].filter(Boolean).join(' ')}
                 onClick={(e) => onRowClick(e, row)}
-                {...dropProps(i)}
+                onDragOver={rowProps.onDragOver}
+                onDrop={rowProps.onDrop}
               >
                 <td>
                   <IconButton
-                    id={`${id}-grip-${row}`}
+                    {...grip}
                     icon="grip-vertical"
                     label={t('options.fields.grip', { name })}
                     tooltip={t('options.fields.grip.help')}
                     className="options-grip"
-                    draggable
-                    onDragStart={(e) => {
-                      e.dataTransfer.effectAllowed = 'move';
-                      e.dataTransfer.setData('text/plain', name);
-                      const tr = e.currentTarget.closest('tr');
-                      if (tr) e.dataTransfer.setDragImage(tr, 0, 0);
-                      setDrag({ from: i, over: i });
-                    }}
-                    onDragEnd={() => setDrag(undefined)}
-                    onKeyDown={(e) => onGripKey(e, i, row)}
                   />
                 </td>
                 <td className="options-field-name">
@@ -282,7 +240,7 @@ export function FieldEditor({ fields, siteMappings, basePath, issues, onChange, 
         </DataTable>
       )}
       <p className="q-sr-only" role="status">
-        {announcement}
+        {reorder.announcement}
       </p>
       {orphans.length > 0 && (
         <ul className="options-orphans">

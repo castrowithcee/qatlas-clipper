@@ -3,7 +3,8 @@ import type { HeaderValues, Target } from '../config';
 import { useI18n } from '../settings';
 import { Button, Checkbox, DataTable, DetailPanel, Disclosure, EmptyState, Icon, IconButton, RowActions, RowError, TextField, Tooltip } from '../ui/components';
 import { accessKeyState, setAccessKey } from './accessKey';
-import { errorsAt, moveItem, newTarget, shortAddress, type Issue } from './draft';
+import { errorsAt, moveTo, newTarget, shortAddress, type Issue } from './draft';
+import { useReorder } from './reorder';
 import { originPattern, type PermissionStatus } from './permissions';
 
 interface Props {
@@ -25,20 +26,15 @@ export function TargetEditor({ targets, basePath, issues, values, onValues, stat
   const [openId, setOpenId] = useState<string>();
   // The row whose open button gets the focus back when the details close.
   const returnTo = useRef<string | undefined>(undefined);
-  // The move button to focus after a move: a moved row can lose the focus when the DOM is reordered.
-  const focusMove = useRef<string | undefined>(undefined);
   const openIndex = targets.findIndex((x) => x.id === openId);
   const openTarget = targets[openIndex];
   const shownId = openTarget?.id;
   const nameOf = (x: Target) => x.name || t('options.targets.unnamed');
 
-  useEffect(() => {
-    const move = focusMove.current;
-    if (move === undefined) return;
-    focusMove.current = undefined;
-    const button = document.getElementById(`${id}-${move}`) as HTMLButtonElement | null;
-    // At the end of the list the pressed button is disabled; the other one keeps the focus in the row.
-    (button && !button.disabled ? button : document.getElementById(`${id}-${move.startsWith('up') ? 'down' : 'up'}${move.slice(move.indexOf('-'))}`))?.focus();
+  const reorder = useReorder({
+    sizeOf: () => targets.length,
+    onMove: ({ from, to }) => onChange(moveTo(targets, from.index, to.index)),
+    announce: ({ from, to }) => t('options.targets.moved', { name: nameOf(targets[from.index] as Target), position: to.index + 1, count: targets.length }),
   });
 
   // Runs after the dialog's own focus handling, since the effects of a parent come after those of its children.
@@ -60,13 +56,6 @@ export function TargetEditor({ targets, basePath, issues, values, onValues, stat
     const target = newTarget(t('options.targets.newName'));
     onChange([...targets, target]);
     setOpenId(target.id);
-  };
-
-  const move = (i: number, delta: -1 | 1) => {
-    const target = targets[i];
-    if (!target) return;
-    focusMove.current = `${delta < 0 ? 'up' : 'down'}-${target.id}`;
-    onChange(moveItem(targets, i, delta));
   };
 
   const remove = (i: number) => {
@@ -110,13 +99,11 @@ export function TargetEditor({ targets, basePath, issues, values, onValues, stat
             const path = `${basePath}.targets[${i}]`;
             const invalid = target.name.trim() === '' || issues.some((x) => x.path === path || x.path.startsWith(`${path}.`));
             const granted = status(target.url) === 'granted';
+            const { row: rowProps, grip } = reorder.item(target.id, name, i);
             return (
-              <tr key={target.id} data-invalid={invalid || undefined} className="options-field-row" onClick={(e) => onRowClick(e, target.id)}>
+              <tr key={target.id} data-invalid={invalid || undefined} className={['options-field-row', rowProps.className].filter(Boolean).join(' ')} onClick={(e) => onRowClick(e, target.id)} onDragOver={rowProps.onDragOver} onDrop={rowProps.onDrop}>
                 <td>
-                  <span className="options-field-actions">
-                    <IconButton id={`${id}-up-${target.id}`} icon="arrow-up" label={t('options.targets.moveUp', { name })} disabled={i === 0} onClick={() => move(i, -1)} />
-                    <IconButton id={`${id}-down-${target.id}`} icon="arrow-down" label={t('options.targets.moveDown', { name })} disabled={i === targets.length - 1} onClick={() => move(i, 1)} />
-                  </span>
+                  <IconButton {...grip} icon="grip-vertical" label={t('options.targets.grip', { name })} tooltip={t('options.targets.grip.help')} className="options-grip" />
                 </td>
                 <td className="options-field-name">
                   {name}
@@ -160,6 +147,9 @@ export function TargetEditor({ targets, basePath, issues, values, onValues, stat
           })}
         </DataTable>
       )}
+      <p className="q-sr-only" role="status">
+        {reorder.announcement}
+      </p>
       <Button id={`${id}-add`} icon="plus" onClick={add}>
         {t('options.targets.add')}
       </Button>
