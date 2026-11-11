@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useId, useState, type RefObject } from 'react';
 import { MAX_IMPORT_CHARS, applyImport, loadConfig, parseShareText, planImport, type Config, type ImportMode, type ImportPlan, type ShareFile, type StorageArea, type StoredState } from '../config';
 import { useI18n } from '../settings';
 import { Button, Checkbox, Dialog, Field, Select, useNotifications } from '../ui/components';
@@ -15,35 +15,21 @@ export async function readShareFile(file: File, t: ReturnType<typeof useI18n>['t
   }
 }
 
-interface FileButtonProps {
-  className?: string;
-  label: string;
-  /** Accessible name when the visible text alone is ambiguous. */
-  ariaLabel?: string;
-  onFile: (file: File) => void;
-}
-
-/** "From file" button: opens the file chooser; the chosen file goes to `onFile`. */
-export function ShareFileButton({ className, label, ariaLabel, onFile }: FileButtonProps) {
-  const input = useRef<HTMLInputElement>(null);
+/** Hidden file input for share files; open it with `ref.current.click()` from a button or menu entry. */
+export function ShareFileInput({ inputRef, onFile }: { inputRef: RefObject<HTMLInputElement | null>; onFile: (file: File) => void }) {
   return (
-    <>
-      <Button icon="file-import" className={className} aria-label={ariaLabel} onClick={() => input.current?.click()}>
-        {label}
-      </Button>
-      <input
-        ref={input}
-        hidden
-        type="file"
-        accept="application/json,.json"
-        data-testid="share-file-input"
-        onChange={(e) => {
-          const f = e.target.files?.[0];
-          e.target.value = '';
-          if (f) onFile(f);
-        }}
-      />
-    </>
+    <input
+      ref={inputRef}
+      hidden
+      type="file"
+      accept="application/json,.json"
+      data-testid="share-file-input"
+      onChange={(e) => {
+        const f = e.target.files?.[0];
+        e.target.value = '';
+        if (f) onFile(f);
+      }}
+    />
   );
 }
 

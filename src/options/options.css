@@ -17,18 +17,26 @@ h4 { font-size: 1em; margin: 0; }
 .options-brand h1 { overflow-wrap: anywhere; }
 .options-unsaved { margin: 0; min-height: 1.5em; display: flex; align-items: center; gap: var(--space-2); font-weight: 600; font-size: var(--font-size-small); }
 .options-unsaved .q-icon { width: 1rem; height: 1rem; }
-.options-nav-group { display: flex; flex-direction: column; min-height: 0; flex: 0 1 auto; }
+.options-nav-group { display: flex; flex-direction: column; min-height: 0; flex: 1 1 auto; }
 .options-nav-title { margin: 0 0 var(--space-2); font-size: var(--font-size-small); color: var(--color-text-muted); }
+.options-nav-heading { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); margin-bottom: var(--space-2); }
+.options-nav-heading .options-nav-title { margin: 0; }
+.options-nav-link .q-icon { flex: none; }
+.options-nav-link > span { min-width: 0; }
+.options-row { display: flex; align-items: center; gap: var(--space-1); }
+.options-row > .options-nav-link { flex: 1 1 auto; min-width: 0; }
+/* Row menus: space stays reserved and the button stays in the tab order; it shows on hover, focus, open menu and touch. */
+.options-row .q-menu-wrap { flex: none; opacity: 0; }
+.options-row:hover .q-menu-wrap, .options-row:focus-within .q-menu-wrap, .options-row:has([aria-expanded="true"]) .q-menu-wrap { opacity: 1; }
+@media (hover: none) { .options-row .q-menu-wrap { opacity: 1; } }
 .options-nav-projects, .options-nav-areas { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-1); }
-.options-nav-projects { overflow-y: auto; min-height: 0; }
+.options-nav-projects { overflow-y: auto; min-height: 0; flex: 1 1 auto; }
 .options-nav-areas { margin-top: auto; padding-top: var(--space-3); border-top: 1px solid var(--color-border); }
-.options-nav-add { align-self: flex-start; }
-.options-nav-pair { display: flex; flex-wrap: wrap; gap: var(--space-2); }
 .options-import-existing { margin: var(--space-1) 0 var(--space-2) var(--space-5); }
 .options-import-targets { border: 1px solid var(--color-danger); border-radius: var(--radius-md); padding: var(--space-2) var(--space-4); }
 .options-import-targets ul { margin: var(--space-2) 0; padding-left: var(--space-5); overflow-wrap: anywhere; }
 .options-nav-link {
-  display: block; padding: var(--space-2) var(--space-3); border-radius: var(--radius-md); border: 1px solid transparent;
+  display: flex; align-items: center; gap: var(--space-2); padding: var(--space-2) var(--space-3); border-radius: var(--radius-md); border: 1px solid transparent;
   color: var(--color-text); text-decoration: none; overflow-wrap: anywhere;
 }
 .options-nav-link:hover { border-color: var(--color-border); }
@@ -61,7 +69,6 @@ h4 { font-size: 1em; margin: 0; }
 .options-bar p { margin: 0; }
 .options-view-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-3); margin-bottom: var(--space-4); }
 .options-view-head h2 { margin: 0; overflow-wrap: anywhere; min-width: 0; }
-.options-view-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1); }
 .options-state-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--space-3); }
 a.q-button { text-decoration: none; }
 .options-problems { border: 1px solid var(--color-danger); border-radius: var(--radius-md); padding: var(--space-2) var(--space-4); margin-bottom: var(--space-4); color: var(--color-danger); }
@@ -156,14 +163,20 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .options-tag-add { display: flex; flex-wrap: wrap; gap: var(--space-3); align-items: flex-start; }
 .options-tag-add > .q-button { margin-top: 1.75rem; }
 .options-tag-combo { flex: 1 1 14rem; min-width: 0; }
-.options-tag-filter { margin-bottom: var(--space-3); }
-.options-tag-filter-list { list-style: none; margin: 0 0 var(--space-2); padding: 0; display: flex; flex-wrap: wrap; gap: var(--space-1); max-height: 7rem; overflow-y: auto; }
+.options-tag-filter { flex: none; margin-bottom: var(--space-3); }
+.options-tag-filter-list { list-style: none; margin: 0 0 var(--space-2); padding: 0; display: flex; flex-wrap: wrap; gap: var(--space-1); max-height: 5.5rem; overflow-y: auto; }
 .options-tag-toggle { font: inherit; color: var(--color-text); background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 999px; padding: var(--space-1) var(--space-3); min-height: 1.75rem; cursor: pointer; overflow-wrap: anywhere; }
 .options-tag-toggle:hover { border-color: var(--color-accent); }
 .options-tag-toggle[aria-pressed="true"] { background: var(--color-accent); border-color: var(--color-accent); color: var(--color-on-accent); font-weight: 600; }
 .options-tag-toggle:focus-visible { outline: 3px solid var(--color-focus); outline-offset: 2px; }
-.options-filter-hint { margin: 0 0 var(--space-2); }
-.options-filter-active { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); margin-bottom: var(--space-2); padding: var(--space-2) var(--space-3); border: 1px solid var(--color-accent); border-radius: var(--radius-md); background: var(--color-bg); font-size: var(--font-size-small); }
+.options-filter-line { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1); margin-bottom: var(--space-2); }
+.options-filter-line .options-nav-title { margin: 0; white-space: nowrap; }
+.options-filter-active { display: inline-flex; align-items: center; gap: var(--space-1); margin-left: auto; }
+.options-filter-count { font-size: var(--font-size-small); white-space: nowrap; }
+.options-folder-edit-row { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-1) var(--space-3); }
+.options-folder-edit-row .q-icon { flex: none; }
+.options-folder-edit-row .q-input { flex: 1 1 auto; min-width: 0; }
+.options-folder-edit .q-error { margin: 0 0 var(--space-1) var(--space-3); }
 .options-share-tools { display: flex; gap: var(--space-2); margin-bottom: var(--space-3); }
 .options-share-tree { list-style: none; margin: 0 0 var(--space-3); padding: 0; display: flex; flex-direction: column; gap: var(--space-2); }
 .options-share-children { margin: var(--space-2) 0 0 var(--space-5); }

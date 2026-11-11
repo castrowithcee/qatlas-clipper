@@ -54,6 +54,15 @@ async function mount(storage: StorageArea, permissions: PermissionsApi = fakePer
 }
 
 const IMPORT_EXPORT = '#/import-export';
+const titleMenu = async (user: ReturnType<typeof userEvent.setup>, entry: string) => {
+  await user.click(screen.getByRole('button', { name: 'Options for projects' }));
+  await user.click(screen.getByRole('menuitem', { name: entry }));
+};
+// Menu on the title of the open project in the main area.
+const headMenu = async (user: ReturnType<typeof userEvent.setup>, name: string, entry: string) => {
+  await user.click(within(screen.getByRole('main')).getByRole('button', { name: `Options for project ${name}` }));
+  await user.click(screen.getByRole('menuitem', { name: entry }));
+};
 const addButton = () => within(screen.getByRole('main')).getByRole('button', { name: 'Add project' });
 
 const addField = async (user: ReturnType<typeof userEvent.setup>, label: string) => {
@@ -252,13 +261,13 @@ describe('options page', () => {
   it('deletes a project only after confirmation', async () => {
     const storage = fakeStorage(stored(project('p1', 'A'), project('p2', 'B')));
     const user = await mount(storage);
-    await user.click(screen.getByRole('button', { name: 'Delete project' }));
+    await headMenu(user, 'A', 'Delete project');
     const dialog = screen.getByRole('dialog', { name: 'Delete project?' });
     expect(dialog.textContent).toContain('"A"');
     await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
     expect(screen.queryByRole('dialog')).toBeNull();
     expect(screen.getByRole('link', { name: 'A' })).toBeTruthy();
-    await user.click(screen.getByRole('button', { name: 'Delete project' }));
+    await headMenu(user, 'A', 'Delete project');
     await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete project' }));
     expect(screen.queryByRole('link', { name: 'A' })).toBeNull();
     // The view moves on to the next project.
@@ -269,14 +278,20 @@ describe('options page', () => {
     expect((await loadConfig(storage)).projects.map((p) => p.id)).toEqual(['p2']);
   });
 
-  it('reorders projects and explains the order in a tooltip', async () => {
+  it('offers the same menu on the project title as in the sidebar and reorders projects with it', async () => {
     const storage = fakeStorage(stored(project('p1', 'A'), project('p2', 'B')));
     const user = await mount(storage);
-    expect(screen.getByRole('button', { name: 'Move up project A' })).toHaveProperty('disabled', true);
+    const titleButtons = () => within(screen.getByRole('main')).queryAllByRole('button', { name: /^(Move|Export|Delete)/ });
+    expect(titleButtons()).toEqual([]);
+    await user.click(within(screen.getByRole('main')).getByRole('button', { name: 'Options for project A' }));
+    const menu = screen.getByRole('menu', { name: 'Options for project A' });
+    expect(Array.from(menu.children).map((c) => c.getAttribute('role') === 'separator' ? '-' : c.textContent)).toEqual(['Move up', 'Move down', 'Export', '-', 'Delete project']);
+    expect(screen.getByRole('menuitem', { name: 'Move up' }).getAttribute('aria-disabled')).toBe('true');
+    expect(screen.getByRole('menuitem', { name: 'Delete project' }).className).toContain('q-menu-item--danger');
+    await user.keyboard('{Escape}');
     await user.click(screen.getByRole('link', { name: 'B' }));
-    const up = screen.getByRole('button', { name: 'Move up project B' });
-    expect(document.getElementById(up.getAttribute('aria-describedby')!)?.textContent).toMatch(/preselected first in the popup/);
-    await user.click(up);
+    await headMenu(user, 'B', 'Move up');
+    expect(screen.getByRole('heading', { name: 'B', level: 2 })).toBeTruthy();
     await user.click(screen.getByRole('button', { name: 'Save changes' }));
     await screen.findByText('Saved.');
     expect((await loadConfig(storage)).projects.map((p) => p.id)).toEqual(['p2', 'p1']);
@@ -838,7 +853,9 @@ describe('options page', () => {
 
     it('marks both destructive buttons with the danger variant', async () => {
       const user = await mount(fakeStorage(stored(project('p1', 'A', { targets: [target('t1', 'https://example.com/a')] }))));
-      expect(screen.getByRole('button', { name: 'Delete project' }).className).toContain('q-button--danger');
+      await user.click(within(screen.getByRole('main')).getByRole('button', { name: 'Options for project A' }));
+      expect(screen.getByRole('menuitem', { name: 'Delete project' }).className).toContain('q-menu-item--danger');
+      await user.keyboard('{Escape}');
       const details = await openTarget(user, 't1');
       expect(details.getByRole('button', { name: 'Remove target' }).className).toContain('q-button--danger');
     });
@@ -995,7 +1012,7 @@ describe('import and export', () => {
 
   it('mentions discarded unsaved changes in the confirmation', async () => {
     const user = await mount(withHeader());
-    await user.click(screen.getByRole('button', { name: 'Add project' }));
+    await titleMenu(user, 'Add project');
     await user.click(screen.getByRole('link', { name: 'Import and export' }));
     expect(screen.getByText(/Unsaved changes are not exported/)).toBeTruthy();
     await user.upload(screen.getByLabelText('From file'), new File([imported], 'c.json'));
@@ -1065,7 +1082,7 @@ describe('options page language', () => {
     for (const key of ['options.scope.title', 'options.projects.title', 'options.save', 'options.scope.kind.label', 'options.fields.table.source', 'options.fields.table.sites'] as const) {
       expect(screen.getAllByText(de[key]).length, key).toBeGreaterThan(0);
     }
-    expect(screen.getByRole('button', { name: de['options.projects.moveDown'].replace('{name}', 'A') })).toBeTruthy();
+    expect(within(screen.getByRole('main')).getByRole('button', { name: de['options.project.menu'].replace('{name}', 'A') })).toBeTruthy();
     await user.click(screen.getByRole('button', { name: de['options.fields.open'].replace('{name}', 'Headline') }));
     for (const key of ['options.fields.title', 'options.fields.way.label', 'options.fields.add.button', 'options.fields.required', 'options.mappings.title', 'options.fields.deleteButton'] as const) {
       expect(screen.getAllByText(de[key]).length, key).toBeGreaterThan(0);
@@ -1186,7 +1203,8 @@ describe('options navigation', () => {
     const user = await mount(two());
     expect(screen.getByRole('heading', { name: 'Qatlas Clipper', level: 1 })).toBeTruthy();
     expect(nav().getAllByRole('link').map((a) => a.textContent)).toEqual(['A', 'B', 'Tags', 'Settings', 'Import and export', 'Help']);
-    expect(nav().getByRole('button', { name: 'Add project' })).toBeTruthy();
+    expect(nav().getByRole('button', { name: 'Options for projects' })).toBeTruthy();
+    expect(nav().queryByRole('button', { name: /^(Add|From file)/ })).toBeNull();
     expect(current()).toEqual(['A']);
     expect(screen.getByRole('heading', { name: 'A', level: 2 })).toBeTruthy();
     await user.click(nav().getByRole('link', { name: 'B' }));
@@ -1278,21 +1296,21 @@ describe('options navigation', () => {
 
   it('opens a new project and moves on after deleting the last one in the list', async () => {
     const user = await mount(two());
-    await user.click(nav().getByRole('button', { name: 'Add project' }));
+    await titleMenu(user, 'Add project');
     expect(current()).toEqual(['New project']);
     expect(window.location.hash).toMatch(/^#\/projects\/.+/);
-    await user.click(screen.getByRole('button', { name: 'Delete project' }));
+    await headMenu(user, 'New project', 'Delete project');
     await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete project' }));
     expect(current()).toEqual(['B']);
-    await user.click(screen.getByRole('button', { name: 'Delete project' }));
+    await headMenu(user, 'B', 'Delete project');
     await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete project' }));
-    await user.click(screen.getByRole('button', { name: 'Delete project' }));
+    await headMenu(user, 'A', 'Delete project');
     await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete project' }));
     expect(screen.getByText('No project yet')).toBeTruthy();
   });
   it('leaves an address that no longer exists after discarding a newly added project', async () => {
     const user = await mount(two());
-    await user.click(nav().getByRole('button', { name: 'Add project' }));
+    await titleMenu(user, 'Add project');
     expect(current()).toEqual(['New project']);
     await user.click(screen.getByRole('button', { name: 'Discard changes' }));
     expect(screen.queryByText('Project not found')).toBeNull();

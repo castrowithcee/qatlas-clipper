@@ -219,10 +219,10 @@ describe('tag filter in the sidebar', () => {
     expect(visibleNames()).toEqual(['Store']);
     expect(folderRows()).toEqual(['Misc']);
     expect(within(nav()).getByRole('button', { name: /^Misc/ }).getAttribute('aria-expanded')).toBe('true');
-    expect(within(nav()).getByRole('status', { name: '' }).textContent).toContain('Filtered: 1 project shown');
+    expect(within(nav()).getByText('1 project shown').getAttribute('role')).toBe('status');
     await user.click(filterButton('Client'));
     expect(visibleNames()).toEqual(['Loose', 'Store']);
-    expect(within(nav()).getByText('Filtered: 2 projects shown')).toBeTruthy();
+    expect(within(nav()).getByText('2 projects shown')).toBeTruthy();
     await user.click(filterButton('Draft'));
     expect(visibleNames()).toEqual(['Loose', 'Blog', 'Store']);
     expect(folderRows()).toEqual(['Work', 'Misc']);
@@ -234,9 +234,9 @@ describe('tag filter in the sidebar', () => {
     const before = JSON.stringify(storage.data);
     const { user, view } = await mount(storage, projectHash('p1'));
     await user.click(filterButton('Archive'));
-    expect(within(nav()).getByText('Filtered: 1 project shown')).toBeTruthy();
+    expect(within(nav()).getByText('1 project shown')).toBeTruthy();
     await user.click(within(nav()).getByRole('button', { name: 'Reset filter' }));
-    expect(within(nav()).queryByText(/^Filtered/)).toBeNull();
+    expect(within(nav()).queryByText(/ projects? shown$/)).toBeNull();
     // Without a filter the folders are back to their own state: closed, since the open project is not in one.
     expect(visibleNames()).toEqual(['Loose']);
     expect(folderRows()).toEqual(['Work', 'Misc', 'Empty']);
@@ -245,7 +245,7 @@ describe('tag filter in the sidebar', () => {
     expect(screen.queryByText('Unsaved')).toBeNull();
     view.unmount();
     await mount(storage, projectHash('p1'));
-    expect(within(nav()).queryByText(/^Filtered/)).toBeNull();
+    expect(within(nav()).queryByText(/ projects? shown$/)).toBeNull();
     expect(filterButton('Archive').getAttribute('aria-pressed')).toBe('false');
     expect(visibleNames()).toEqual(['Loose']);
     expect(folderRows()).toEqual(['Work', 'Misc', 'Empty']);
@@ -261,3 +261,23 @@ async function vi_saved() {
   await screen.findAllByText('Saved.');
   await new Promise((r) => setTimeout(r, 0));
 }
+
+describe('compact tag filter', () => {
+  it('keeps the hint in a tooltip, shows the count only while filtering and matches the visible entries', async () => {
+    const { user } = await mount(base(), projectHash('p1'));
+    const info = within(nav()).getByRole('button', { name: 'More information' });
+    const tip = document.getElementById(info.getAttribute('aria-describedby')!)!;
+    expect(tip.hidden).toBe(true);
+    await user.hover(info);
+    expect(tip.hidden).toBe(false);
+    expect(tip.textContent).toContain('at least one chosen tag');
+    await user.click(filterButton('Client'));
+    await user.click(filterButton('Draft'));
+    const shown = Number(within(nav()).getByText(/ projects? shown$/).textContent!.split(' ')[0]);
+    expect(visibleNames()).toHaveLength(shown);
+    const reset = within(nav()).getByRole('button', { name: 'Reset filter' });
+    expect(reset.textContent).toBe('');
+    await user.click(reset);
+    expect(within(nav()).queryByText(/ projects? shown$/)).toBeNull();
+  });
+});
