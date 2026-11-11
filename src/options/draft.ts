@@ -81,8 +81,8 @@ export function newTarget(name: string): Target {
   return { id: newId(), name, url: 'https://', headers: [], purpose: '' };
 }
 
-export function addFolder(config: Config, name: string): Config {
-  return { ...config, folders: [...(config.folders ?? []), { id: newId(), name }] };
+export function addFolder(config: Config, name: string, id = newId()): Config {
+  return { ...config, folders: [...(config.folders ?? []), { id, name }] };
 }
 
 export function renameFolder(config: Config, id: string, name: string): Config {

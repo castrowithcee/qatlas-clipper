@@ -1,7 +1,7 @@
-import { useRef, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { Config, Folder, Project } from '../config';
 import { useI18n } from '../settings';
-import { Button, Dialog, Icon, Menu, TextField, type IconName, type MenuEntry } from '../ui/components';
+import { Button, Dialog, Icon, IconButton, Menu, type IconName, type MenuEntry } from '../ui/components';
 import { folderNameError, groupNeighbor } from './draft';
 import { ProjectMenu } from './ProjectMenu';
 import { ShareFileInput } from './ShareImportDialog';
@@ -17,7 +17,8 @@ interface Props {
   current: NavTarget | undefined;
   dirty: boolean;
   onAdd: () => void;
-  onAddFolder: (name: string) => void;
+  /** Creates the folder in the draft right away and returns its id. */
+  onAddFolder: (name: string) => string;
   onRenameFolder: (id: string, name: string) => void;
   onMoveFolder: (index: number, delta: -1 | 1) => void;
   onDeleteFolder: (id: string) => void;
@@ -29,7 +30,7 @@ interface Props {
   onImportFile: (file: File) => void;
 }
 
-type FolderDialog = { kind: 'add' } | { kind: 'rename'; id: string } | { kind: 'delete'; id: string };
+type FolderDialog = { id: string };
 
 export function Brand() {
   const { t } = useI18n();
@@ -43,7 +44,10 @@ export function Brand() {
 
 export function Sidebar({ projects, folders = [], config, current, dirty, onAdd, onAddFolder, onRenameFolder, onMoveFolder, onDeleteFolder, onExportFolder, onMoveProject, onExportProject, onDeleteProject, onImportFile }: Props) {
   const { t, tn } = useI18n();
+  // Delete confirmation, and the folder whose name is being edited in its row.
   const [dialog, setDialog] = useState<FolderDialog>();
+  const [editing, setEditing] = useState<string>();
+  const restoreFocus = useRef<string>(undefined);
   const fileInput = useRef<HTMLInputElement>(null);
   // The tag filter is view state of this page only; it is never stored (not in the configuration, not in storage).
   const [chosen, setChosen] = useState<string[]>([]);
@@ -68,7 +72,19 @@ export function Sidebar({ projects, folders = [], config, current, dirty, onAdd,
     setSeenId(currentId);
     if (currentFolder) setOpen((o) => Object.fromEntries(Object.entries(o).filter(([id]) => id !== currentFolder)));
   }
-  const dialogFolder = dialog && dialog.kind !== 'add' ? folders.find((f) => f.id === dialog.id) : undefined;
+  const dialogFolder = dialog ? folders.find((f) => f.id === dialog.id) : undefined;
+  // After Enter or Escape the focus goes back to the folder row; a blur must not pull it away from where the user went.
+  useEffect(() => {
+    const id = restoreFocus.current;
+    if (editing || !id) return;
+    restoreFocus.current = undefined;
+    document.querySelector<HTMLElement>(`[data-folder-toggle="${CSS.escape(id)}"]`)?.focus();
+  }, [editing]);
+  const addFolderInline = () => {
+    let name = t('options.folders.defaultName');
+    for (let n = 2; folderNameError(config, name); n++) name = `${t('options.folders.defaultName')} ${n}`;
+    setEditing(onAddFolder(name));
+  };
   const isCurrent = (view: NavTarget['view'], id?: string) =>
     current?.view === view && (current.view !== 'project' || current.id === id);
   const link = (href: string, on: boolean, text: string, icon?: IconName) => (
@@ -97,7 +113,7 @@ export function Sidebar({ projects, folders = [], config, current, dirty, onAdd,
     { kind: 'action', icon: 'project-plus', label: t('options.projects.add'), onSelect: onAdd },
     { kind: 'action', icon: 'file-import', label: t('options.shareImport.fromFileProject'), onSelect: () => fileInput.current?.click() },
     { kind: 'separator' },
-    { kind: 'action', icon: 'folder-plus', label: t('options.folders.add'), onSelect: () => setDialog({ kind: 'add' }) },
+    { kind: 'action', icon: 'folder-plus', label: t('options.folders.add'), onSelect: addFolderInline },
     { kind: 'action', icon: 'file-import', label: t('options.shareImport.fromFileFolder'), onSelect: () => fileInput.current?.click() },
   ];
   const titleId = 'options-nav-projects';
@@ -122,7 +138,16 @@ export function Sidebar({ projects, folders = [], config, current, dirty, onAdd,
           <ShareFileInput inputRef={fileInput} onFile={onImportFile} />
           {tags.length > 0 && (
             <div role="group" aria-labelledby={filterId} className="options-tag-filter">
-              <p id={filterId} className="options-nav-title">{t('options.filter.label')}</p>
+              <div className="options-filter-line">
+                <p id={filterId} className="options-nav-title">{t('options.filter.label')}</p>
+                <IconButton icon="info" label={t('ui.moreInfo')} tooltip={t('options.filter.hint')} className="q-help" />
+                {filtering && (
+                  <span className="options-filter-active">
+                    <span role="status" className="options-filter-count">{tn('options.filter.active', shown)}</span>
+                    <IconButton icon="filter-clear" label={t('options.filter.reset')} onClick={() => changeFilter([])} />
+                  </span>
+                )}
+              </div>
               <ul className="options-tag-filter-list">
                 {tags.map((x) => {
                   const on = active.includes(x.id);
@@ -140,47 +165,54 @@ export function Sidebar({ projects, folders = [], config, current, dirty, onAdd,
                   );
                 })}
               </ul>
-              <p className="q-hint options-filter-hint">{t('options.filter.hint')}</p>
-              {filtering && (
-                <div className="options-filter-active" role="status">
-                  <span>{tn('options.filter.active', shown)}</span>
-                  <Button onClick={() => changeFilter([])}>{t('options.filter.reset')}</Button>
-                </div>
-              )}
             </div>
           )}
           <ul aria-labelledby={titleId} className="options-nav-projects">
             {projects.filter((p) => (!p.folderId || !folders.some((f) => f.id === p.folderId)) && visible(p)).map(projectItem)}
             {folders.map((f, index) => {
               const inside = projects.filter((p) => p.folderId === f.id && visible(p));
-              if (filtering && inside.length === 0) return null;
+              const renaming = editing === f.id;
+              if (filtering && inside.length === 0 && !renaming) return null;
               const expanded = filtering ? !shut[f.id] : (open[f.id] ?? f.id === currentFolder);
               const listId = `options-folder-${f.id}`;
               const name = f.name || t('options.folders.unnamed');
               const entries: MenuEntry[] = [
-                { kind: 'action', icon: 'pencil', label: t('options.folders.rename'), onSelect: () => setDialog({ kind: 'rename', id: f.id }) },
+                { kind: 'action', icon: 'pencil', label: t('options.folders.rename'), onSelect: () => setEditing(f.id) },
                 { kind: 'action', icon: 'arrow-up', label: t('options.menu.moveUp'), disabled: index === 0, onSelect: () => onMoveFolder(index, -1) },
                 { kind: 'action', icon: 'arrow-down', label: t('options.menu.moveDown'), disabled: index === folders.length - 1, onSelect: () => onMoveFolder(index, 1) },
                 { kind: 'action', icon: 'file-export', label: t('options.share.export'), onSelect: () => onExportFolder(f.id) },
                 { kind: 'separator' },
-                { kind: 'action', icon: 'trash', danger: true, label: t('options.folders.delete'), onSelect: () => setDialog({ kind: 'delete', id: f.id }) },
+                { kind: 'action', icon: 'trash', danger: true, label: t('options.folders.delete'), onSelect: () => setDialog({ id: f.id }) },
               ];
               return (
                 <li key={f.id} className="options-folder" data-testid="options-folder">
-                  <div className="options-folder-head options-row">
-                    <button
-                      type="button"
-                      className="options-folder-toggle"
-                      aria-expanded={expanded}
-                      aria-controls={listId}
-                      onClick={() => (filtering ? setShut((o) => ({ ...o, [f.id]: expanded })) : setOpen((o) => ({ ...o, [f.id]: !expanded })))}
-                    >
-                      <Icon name={expanded ? 'folder-open' : 'folder'} />
-                      <span className="options-folder-name">{name}</span>
-                      <span className="options-folder-count" data-testid="options-folder-count">{inside.length}</span>
-                    </button>
-                    <Menu label={t('options.folders.menu', { name })} entries={entries} />
-                  </div>
+                  {renaming ? (
+                    <FolderNameInput
+                      folder={f}
+                      config={config}
+                      onRename={(next) => onRenameFolder(f.id, next)}
+                      onDone={(restore) => {
+                        if (restore) restoreFocus.current = f.id;
+                        setEditing(undefined);
+                      }}
+                    />
+                  ) : (
+                    <div className="options-folder-head options-row">
+                      <button
+                        type="button"
+                        className="options-folder-toggle"
+                        data-folder-toggle={f.id}
+                        aria-expanded={expanded}
+                        aria-controls={listId}
+                        onClick={() => (filtering ? setShut((o) => ({ ...o, [f.id]: expanded })) : setOpen((o) => ({ ...o, [f.id]: !expanded })))}
+                      >
+                        <Icon name={expanded ? 'folder-open' : 'folder'} />
+                        <span className="options-folder-name">{name}</span>
+                        <span className="options-folder-count" data-testid="options-folder-count">{inside.length}</span>
+                      </button>
+                      <Menu label={t('options.folders.menu', { name })} entries={entries} />
+                    </div>
+                  )}
                   <ul id={listId} hidden={!expanded} className="options-folder-projects">
                     {inside.length === 0 ? <li className="options-folder-empty q-hint">{t('options.folders.empty')}</li> : inside.map(projectItem)}
                   </ul>
@@ -196,28 +228,7 @@ export function Sidebar({ projects, folders = [], config, current, dirty, onAdd,
           <li>{link(HELP_HASH, isCurrent('help'), t('options.nav.help'))}</li>
         </ul>
       </nav>
-      {dialog?.kind === 'add' && (
-        <FolderNameDialog
-          title={t('options.folders.addTitle')}
-          submit={t('options.folders.create')}
-          initial=""
-          config={config}
-          onClose={() => setDialog(undefined)}
-          onSubmit={onAddFolder}
-        />
-      )}
-      {dialog?.kind === 'rename' && dialogFolder && (
-        <FolderNameDialog
-          title={t('options.folders.renameTitle')}
-          submit={t('options.folders.rename')}
-          initial={dialogFolder.name}
-          exceptId={dialogFolder.id}
-          config={config}
-          onClose={() => setDialog(undefined)}
-          onSubmit={(name) => onRenameFolder(dialogFolder.id, name)}
-        />
-      )}
-      {dialog?.kind === 'delete' && dialogFolder && (
+      {dialogFolder && (
         <Dialog
           open
           onClose={() => setDialog(undefined)}
@@ -238,51 +249,75 @@ export function Sidebar({ projects, folders = [], config, current, dirty, onAdd,
   );
 }
 
-interface NameDialogProps {
-  title: string;
-  submit: string;
-  initial: string;
-  exceptId?: string;
+interface NameInputProps {
+  folder: Folder;
   config: Config;
-  onClose: () => void;
-  onSubmit: (name: string) => void;
+  onRename: (name: string) => void;
+  /** `restore`: put the focus back on the folder row (Enter and Escape, not a blur). */
+  onDone: (restore: boolean) => void;
 }
 
-function FolderNameDialog({ title, submit, initial, exceptId, config, onClose, onSubmit }: NameDialogProps) {
+/** The name of a folder, edited in its row. The folder already exists in the draft; only a valid name is ever written. */
+function FolderNameInput({ folder, config, onRename, onDone }: NameInputProps) {
   const { t } = useI18n();
-  const [name, setName] = useState(initial);
-  // A missing name is reported only after an attempt, so the empty field is not scolded on opening.
+  const [name, setName] = useState(folder.name);
+  // A missing name is reported only after an attempt, so clearing the field to retype is not scolded.
   const [tried, setTried] = useState(false);
-  const problem = folderNameError(config, name, exceptId);
+  const input = useRef<HTMLInputElement>(null);
+  const finished = useRef(false);
+  const errorId = `options-folder-name-error-${folder.id}`;
+  useEffect(() => {
+    input.current?.focus();
+    input.current?.select();
+  }, []);
+  const problem = folderNameError(config, name, folder.id);
   const error = problem && (tried || problem !== 'missing') ? t(`options.folders.name${problem === 'missing' ? 'Missing' : problem === 'tooLong' ? 'TooLong' : 'Taken'}`) : undefined;
-  const send = (e?: FormEvent) => {
-    e?.preventDefault();
-    if (problem) return setTried(true);
-    onSubmit(name.trim());
-    onClose();
+  const commit = (restore: boolean) => {
+    if (problem) {
+      setTried(true);
+      return false;
+    }
+    finished.current = true;
+    if (name.trim() !== folder.name) onRename(name.trim());
+    onDone(restore);
+    return true;
   };
   return (
-    <Dialog
-      open
-      onClose={onClose}
-      title={title}
-      actions={
-        <>
-          <Button onClick={onClose}>{t('options.cancel')}</Button>
-          <Button variant="primary" onClick={send}>{submit}</Button>
-        </>
-      }
-    >
-      <form onSubmit={send} noValidate>
-        <TextField
-          data-autofocus
-          label={t('options.folders.name')}
-          hint={t('options.folders.nameHint')}
+    <div className="options-folder-edit">
+      <div className="options-folder-edit-row">
+        <Icon name="folder" />
+        <input
+          ref={input}
+          className="q-input"
           value={name}
-          error={error}
+          aria-label={t('options.folders.name')}
+          aria-invalid={error ? true : undefined}
+          aria-describedby={error ? errorId : undefined}
           onChange={(e) => setName(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              commit(true);
+            } else if (e.key === 'Escape') {
+              // Escape always leaves, even with an invalid name; the stored name stays as it was.
+              e.preventDefault();
+              e.stopPropagation();
+              finished.current = true;
+              onDone(true);
+            }
+          }}
+          onBlur={() => {
+            if (finished.current) return;
+            if (!commit(false)) setTimeout(() => input.current?.isConnected && input.current.focus(), 0);
+          }}
         />
-      </form>
-    </Dialog>
+      </div>
+      {error && (
+        <p id={errorId} className="q-error">
+          <Icon name="error" />
+          <span>{error}</span>
+        </p>
+      )}
+    </div>
   );
 }

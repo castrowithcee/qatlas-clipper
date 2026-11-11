@@ -87,11 +87,23 @@ for (const lang of ['de', 'en'] as const) {
       // Active filter: only projects with a chosen tag, folders without a hit hidden, the others expanded.
       await page.getByRole('button', { name: 'Urgent', exact: true }).click();
       await page.getByRole('button', { name: 'Reading', exact: true }).click();
-      await expect(page.getByText(t('Gefiltert: 3 Projekte sichtbar', 'Filtered: 3 projects shown'))).toBeVisible();
+      await expect(page.getByText(t('3 Projekte sichtbar', '3 projects shown'))).toBeVisible();
       await expect(folderRows).toHaveCount(1);
       await shot(page.getByRole('complementary'), 'sidebar-filter', tag);
       await page.getByRole('button', { name: t('Filter zurücksetzen', 'Reset filter') }).click();
       await expect(folderRows).toHaveCount(2);
+      // New folder: created at once with a name field in its row; a taken name shows the field error. Escape keeps the default name.
+      await titleMenuButton.click();
+      await page.getByRole('menuitem', { name: t('Ordner anlegen', 'Add folder') }).click();
+      const folderName = page.getByLabel(t('Ordnername', 'Folder name'));
+      await expect(folderName).toBeFocused();
+      await expect(folderRows).toHaveCount(3);
+      await shot(page.getByRole('complementary'), 'sidebar-folder-new', tag);
+      await folderName.fill('clients');
+      await expect(folderName).toHaveAttribute('aria-invalid', 'true');
+      await shot(page.getByRole('complementary'), 'sidebar-folder-name-error', tag);
+      await page.keyboard.press('Escape');
+      await expect(folderName).toHaveCount(0);
       await shot(sections.nth(0), 'scope', tag);
       await shot(sections.nth(1), 'fields', tag);
 

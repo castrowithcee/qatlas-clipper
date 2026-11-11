@@ -4,6 +4,7 @@ import {
   StoredStateChangedError,
   loadStoredState,
   mergeConfig,
+  newId,
   storedStateEquals,
   subscribeStored,
   updateStored,
@@ -436,7 +437,11 @@ function Editor({ initial, initialValues, storage, permissions, subscribe, onRel
         current={current}
         dirty={dirty}
         onAdd={addProject}
-        onAddFolder={(name) => editConfig((c) => addFolder(c, name))}
+        onAddFolder={(name) => {
+          const id = newId();
+          editConfig((c) => addFolder(c, name, id));
+          return id;
+        }}
         onRenameFolder={(id, name) => editConfig((c) => renameFolder(c, id, name))}
         onMoveFolder={(index, delta) => editConfig((c) => moveFolder(c, index, index + delta))}
         onDeleteFolder={(id) => editConfig((c) => deleteFolder(c, id))}

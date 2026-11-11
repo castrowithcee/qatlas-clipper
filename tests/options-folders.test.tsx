@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, it } from 'vitest';
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { CONFIG_KEY, loadConfig, type StorageArea } from '../src/config';
 import { OptionsApp } from '../src/options/OptionsApp';
@@ -85,56 +85,110 @@ describe('folders in the sidebar', () => {
     expect(nav().textContent).toContain('<img src=x onerror=alert(1)>');
   });
 
-  it('adds a folder through the draft and stores it only with Save; a duplicate name is a field error', async () => {
+  const nameField = () => within(nav()).getByLabelText('Folder name') as HTMLInputElement;
+
+  it('adds a folder at once with a free default name and a focused, selected name field', async () => {
     const storage = base();
     const user = await mount(storage);
     await titleMenu(user, 'Add folder');
-    const dialog = await screen.findByRole('dialog', { name: 'Add folder' });
-    const input = within(dialog).getByLabelText('Folder name');
-    await user.type(input, ' shop ');
-    expect(within(dialog).getByText('A folder with this name already exists.')).toBeTruthy();
-    expect(input.getAttribute('aria-invalid')).toBe('true');
-    await user.click(within(dialog).getByRole('button', { name: 'Add' }));
-    expect(screen.getByRole('dialog', { name: 'Add folder' })).toBeTruthy();
-    await user.clear(input);
-    await user.type(input, 'Notes');
-    await user.keyboard('{Enter}');
     expect(screen.queryByRole('dialog')).toBeNull();
-    expect(folderNames()).toEqual(['Articles', 'Shop', 'Notes']);
+    const input = nameField();
+    expect(input.value).toBe('New folder');
+    expect(document.activeElement).toBe(input);
+    expect(input.selectionStart).toBe(0);
+    expect(input.selectionEnd).toBe('New folder'.length);
     expect(unsaved()).toBeTruthy();
+    await user.keyboard('Notes{Enter}');
+    expect(within(nav()).queryByLabelText('Folder name')).toBeNull();
+    expect(folderNames()).toEqual(['Articles', 'Shop', 'Notes']);
+    expect(document.activeElement).toBe(toggle('Notes'));
     expect((await loadConfig(storage)).folders).toHaveLength(2);
     await save(user);
     await screen.findByText('Saved.');
     expect((await loadConfig(storage)).folders?.map((f) => f.name)).toEqual(['Articles', 'Shop', 'Notes']);
   });
 
-  it('rejects an empty name', async () => {
-    const user = await mount(base());
+  it('numbers the default name when it is taken', async () => {
+    const user = await mount(fakeStorage(stored([{ id: 'f1', name: 'new FOLDER' }], project('p1', 'Loose'))));
     await titleMenu(user, 'Add folder');
-    const dialog = await screen.findByRole('dialog');
-    await user.click(within(dialog).getByRole('button', { name: 'Add' }));
-    expect(within(dialog).getByText('Please enter a name.')).toBeTruthy();
+    expect(nameField().value).toBe('New folder 2');
   });
 
-  it('renames a folder, rejecting a name another folder has', async () => {
+  it('takes the name on blur and keeps the default name on Escape', async () => {
+    const user = await mount(base());
+    await titleMenu(user, 'Add folder');
+    await user.keyboard('Blurred');
+    await user.click(document.body);
+    expect(folderNames()).toEqual(['Articles', 'Shop', 'Blurred']);
+    await titleMenu(user, 'Add folder');
+    await user.keyboard('Gone{Escape}');
+    expect(within(nav()).queryByLabelText('Folder name')).toBeNull();
+    expect(folderNames()).toEqual(['Articles', 'Shop', 'Blurred', 'New folder']);
+  });
+
+  it('shows duplicate, empty and too long names as a field error and keeps the focus and the input', async () => {
+    const user = await mount(base());
+    await titleMenu(user, 'Add folder');
+    const input = nameField();
+    await user.keyboard(' shop ');
+    expect(within(nav()).getByText('A folder with this name already exists.')).toBeTruthy();
+    expect(input.getAttribute('aria-invalid')).toBe('true');
+    const errorId = input.getAttribute('aria-describedby')!;
+    expect(document.getElementById(errorId)?.textContent).toContain('A folder with this name already exists.');
+    await user.keyboard('{Enter}');
+    expect(nameField().value).toBe(' shop ');
+    expect(document.activeElement).toBe(nameField());
+    await user.clear(input);
+    await user.keyboard('{Enter}');
+    expect(within(nav()).getByText('Please enter a name.')).toBeTruthy();
+    await user.clear(input);
+    await user.type(input, 'x'.repeat(61));
+    expect(within(nav()).getByText('The name must be at most 60 characters.')).toBeTruthy();
+    // Leaving with an invalid name returns the focus to the field.
+    await user.click(document.body);
+    await waitFor(() => expect(document.activeElement).toBe(nameField()));
+    expect(nameField().value).toBe('x'.repeat(61));
+  });
+
+  it('lets Escape out of an invalid name; the draft keeps the last valid name', async () => {
+    const user = await mount(base());
+    await titleMenu(user, 'Add folder');
+    await user.keyboard('Shop{Escape}');
+    expect(within(nav()).queryByLabelText('Folder name')).toBeNull();
+    expect(folderNames()).toEqual(['Articles', 'Shop', 'New folder']);
+    await menuOf(user, 'Articles');
+    await user.click(screen.getByRole('menuitem', { name: 'Rename' }));
+    await user.keyboard('{Escape}');
+    expect(folderNames()).toEqual(['Articles', 'Shop', 'New folder']);
+  });
+
+  it('renames a folder in its row, rejecting a name another folder has', async () => {
     const storage = base();
     const user = await mount(storage);
     await menuOf(user, 'Articles');
     await user.click(screen.getByRole('menuitem', { name: 'Rename' }));
-    const dialog = await screen.findByRole('dialog', { name: 'Rename folder' });
-    const input = within(dialog).getByLabelText('Folder name') as HTMLInputElement;
+    expect(screen.queryByRole('dialog')).toBeNull();
+    const input = nameField();
     expect(input.value).toBe('Articles');
+    expect(document.activeElement).toBe(input);
     await user.clear(input);
     await user.type(input, 'SHOP');
-    expect(within(dialog).getByText('A folder with this name already exists.')).toBeTruthy();
+    expect(within(nav()).getByText('A folder with this name already exists.')).toBeTruthy();
     await user.clear(input);
-    await user.type(input, 'Texts');
-    await user.click(within(dialog).getByRole('button', { name: 'Rename' }));
+    await user.type(input, 'Texts{Enter}');
     expect(folderNames()).toEqual(['Texts', 'Shop']);
     expect(unsaved()).toBeTruthy();
     await save(user);
     await screen.findByText('Saved.');
     expect((await loadConfig(storage)).folders?.[0]?.name).toBe('Texts');
+  });
+
+  it('keeps an unchanged name as it is without marking the draft', async () => {
+    const user = await mount(base());
+    await menuOf(user, 'Articles');
+    await user.click(screen.getByRole('menuitem', { name: 'Rename' }));
+    await user.keyboard('{Enter}');
+    expect(unsaved()).toBeNull();
   });
 
   it('moves a folder up and down; edges offer only one direction', async () => {
