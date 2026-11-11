@@ -41,7 +41,14 @@ const nav = () => screen.getByRole('navigation', { name: 'Options' });
 const folderNames = () => within(nav()).getAllByTestId('options-folder').map((li) => li.querySelector('.options-folder-name')?.textContent);
 const toggle = (name: string) => within(nav()).getByRole('button', { name: new RegExp(`^${name}`) });
 const menuOf = async (user: ReturnType<typeof userEvent.setup>, name: string) => {
-  await user.click(within(nav()).getByRole('button', { name: `Menu for folder ${name}` }));
+  await user.click(within(nav()).getByRole('button', { name: `Options for folder ${name}` }));
+};
+const titleMenu = async (user: ReturnType<typeof userEvent.setup>, entry: string) => {
+  await user.click(within(nav()).getByRole('button', { name: 'Options for projects' }));
+  await user.click(screen.getByRole('menuitem', { name: entry }));
+};
+const projectMenu = async (user: ReturnType<typeof userEvent.setup>, name: string) => {
+  await user.click(within(nav()).getByRole('button', { name: `Options for project ${name}` }));
 };
 const save = (user: ReturnType<typeof userEvent.setup>) => user.click(screen.getByRole('button', { name: 'Save changes' }));
 const unsaved = () => within(screen.getByRole('complementary')).queryByText('Unsaved');
@@ -51,7 +58,7 @@ describe('folders in the sidebar', () => {
     await mount(base(), projectHash('p2'));
     const list = within(nav()).getByRole('list', { name: 'Projects' });
     const top = Array.from(list.children).map((li) => li.className);
-    expect(top[0]).toBe('');
+    expect(top[0]).toBe('options-row');
     expect(within(list.children[0] as HTMLElement).getByText('Loose')).toBeTruthy();
     expect(folderNames()).toEqual(['Articles', 'Shop']);
     expect(toggle('Articles').getAttribute('aria-expanded')).toBe('true');
@@ -81,7 +88,7 @@ describe('folders in the sidebar', () => {
   it('adds a folder through the draft and stores it only with Save; a duplicate name is a field error', async () => {
     const storage = base();
     const user = await mount(storage);
-    await user.click(within(nav()).getByRole('button', { name: 'Add folder' }));
+    await titleMenu(user, 'Add folder');
     const dialog = await screen.findByRole('dialog', { name: 'Add folder' });
     const input = within(dialog).getByLabelText('Folder name');
     await user.type(input, ' shop ');
@@ -103,7 +110,7 @@ describe('folders in the sidebar', () => {
 
   it('rejects an empty name', async () => {
     const user = await mount(base());
-    await user.click(within(nav()).getByRole('button', { name: 'Add folder' }));
+    await titleMenu(user, 'Add folder');
     const dialog = await screen.findByRole('dialog');
     await user.click(within(dialog).getByRole('button', { name: 'Add' }));
     expect(within(dialog).getByText('Please enter a name.')).toBeTruthy();
@@ -134,11 +141,11 @@ describe('folders in the sidebar', () => {
     const storage = base();
     const user = await mount(storage);
     await menuOf(user, 'Articles');
-    expect(screen.queryByRole('menuitem', { name: 'Move up' })).toBeNull();
+    expect(screen.getByRole('menuitem', { name: 'Move up' }).getAttribute('aria-disabled')).toBe('true');
     await user.click(screen.getByRole('menuitem', { name: 'Move down' }));
     expect(folderNames()).toEqual(['Shop', 'Articles']);
     await menuOf(user, 'Articles');
-    expect(screen.queryByRole('menuitem', { name: 'Move down' })).toBeNull();
+    expect(screen.getByRole('menuitem', { name: 'Move down' }).getAttribute('aria-disabled')).toBe('true');
     await user.click(screen.getByRole('menuitem', { name: 'Move up' }));
     expect(folderNames()).toEqual(['Articles', 'Shop']);
     await menuOf(user, 'Shop');
@@ -146,6 +153,81 @@ describe('folders in the sidebar', () => {
     await save(user);
     await screen.findByText('Saved.');
     expect((await loadConfig(storage)).folders?.map((f) => f.name)).toEqual(['Shop', 'Articles']);
+  });
+
+  it('offers the folder menu with a separator before the danger entry', async () => {
+    const user = await mount(base());
+    await menuOf(user, 'Articles');
+    const menu = screen.getByRole('menu', { name: 'Options for folder Articles' });
+    expect(Array.from(menu.children).map((c) => c.getAttribute('role') === 'separator' ? '-' : c.textContent)).toEqual(['Rename', 'Move up', 'Move down', 'Export', '-', 'Delete folder']);
+    expect(screen.getByRole('menuitem', { name: 'Delete folder' }).className).toContain('q-menu-item--danger');
+    expect(menu.querySelectorAll('.q-menu-item--danger')).toHaveLength(1);
+  });
+
+  it('offers the title menu with create and from-file entries and no embedded buttons', async () => {
+    const user = await mount(base());
+    expect(within(nav()).queryByRole('button', { name: /^(Add project|Add folder|From file)/ })).toBeNull();
+    await user.click(within(nav()).getByRole('button', { name: 'Options for projects' }));
+    const menu = screen.getByRole('menu', { name: 'Options for projects' });
+    expect(Array.from(menu.children).map((c) => c.getAttribute('role') === 'separator' ? '-' : c.textContent)).toEqual(['Add project', 'Project from file', '-', 'Add folder', 'Folder from file']);
+    await user.click(screen.getByRole('menuitem', { name: 'Add project' }));
+    expect(screen.getAllByRole('link', { name: 'New project' }).length).toBe(1);
+  });
+
+  it('moves a project only within its group and disables the edges', async () => {
+    const storage = fakeStorage(stored(FOLDERS, project('p1', 'Loose A'), project('p2', 'Blog', { folderId: 'f1' }), project('p4', 'Loose B'), project('p5', 'News', { folderId: 'f1' })));
+    const user = await mount(storage, projectHash('p2'));
+    await projectMenu(user, 'Loose A');
+    expect(screen.getByRole('menuitem', { name: 'Move up' }).getAttribute('aria-disabled')).toBe('true');
+    await user.click(screen.getByRole('menuitem', { name: 'Move down' }));
+    await projectMenu(user, 'Loose A');
+    expect(screen.getByRole('menuitem', { name: 'Move down' }).getAttribute('aria-disabled')).toBe('true');
+    await user.keyboard('{Escape}');
+    await projectMenu(user, 'Blog');
+    await user.click(screen.getByRole('menuitem', { name: 'Move down' }));
+    await save(user);
+    await screen.findByText('Saved.');
+    expect((await loadConfig(storage)).projects.map((p) => p.name)).toEqual(['Loose B', 'News', 'Loose A', 'Blog']);
+  });
+
+  it('deletes exactly the project of the row after confirming while another one is open', async () => {
+    const storage = base();
+    const user = await mount(storage, projectHash('p1'));
+    await user.click(toggle('Articles'));
+    await projectMenu(user, 'Blog');
+    await user.click(screen.getByRole('menuitem', { name: 'Delete project' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Delete project?' });
+    expect(dialog.textContent).toContain('Blog');
+    await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    expect(within(nav()).getByRole('link', { name: 'Blog' })).toBeTruthy();
+    await projectMenu(user, 'Blog');
+    await user.click(screen.getByRole('menuitem', { name: 'Delete project' }));
+    await user.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Delete project' }));
+    expect(within(nav()).queryByRole('link', { name: 'Blog' })).toBeNull();
+    expect(within(nav()).getByRole('link', { name: 'Loose' }).getAttribute('aria-current')).toBe('page');
+    expect((await loadConfig(storage)).projects).toHaveLength(3);
+    await save(user);
+    await screen.findByText('Saved.');
+    expect((await loadConfig(storage)).projects.map((p) => p.name)).toEqual(['Loose', 'Store']);
+  });
+
+  it('reaches the row menu with the keyboard and shows it for focus within the row', async () => {
+    const user = await mount(base());
+    const link = within(nav()).getByRole('link', { name: 'Loose' });
+    link.focus();
+    await user.tab();
+    expect(document.activeElement).toBe(within(nav()).getByRole('button', { name: 'Options for project Loose' }));
+    await user.keyboard('{Enter}');
+    expect(screen.getByRole('menu', { name: 'Options for project Loose' })).toBeTruthy();
+  });
+
+  it('exports the project of the row', async () => {
+    const user = await mount(base(), projectHash('p1'));
+    await user.click(toggle('Shop'));
+    await projectMenu(user, 'Store');
+    await user.click(screen.getByRole('menuitem', { name: 'Export' }));
+    const dialog = await screen.findByRole('dialog');
+    expect(dialog.textContent).toContain('1 project');
   });
 
   it('deletes a folder after confirming; its projects stay without a folder', async () => {

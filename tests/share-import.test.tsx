@@ -178,12 +178,18 @@ describe('share import', () => {
 
   it('opens the same dialog from all three entries', async () => {
     const user = await mount(storageWith());
-    expect(screen.getByRole('button', { name: 'From file: project' })).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'From file: folder' })).toBeTruthy();
-    await upload(user, fresh(), 0);
-    await user.click(within(await dialog()).getByRole('button', { name: 'Cancel' }));
-    await upload(user, fresh(), 1);
-    await user.click(within(await dialog()).getByRole('button', { name: 'Cancel' }));
+    expect(screen.queryByRole('button', { name: /from file/i })).toBeNull();
+    const click = vi.spyOn(HTMLInputElement.prototype, 'click');
+    for (const entry of ['Project from file', 'Folder from file']) {
+      await user.click(screen.getByRole('button', { name: 'Options for projects' }));
+      await user.click(screen.getByRole('menuitem', { name: entry }));
+      expect(click).toHaveBeenCalledTimes(1);
+      expect((click.mock.contexts[0] as HTMLInputElement).dataset.testid).toBe('share-file-input');
+      click.mockClear();
+      await upload(user, fresh());
+      await user.click(within(await dialog()).getByRole('button', { name: 'Cancel' }));
+    }
+    click.mockRestore();
     window.location.hash = '#/import-export';
     const section = await screen.findByLabelText('File with a selection');
     await user.upload(section, new File([fresh()], 's.json', { type: 'application/json' }));

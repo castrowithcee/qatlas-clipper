@@ -12,7 +12,13 @@ test('importing a share file shows the target address, places the project in its
   await page.goto(`chrome-extension://${extensionId}/options.html`);
   await expect(page.getByLabel('Project name')).toHaveValue('Existing');
 
-  await page.getByRole('button', { name: 'From file: project' }).locator('xpath=following-sibling::input').setInputFiles(FILE);
+  const fromFile = async (entry: string) => {
+    const chooser = page.waitForEvent('filechooser');
+    await page.getByRole('button', { name: 'Options for projects' }).click();
+    await page.getByRole('menuitem', { name: entry }).click();
+    await (await chooser).setFiles(FILE);
+  };
+  await fromFile('Project from file');
   const dialog = page.getByRole('dialog', { name: 'Import from file' });
   await expect(dialog.getByRole('alert')).toContainText('https://hooks.example.com');
   await dialog.getByRole('button', { name: 'Import' }).click();
@@ -22,7 +28,7 @@ test('importing a share file shows the target address, places the project in its
   await expect(folder.locator('ul.options-folder-projects').getByText('Order notes')).toBeVisible();
 
   // Same file again, replacing: still one project of that name.
-  await page.getByRole('button', { name: 'From file: folder' }).locator('xpath=following-sibling::input').setInputFiles(FILE);
+  await fromFile('Folder from file');
   await dialog.getByLabel('Existing project "Order notes"').selectOption('replace');
   await dialog.getByRole('button', { name: 'Import' }).click();
   await expect(page.getByText('Imported: 1 project.').last()).toBeVisible();

@@ -1,9 +1,10 @@
-import { useState, type FormEvent } from 'react';
+import { useRef, useState, type FormEvent } from 'react';
 import type { Config, Folder, Project } from '../config';
 import { useI18n } from '../settings';
-import { Button, Dialog, Icon, Menu, TextField, type MenuEntry } from '../ui/components';
-import { folderNameError } from './draft';
-import { ShareFileButton } from './ShareImportDialog';
+import { Button, Dialog, Icon, Menu, TextField, type IconName, type MenuEntry } from '../ui/components';
+import { folderNameError, groupNeighbor } from './draft';
+import { ProjectMenu } from './ProjectMenu';
+import { ShareFileInput } from './ShareImportDialog';
 import { HELP_HASH, IMPORT_EXPORT_HASH, projectHash, SETTINGS_HASH, TAGS_HASH } from './route';
 
 export type NavTarget = { view: 'project'; id: string } | { view: 'tags' } | { view: 'settings' } | { view: 'import-export' } | { view: 'help' };
@@ -21,6 +22,10 @@ interface Props {
   onMoveFolder: (index: number, delta: -1 | 1) => void;
   onDeleteFolder: (id: string) => void;
   onExportFolder: (id: string) => void;
+  onMoveProject: (id: string, delta: -1 | 1) => void;
+  onExportProject: (id: string) => void;
+  /** Deletes exactly the project of the row, which need not be the open one. */
+  onDeleteProject: (id: string) => void;
   onImportFile: (file: File) => void;
 }
 
@@ -36,9 +41,10 @@ export function Brand() {
   );
 }
 
-export function Sidebar({ projects, folders = [], config, current, dirty, onAdd, onAddFolder, onRenameFolder, onMoveFolder, onDeleteFolder, onExportFolder, onImportFile }: Props) {
+export function Sidebar({ projects, folders = [], config, current, dirty, onAdd, onAddFolder, onRenameFolder, onMoveFolder, onDeleteFolder, onExportFolder, onMoveProject, onExportProject, onDeleteProject, onImportFile }: Props) {
   const { t, tn } = useI18n();
   const [dialog, setDialog] = useState<FolderDialog>();
+  const fileInput = useRef<HTMLInputElement>(null);
   // The tag filter is view state of this page only; it is never stored (not in the configuration, not in storage).
   const [chosen, setChosen] = useState<string[]>([]);
   // Folders closed by hand while a filter is on; reset whenever the filter changes.
@@ -65,14 +71,35 @@ export function Sidebar({ projects, folders = [], config, current, dirty, onAdd,
   const dialogFolder = dialog && dialog.kind !== 'add' ? folders.find((f) => f.id === dialog.id) : undefined;
   const isCurrent = (view: NavTarget['view'], id?: string) =>
     current?.view === view && (current.view !== 'project' || current.id === id);
-  const link = (href: string, on: boolean, text: string) => (
+  const link = (href: string, on: boolean, text: string, icon?: IconName) => (
     <a href={href} className={on ? 'options-nav-link is-current' : 'options-nav-link'} aria-current={on ? 'page' : undefined}>
-      {text}
+      {icon && <Icon name={icon} />}
+      <span>{text}</span>
     </a>
   );
-  const projectItem = (p: Project) => (
-    <li key={p.id}>{link(projectHash(p.id), isCurrent('project', p.id), p.name || t('options.projects.unnamed'))}</li>
-  );
+  const projectItem = (p: Project) => {
+    const name = p.name || t('options.projects.unnamed');
+    return (
+      <li key={p.id} className="options-row">
+        {link(projectHash(p.id), isCurrent('project', p.id), name, 'project')}
+        <ProjectMenu
+          name={name}
+          canMoveUp={groupNeighbor(projects, folders, p.id, -1) >= 0}
+          canMoveDown={groupNeighbor(projects, folders, p.id, 1) >= 0}
+          onMove={(delta) => onMoveProject(p.id, delta)}
+          onExport={() => onExportProject(p.id)}
+          onDelete={() => onDeleteProject(p.id)}
+        />
+      </li>
+    );
+  };
+  const titleEntries: MenuEntry[] = [
+    { kind: 'action', icon: 'project-plus', label: t('options.projects.add'), onSelect: onAdd },
+    { kind: 'action', icon: 'file-import', label: t('options.shareImport.fromFileProject'), onSelect: () => fileInput.current?.click() },
+    { kind: 'separator' },
+    { kind: 'action', icon: 'folder-plus', label: t('options.folders.add'), onSelect: () => setDialog({ kind: 'add' }) },
+    { kind: 'action', icon: 'file-import', label: t('options.shareImport.fromFileFolder'), onSelect: () => fileInput.current?.click() },
+  ];
   const titleId = 'options-nav-projects';
   const filterId = 'options-nav-filter';
   return (
@@ -88,7 +115,11 @@ export function Sidebar({ projects, folders = [], config, current, dirty, onAdd,
       </p>
       <nav aria-label={t('options.nav.label')}>
         <div className="options-nav-group">
-          <p id={titleId} className="options-nav-title">{t('options.projects.title')}</p>
+          <div className="options-nav-heading">
+            <p id={titleId} className="options-nav-title">{t('options.projects.title')}</p>
+            <Menu label={t('options.projects.menu')} entries={titleEntries} />
+          </div>
+          <ShareFileInput inputRef={fileInput} onFile={onImportFile} />
           {tags.length > 0 && (
             <div role="group" aria-labelledby={filterId} className="options-tag-filter">
               <p id={filterId} className="options-nav-title">{t('options.filter.label')}</p>
@@ -127,15 +158,16 @@ export function Sidebar({ projects, folders = [], config, current, dirty, onAdd,
               const listId = `options-folder-${f.id}`;
               const name = f.name || t('options.folders.unnamed');
               const entries: MenuEntry[] = [
-                { kind: 'action', label: t('options.folders.rename'), onSelect: () => setDialog({ kind: 'rename', id: f.id }) },
-                ...(index > 0 ? [{ kind: 'action' as const, label: t('options.folders.moveUp'), onSelect: () => onMoveFolder(index, -1) }] : []),
-                ...(index < folders.length - 1 ? [{ kind: 'action' as const, label: t('options.folders.moveDown'), onSelect: () => onMoveFolder(index, 1) }] : []),
-                { kind: 'action', label: t('options.share.export'), onSelect: () => onExportFolder(f.id) },
-                { kind: 'action', label: t('options.folders.delete'), onSelect: () => setDialog({ kind: 'delete', id: f.id }) },
+                { kind: 'action', icon: 'pencil', label: t('options.folders.rename'), onSelect: () => setDialog({ kind: 'rename', id: f.id }) },
+                { kind: 'action', icon: 'arrow-up', label: t('options.menu.moveUp'), disabled: index === 0, onSelect: () => onMoveFolder(index, -1) },
+                { kind: 'action', icon: 'arrow-down', label: t('options.menu.moveDown'), disabled: index === folders.length - 1, onSelect: () => onMoveFolder(index, 1) },
+                { kind: 'action', icon: 'file-export', label: t('options.share.export'), onSelect: () => onExportFolder(f.id) },
+                { kind: 'separator' },
+                { kind: 'action', icon: 'trash', danger: true, label: t('options.folders.delete'), onSelect: () => setDialog({ kind: 'delete', id: f.id }) },
               ];
               return (
                 <li key={f.id} className="options-folder" data-testid="options-folder">
-                  <div className="options-folder-head">
+                  <div className="options-folder-head options-row">
                     <button
                       type="button"
                       className="options-folder-toggle"
@@ -143,7 +175,7 @@ export function Sidebar({ projects, folders = [], config, current, dirty, onAdd,
                       aria-controls={listId}
                       onClick={() => (filtering ? setShut((o) => ({ ...o, [f.id]: expanded })) : setOpen((o) => ({ ...o, [f.id]: !expanded })))}
                     >
-                      <Icon name={expanded ? 'chevron-down' : 'chevron-right'} />
+                      <Icon name={expanded ? 'folder-open' : 'folder'} />
                       <span className="options-folder-name">{name}</span>
                       <span className="options-folder-count" data-testid="options-folder-count">{inside.length}</span>
                     </button>
@@ -156,18 +188,6 @@ export function Sidebar({ projects, folders = [], config, current, dirty, onAdd,
               );
             })}
           </ul>
-        </div>
-        <div className="options-nav-pair">
-          <Button icon="plus" className="options-nav-add" onClick={onAdd}>
-            {t('options.projects.add')}
-          </Button>
-          <ShareFileButton className="options-nav-add" label={t('options.shareImport.fromFile')} ariaLabel={t('options.shareImport.fromFileProject')} onFile={onImportFile} />
-        </div>
-        <div className="options-nav-pair">
-          <Button icon="plus" className="options-nav-add" onClick={() => setDialog({ kind: 'add' })}>
-            {t('options.folders.add')}
-          </Button>
-          <ShareFileButton className="options-nav-add" label={t('options.shareImport.fromFile')} ariaLabel={t('options.shareImport.fromFileFolder')} onFile={onImportFile} />
         </div>
         <ul className="options-nav-areas">
           <li>{link(TAGS_HASH, isCurrent('tags'), t('options.nav.tags'))}</li>

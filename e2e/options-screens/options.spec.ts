@@ -58,6 +58,13 @@ for (const lang of ['de', 'en'] as const) {
       const closeField = (label: string) => field(label).getByRole('button', { name: t('Schließen', 'Close') }).click();
       await shot(page, 'project', tag);
       await shot(page.getByRole('complementary'), 'sidebar', tag);
+      // Options menu on the title "Projects".
+      const titleMenuButton = page.getByRole('navigation', { name: t('Optionen', 'Options') }).getByRole('button', { name: t('Optionen für Projekte', 'Options for projects') });
+      await titleMenuButton.click();
+      await expect(page.getByRole('menu', { name: t('Optionen für Projekte', 'Options for projects') })).toBeVisible();
+      await shot(page, 'sidebar-menu', tag);
+      await page.keyboard.press('Escape');
+      await expect(page.getByRole('menu')).toHaveCount(0);
       // Sidebar with folders: projects without a folder first, one folder expanded, one collapsed.
       const folderRows = page.locator('ul.options-nav-projects li[data-testid="options-folder"]');
       await expect(folderRows).toHaveCount(2);
@@ -154,7 +161,10 @@ for (const lang of ['de', 'en'] as const) {
       await expect(targetsSwitch).not.toBeChecked();
       await share.getByRole('button', { name: t('Abbrechen', 'Cancel') }).click();
       // Import dialog with the targets warning (existing project offered as copy or replace).
-      await page.getByRole('button', { name: t('Aus Datei: Projekt', 'From file: project') }).locator('xpath=following-sibling::input').setInputFiles({
+      const chooser = page.waitForEvent('filechooser');
+      await titleMenuButton.click();
+      await page.getByRole('menuitem', { name: t('Projekt aus Datei', 'Project from file') }).click();
+      await (await chooser).setFiles({
         name: 'share.json',
         mimeType: 'application/json',
         buffer: Buffer.from(JSON.stringify({
@@ -199,7 +209,7 @@ for (const lang of ['de', 'en'] as const) {
 
       // Narrow window: the sidebar stacks above the content, every entry stays reachable, the page does not scroll sideways.
       await page.setViewportSize({ width: 360, height: 800 });
-      for (const name of ['Articles', 'Products', t('Projekt anlegen', 'Add project'), t('Einstellungen', 'Settings'), t('Import und Export', 'Import and export')]) {
+      for (const name of ['Articles', 'Products', t('Projekte', 'Projects'), t('Einstellungen', 'Settings'), t('Import und Export', 'Import and export')]) {
         await nav.getByText(name, { exact: true }).scrollIntoViewIfNeeded();
         await expect(nav.getByText(name, { exact: true })).toBeVisible();
       }

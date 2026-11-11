@@ -11,6 +11,26 @@ export function moveItem<T>(items: T[], index: number, delta: -1 | 1): T[] {
   return next;
 }
 
+/** Index of the neighbouring project in the same group (same existing folder, or none), or -1 at the group edge. */
+export function groupNeighbor(projects: Project[], folders: Folder[], id: string, delta: -1 | 1): number {
+  const key = (p: Project) => (p.folderId && folders.some((f) => f.id === p.folderId) ? p.folderId : '');
+  const at = projects.findIndex((p) => p.id === id);
+  if (at < 0) return -1;
+  const group = key(projects[at]!);
+  for (let i = at + delta; i >= 0 && i < projects.length; i += delta) if (key(projects[i]!) === group) return i;
+  return -1;
+}
+
+/** Moves a project past its neighbour in the same group; unchanged at the group edge. */
+export function moveProjectInGroup(projects: Project[], folders: Folder[], id: string, delta: -1 | 1): Project[] {
+  const at = projects.findIndex((p) => p.id === id);
+  const to = groupNeighbor(projects, folders, id, delta);
+  if (to < 0) return projects;
+  const next = [...projects];
+  [next[at], next[to]] = [next[to]!, next[at]!];
+  return next;
+}
+
 /** Moves the item at `from` so that it ends up at index `to`. */
 export function moveTo<T>(items: T[], from: number, to: number): T[] {
   if (from === to || from < 0 || to < 0 || from >= items.length || to >= items.length) return items;

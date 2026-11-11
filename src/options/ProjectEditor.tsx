@@ -1,10 +1,10 @@
-import { useState } from 'react';
 import { contentFormatOf, type ContentFormat, type Folder, type HeaderValues, type Project, type Tag } from '../config';
 import { FieldEditor } from './FieldEditor';
 import { ScopeEditor } from './ScopeEditor';
 import { deleteField, deleteMapping, errorsAt, renameFieldKey, setProjectFolder, setProjectTags, type Issue } from './draft';
 import { useI18n } from '../settings';
-import { Button, Dialog, IconButton, Select, TextField } from '../ui/components';
+import { Select, TextField } from '../ui/components';
+import { ProjectMenu } from './ProjectMenu';
 import { TagInput } from './TagInput';
 import { TargetEditor } from './TargetEditor';
 import type { PermissionStatus } from './permissions';
@@ -12,7 +12,8 @@ import type { PermissionStatus } from './permissions';
 interface Props {
   project: Project;
   index: number;
-  count: number;
+  canMoveUp: boolean;
+  canMoveDown: boolean;
   folders?: Folder[];
   /** The central tag list of the draft. */
   tags?: Tag[];
@@ -31,13 +32,13 @@ interface Props {
   onFieldRenamed?: (projectId: string, from: string, to: string) => void;
 }
 
-export function ProjectEditor({ project, index, count, folders = [], tags = [], onCreateTag, onMove, onDelete, onExport, issues, onChange, headerValues, onHeaderValues, permissionStatus, onRequestPermission, onFieldRenamed }: Props) {
+export function ProjectEditor({ project, index, canMoveUp, canMoveDown, folders = [], tags = [], onCreateTag, onMove, onDelete, onExport, issues, onChange, headerValues, onHeaderValues, permissionStatus, onRequestPermission, onFieldRenamed }: Props) {
   const { t } = useI18n();
   const base = `projects[${index}]`;
   const nameError = project.name.trim() === '' ? t('options.project.nameMissing') : errorsAt(issues, `${base}.name`)[0];
   return (
     <div className="options-project-view">
-      <ProjectHeader name={project.name || t('options.projects.unnamed')} index={index} count={count} onMove={onMove} onDelete={onDelete} onExport={onExport} />
+      <ProjectHeader name={project.name || t('options.projects.unnamed')} canMoveUp={canMoveUp} canMoveDown={canMoveDown} onMove={onMove} onDelete={onDelete} onExport={onExport} />
       <TextField label={t('options.project.name')} value={project.name} error={nameError} onChange={(e) => onChange({ ...project, name: e.target.value })} />
       <Select
         label={t('options.project.folder.label')}
@@ -100,45 +101,18 @@ export function ProjectEditor({ project, index, count, folders = [], tags = [], 
 
 interface HeaderProps {
   name: string;
-  index: number;
-  count: number;
+  canMoveUp: boolean;
+  canMoveDown: boolean;
   onMove: (delta: -1 | 1) => void;
   onDelete: () => void;
   onExport: () => void;
 }
 
-function ProjectHeader({ name, index, count, onMove, onDelete, onExport }: HeaderProps) {
-  const { t } = useI18n();
-  const [confirming, setConfirming] = useState(false);
-  const order = t('options.projects.order');
+function ProjectHeader({ name, ...menu }: HeaderProps) {
   return (
     <header className="options-view-head">
       <h2>{name}</h2>
-      <div className="options-view-actions">
-        <IconButton icon="arrow-up" label={t('options.projects.moveUp', { name })} tooltip={order} disabled={index === 0} onClick={() => onMove(-1)} />
-        <IconButton icon="arrow-down" label={t('options.projects.moveDown', { name })} tooltip={order} disabled={index === count - 1} onClick={() => onMove(1)} />
-        <Button icon="file-export" onClick={onExport}>
-          {t('options.share.export')}
-        </Button>
-        <Button variant="danger" icon="trash" onClick={() => setConfirming(true)}>
-          {t('options.projects.deleteConfirm')}
-        </Button>
-      </div>
-      <Dialog
-        open={confirming}
-        onClose={() => setConfirming(false)}
-        title={t('options.projects.deleteTitle')}
-        actions={
-          <>
-            <Button onClick={() => setConfirming(false)}>{t('options.cancel')}</Button>
-            <Button variant="danger" icon="trash" onClick={() => { setConfirming(false); onDelete(); }}>
-              {t('options.projects.deleteConfirm')}
-            </Button>
-          </>
-        }
-      >
-        <p>{t('options.projects.deleteText', { name })}</p>
-      </Dialog>
+      <ProjectMenu name={name} {...menu} />
     </header>
   );
 }

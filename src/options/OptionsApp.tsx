@@ -28,7 +28,7 @@ import { ShareImportDialog, readShareFile } from './ShareImportDialog';
 import { Brand, Sidebar, type NavTarget } from './Sidebar';
 import { defaultFocusChannel, takeOptionsFocus, type FocusChannel } from './focus';
 import { navigate, parseHash, projectHash, useHash } from './route';
-import { addFolder, addTagToProject, deleteFolder, moveFolder, moveItem, newProject, renameFolder, normalize, unmappedIssues, validate } from './draft';
+import { addFolder, addTagToProject, deleteFolder, groupNeighbor, moveFolder, moveProjectInGroup, newProject, renameFolder, normalize, unmappedIssues, validate } from './draft';
 import { SettingsSection, useI18n } from '../settings';
 import { Button, Dialog, Disclosure, EmptyState, ErrorState, LoadingState, NotificationsProvider, useNotifications } from '../ui/components';
 import './options.css';
@@ -320,10 +320,15 @@ function Editor({ initial, initialValues, storage, permissions, subscribe, onRel
     navigate(projectHash(p.id));
   };
 
-  const deleteSelected = () => {
-    const next = draft.projects[selectedIndex + 1] ?? draft.projects[selectedIndex - 1];
-    edit(draft.projects.filter((_, i) => i !== selectedIndex));
-    navigate(next ? projectHash(next.id) : '#/', true);
+  const moveProject = (id: string, delta: -1 | 1) => edit(moveProjectInGroup(draft.projects, draft.folders ?? [], id, delta));
+
+  // Deletes the project with this id; the view only moves on when it was the open one.
+  const deleteProject = (id: string) => {
+    const at = draft.projects.findIndex((p) => p.id === id);
+    if (at < 0) return;
+    const next = draft.projects[at + 1] ?? draft.projects[at - 1];
+    edit(draft.projects.filter((_, i) => i !== at));
+    if (id === selected?.id) navigate(next ? projectHash(next.id) : '#/', true);
   };
 
   const discard = () => {
@@ -436,6 +441,9 @@ function Editor({ initial, initialValues, storage, permissions, subscribe, onRel
         onMoveFolder={(index, delta) => editConfig((c) => moveFolder(c, index, index + delta))}
         onDeleteFolder={(id) => editConfig((c) => deleteFolder(c, id))}
         onExportFolder={(id) => setShareRequest({ projectIds: [], folderIds: [id] })}
+        onMoveProject={moveProject}
+        onExportProject={(id) => setShareRequest({ projectIds: [id], folderIds: [] })}
+        onDeleteProject={deleteProject}
         onImportFile={openShareFileFromSidebar}
       />
     )}>
@@ -487,12 +495,13 @@ function Editor({ initial, initialValues, storage, permissions, subscribe, onRel
               key={selected.id}
               project={selected}
               index={selectedIndex}
-              count={draft.projects.length}
+              canMoveUp={groupNeighbor(draft.projects, draft.folders ?? [], selected.id, -1) >= 0}
+              canMoveDown={groupNeighbor(draft.projects, draft.folders ?? [], selected.id, 1) >= 0}
               folders={draft.folders ?? []}
               tags={draft.tags ?? []}
               onCreateTag={(name) => editConfig((c) => addTagToProject(c, selected.id, name))}
-              onMove={(d) => edit(moveItem(draft.projects, selectedIndex, d))}
-              onDelete={deleteSelected}
+              onMove={(d) => moveProject(selected.id, d)}
+              onDelete={() => deleteProject(selected.id)}
               onExport={() => setShareRequest({ projectIds: [selected.id], folderIds: [] })}
               issues={issues}
               headerValues={values}

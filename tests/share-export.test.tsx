@@ -60,6 +60,10 @@ async function mount(storage: StorageArea, hash = '') {
   return user;
 }
 
+const exportOpenProject = async (user: ReturnType<typeof userEvent.setup>) => {
+  await user.click(within(screen.getByRole('main')).getByRole('button', { name: /^Options for project / }));
+  await user.click(screen.getByRole('menuitem', { name: 'Export' }));
+};
 const dialog = () => screen.findByRole('dialog', { name: 'Export selection' });
 const done = 'The selection was exported.';
 
@@ -67,7 +71,7 @@ describe('share export of a project', () => {
   it('exports without targets by default and never writes header values', async () => {
     const out = stubSave();
     const user = await mount(storageWith(), projectHash('p1'));
-    await user.click(screen.getByRole('button', { name: 'Export' }));
+    await exportOpenProject(user);
     const d = await dialog();
     expect(within(d).getByText('Exported: 1 project.')).toBeTruthy();
     const sw = await within(d).findByRole('switch', { name: 'Export targets too' });
@@ -85,7 +89,7 @@ describe('share export of a project', () => {
   it('asks before exporting targets: cancel keeps them out, confirm includes them, never header values', async () => {
     const out = stubSave();
     const user = await mount(storageWith(), projectHash('p1'));
-    await user.click(screen.getByRole('button', { name: 'Export' }));
+    await exportOpenProject(user);
     const d = await dialog();
     const sw = await within(d).findByRole('switch', { name: 'Export targets too' });
     await user.click(sw);
@@ -110,7 +114,7 @@ describe('share export of a project', () => {
   it('has no targets switch when the selection has no targets', async () => {
     const out = stubSave();
     const user = await mount(storageWith(), projectHash('p3'));
-    await user.click(screen.getByRole('button', { name: 'Export' }));
+    await exportOpenProject(user);
     const d = await dialog();
     await within(d).findByText('Exported: 1 project in 1 folder.');
     expect(within(d).queryByRole('switch')).toBeNull();
@@ -123,7 +127,7 @@ describe('share export of a project', () => {
     const out = stubSave();
     const user = await mount(storageWith(), projectHash('p3'));
     await user.type(screen.getByLabelText('Project name'), ' changed');
-    await user.click(screen.getByRole('button', { name: 'Export' }));
+    await exportOpenProject(user);
     const d = await dialog();
     await within(d).findByText('Unsaved changes are not exported.');
     await user.click(within(d).getByRole('button', { name: 'Export' }));
@@ -136,7 +140,7 @@ describe('share export of a project', () => {
     const writable = { write: async () => {}, close: vi.fn(() => new Promise<void>((r) => (finish = r))) };
     vi.stubGlobal('showSaveFilePicker', async () => ({ createWritable: async () => writable }));
     const user = await mount(storageWith(), projectHash('p3'));
-    await user.click(screen.getByRole('button', { name: 'Export' }));
+    await exportOpenProject(user);
     const d = await dialog();
     await user.click(await within(d).findByRole('button', { name: 'Export' }));
     await waitFor(() => expect(writable.close).toHaveBeenCalled());
@@ -150,7 +154,7 @@ describe('share export of a project', () => {
     vi.stubGlobal('showSaveFilePicker', async () => {
       throw new DOMException('cancelled', 'AbortError');
     });
-    await user.click(screen.getByRole('button', { name: 'Export' }));
+    await exportOpenProject(user);
     const again = await dialog();
     await user.click(await within(again).findByRole('button', { name: 'Export' }));
     await act(async () => {});
@@ -163,7 +167,7 @@ describe('share export of a folder', () => {
   it('includes all projects of the folder and nothing else', async () => {
     const out = stubSave();
     const user = await mount(storageWith());
-    await user.click(screen.getByRole('button', { name: 'Menu for folder Articles' }));
+    await user.click(screen.getByRole('button', { name: 'Options for folder Articles' }));
     await user.click(screen.getByRole('menuitem', { name: 'Export' }));
     const d = await dialog();
     await within(d).findByText('Exported: 2 projects in 1 folder.');
