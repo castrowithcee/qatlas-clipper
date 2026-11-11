@@ -169,6 +169,14 @@ describe('fields', () => {
     expect((screen.getByLabelText('Off') as HTMLSelectElement).disabled).toBe(true);
   });
 
+  it('Select: groups render as optgroups after the plain options', () => {
+    render(<Select label="Pick" options={[{ value: 'a', label: 'Alpha' }]} groups={[{ label: '<b>Team</b>', options: [{ value: 'b', label: 'Beta' }] }]} />);
+    const select = screen.getByLabelText('Pick') as HTMLSelectElement;
+    expect([...select.children].map((c) => c.tagName)).toEqual(['OPTION', 'OPTGROUP']);
+    expect(select.querySelector('optgroup')?.label).toBe('<b>Team</b>');
+    expect(select.querySelector('optgroup option')?.textContent).toBe('Beta');
+  });
+
   it('Checkbox and Switch toggle with the keyboard, expose state and errors', async () => {
     const user = userEvent.setup();
     render(<><Checkbox label="Remember" error="Required" /><Switch label="Enabled" /><Switch label="Locked" disabled /></>);

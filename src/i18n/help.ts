@@ -15,7 +15,7 @@ export const helpDe = {
   'help.folders.p1': 'Mit Ordnern hältst du viele Projekte übersichtlich. In der Seitenleiste stehen die Projekte ohne Ordner zuerst, darunter die Ordner als aufklappbare Gruppen. Ein Projekt liegt in keinem oder in einem Ordner; Ordner in Ordnern gibt es nicht.',
   'help.folders.p2': 'Mit „Ordner anlegen“ unter „Projekt anlegen“ legst du einen Ordner an. Das Menü am Ordner bietet „Umbenennen“, „Nach oben“, „Nach unten“ und „Ordner löschen“. Ein Name kommt nur einmal vor, Groß- und Kleinschreibung zählt dabei nicht.',
   'help.folders.p3': 'Einem Projekt weist du den Ordner im Projekt unter „Ordner“ zu; „Ohne Ordner“ nimmt es wieder heraus. Beim Löschen eines Ordners bleiben seine Projekte erhalten und stehen danach ohne Ordner.',
-  'help.folders.p4': 'Ordner ordnen nur die Optionsseite und die Projektauswahl. Sie ändern nichts an dem, was gesendet wird. Wie alle Änderungen gelten sie erst, wenn du speicherst. Zur Sicherung der ganzen Konfiguration gehören die Ordner mit dazu.',
+  'help.folders.p4': 'Ordner ordnen nur die Optionsseite und die Projektauswahl. In der Projektauswahl beim Erfassen stehen die zur Seite passenden Projekte oben, die übrigen darunter nach Ordnern gruppiert, Projekte ohne Ordner zuerst. Ordner ändern nichts an dem, was gesendet wird. Wie alle Änderungen gelten sie erst, wenn du speicherst. Zur Sicherung der ganzen Konfiguration gehören die Ordner mit dazu.',
 
   'help.fields.title': 'Felder',
   'help.fields.p1': 'Ein Feld ist eine Angabe, die im Popup ausgelesen und mitgesendet wird. Für den Wert gibt es drei Wege:',
@@ -103,7 +103,7 @@ export const helpEn: Record<keyof typeof helpDe, string> = {
   'help.folders.p1': 'Folders keep many projects tidy. In the sidebar, the projects without a folder come first, followed by the folders as groups you can expand. A project is in no folder or in one folder; there are no folders inside folders.',
   'help.folders.p2': 'Use "Add folder" below "Add project" to create a folder. The menu on a folder offers "Rename", "Move up", "Move down" and "Delete folder". A name can only be used once, ignoring upper and lower case.',
   'help.folders.p3': 'You assign a project to a folder in the project under "Folder"; "No folder" takes it out again. When you delete a folder, its projects are kept and then have no folder.',
-  'help.folders.p4': 'Folders only organize the options page and the project choice. They change nothing about what is sent. Like all changes, they only apply once you save. The folders are part of the backup of the whole configuration.',
+  'help.folders.p4': 'Folders only organize the options page and the project choice. When capturing, the projects that match the page come first, the others follow grouped by folder, projects without a folder first. Folders change nothing about what is sent. Like all changes, they only apply once you save. The folders are part of the backup of the whole configuration.',
 
   'help.fields.title': 'Fields',
   'help.fields.p1': 'A field is a detail that the popup reads and sends along. There are three ways to get its value:',

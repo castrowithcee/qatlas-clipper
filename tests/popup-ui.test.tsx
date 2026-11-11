@@ -360,3 +360,28 @@ describe.each(['de', 'en'] as const)('highlight switch in the header (%s)', (lan
     expect((await screen.findByRole('button', { name })).getAttribute('aria-pressed')).toBe('false');
   });
 });
+
+describe.each(['popup', 'sidepanel'] as const)('project choice with folders (%s)', (variant) => {
+  const proj = (id: string, name: string, folderId?: string) => ({
+    id, name, scope: { allSites: true, domains: [] }, siteMappings: {}, fields: FIELDS, targets: [{ ...target, id: `t-${id}` }], ...(folderId ? { folderId } : {}),
+  });
+  const cfg = {
+    [CONFIG_KEY]: {
+      schemaVersion: 1,
+      folders: [{ id: 'f1', name: 'Zeta' }, { id: 'f2', name: 'Alpha <b>' }],
+      projects: [proj('p0', 'Match'), proj('p1', 'InZeta', 'f1'), proj('p2', 'Loose'), proj('p3', 'InAlpha', 'f2'), proj('p4', 'InZeta2', 'f1')],
+    },
+  };
+
+  it('lists matching first, then unfoldered, then folders in folder order', async () => {
+    const { view } = setup('en', { cfg, variant } as never);
+    const select = (await screen.findByLabelText(en['popup.project.label'])) as HTMLSelectElement;
+    const noMatch = (name: string) => en['popup.project.noMatch'].replace('{name}', name);
+    const top = [...select.children].filter((c) => c.tagName === 'OPTION').map((c) => c.textContent);
+    expect(top).toEqual(['Match', noMatch('Loose')]);
+    const groups = [...select.querySelectorAll('optgroup')].map((g) => [g.label, [...g.querySelectorAll('option')].map((o) => o.textContent)]);
+    expect(groups).toEqual([['Zeta', [noMatch('InZeta'), noMatch('InZeta2')]], ['Alpha <b>', [noMatch('InAlpha')]]]);
+    expect(select.querySelector('b')).toBeNull();
+    view.unmount();
+  });
+});

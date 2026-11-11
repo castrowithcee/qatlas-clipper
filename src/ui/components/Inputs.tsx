@@ -23,10 +23,12 @@ export interface SelectOption {
 
 interface SelectProps extends Omit<SelectHTMLAttributes<HTMLSelectElement>, 'id' | 'children' | 'aria-invalid'>, FieldProps {
   options: readonly SelectOption[];
+  /** Rendered after `options` as `<optgroup>`s; labels are plain text. */
+  groups?: readonly { label: string; options: readonly SelectOption[] }[];
 }
 
 /** Native `<select>`: keyboard, typeahead and platform popup come for free. */
-export function Select({ label, hint, error, help, options, className, ...rest }: SelectProps) {
+export function Select({ label, hint, error, help, options, groups, className, ...rest }: SelectProps) {
   return (
     <Field label={label} hint={hint} error={error} help={help} disabled={rest.disabled}>
       {(control) => (
@@ -35,6 +37,15 @@ export function Select({ label, hint, error, help, options, className, ...rest }
             <option key={o.value} value={o.value}>
               {o.label}
             </option>
+          ))}
+          {groups?.map((g, i) => (
+            <optgroup key={i} label={g.label}>
+              {g.options.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </optgroup>
           ))}
         </select>
       )}

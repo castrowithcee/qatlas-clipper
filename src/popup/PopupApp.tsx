@@ -446,6 +446,7 @@ export function PopupApp({
   const header = (
     <Header
       projects={ordered}
+      folders={config.folders}
       matchingIds={page.matchingProjects.map((p) => p.id)}
       value={projectId}
       onChange={(id) => void changeProject(id)}

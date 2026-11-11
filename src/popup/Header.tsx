@@ -2,7 +2,9 @@ import { IconButton, Select, Tooltip } from '../ui/components';
 import { useI18n } from '../settings';
 
 interface Props {
-  projects: { id: string; name: string }[];
+  projects: { id: string; name: string; folderId?: string }[];
+  /** In folder order; names are rendered as text only. */
+  folders?: { id: string; name: string }[];
   matchingIds: string[];
   value: string;
   onChange: (id: string) => void;
@@ -14,8 +16,19 @@ interface Props {
   onSwitchView?: () => void;
 }
 
-export function Header({ projects, matchingIds, value, onChange, onOpenOptions, highlight, onToggleHighlight, switchTo, onSwitchView }: Props) {
+export function Header({ projects, folders = [], matchingIds, value, onChange, onOpenOptions, highlight, onToggleHighlight, switchTo, onSwitchView }: Props) {
   const { t } = useI18n();
+  const matching = projects.filter((p) => matchingIds.includes(p.id));
+  const rest = projects.filter((p) => !matchingIds.includes(p.id));
+  const toOption = (p: { id: string; name: string }) => ({ value: p.id, label: t('popup.project.noMatch', { name: p.name }) });
+  const known = new Set(folders.map((f) => f.id));
+  const options = [
+    ...matching.map((p) => ({ value: p.id, label: p.name })),
+    ...rest.filter((p) => !p.folderId || !known.has(p.folderId)).map(toOption),
+  ];
+  const groups = folders
+    .map((f) => ({ label: f.name, options: rest.filter((p) => p.folderId === f.id).map(toOption) }))
+    .filter((g) => g.options.length > 0);
   return (
     <header className="popup-header">
       <div className="popup-header-top">
@@ -50,10 +63,8 @@ export function Header({ projects, matchingIds, value, onChange, onOpenOptions, 
         label={t('popup.project.label')}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        options={projects.map((p) => ({
-          value: p.id,
-          label: matchingIds.includes(p.id) ? p.name : t('popup.project.noMatch', { name: p.name }),
-        }))}
+        options={options}
+        groups={groups}
       />
     </header>
   );

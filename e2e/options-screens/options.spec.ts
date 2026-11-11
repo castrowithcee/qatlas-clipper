@@ -8,6 +8,7 @@ mkdirSync(OUT, { recursive: true });
 
 const config = {
   schemaVersion: 1,
+  folders: [{ id: 'clients', name: 'Clients' }, { id: 'archive', name: 'Archive' }],
   projects: [
     {
       id: 'articles',
@@ -25,6 +26,9 @@ const config = {
       ],
     },
     { id: 'products', name: 'Products', scope: { allSites: true, domains: [] }, fields: [], siteMappings: {}, targets: [] },
+    { id: 'shop', name: 'Shop orders', folderId: 'clients', scope: { allSites: true, domains: [] }, fields: [], siteMappings: {}, targets: [] },
+    { id: 'blog', name: 'Blog posts', folderId: 'clients', scope: { allSites: true, domains: [] }, fields: [], siteMappings: {}, targets: [] },
+    { id: 'old', name: 'Old notes', folderId: 'archive', scope: { allSites: true, domains: [] }, fields: [], siteMappings: {}, targets: [] },
   ],
 };
 
@@ -52,6 +56,17 @@ for (const lang of ['de', 'en'] as const) {
       const closeField = (label: string) => field(label).getByRole('button', { name: t('Schließen', 'Close') }).click();
       await shot(page, 'project', tag);
       await shot(page.getByRole('complementary'), 'sidebar', tag);
+      // Sidebar with folders: projects without a folder first, one folder expanded, one collapsed.
+      const folderRows = page.locator('ul.options-nav-projects li[data-testid="options-folder"]');
+      await expect(folderRows).toHaveCount(2);
+      const clients = folderRows.filter({ hasText: 'Clients' });
+      const archive = folderRows.filter({ hasText: 'Archive' });
+      if ((await clients.locator('button.options-folder-toggle').getAttribute('aria-expanded')) !== 'true') await clients.locator('button.options-folder-toggle').click();
+      await expect(clients.locator('button.options-folder-toggle')).toHaveAttribute('aria-expanded', 'true');
+      await expect(clients.locator('ul.options-folder-projects').getByText('Shop orders')).toBeVisible();
+      if ((await archive.locator('button.options-folder-toggle').getAttribute('aria-expanded')) === 'true') await archive.locator('button.options-folder-toggle').click();
+      await expect(archive.locator('button.options-folder-toggle')).toHaveAttribute('aria-expanded', 'false');
+      await shot(page.getByRole('complementary'), 'sidebar-folders', tag);
       await shot(sections.nth(0), 'scope', tag);
       await shot(sections.nth(1), 'fields', tag);
 
