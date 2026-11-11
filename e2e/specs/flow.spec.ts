@@ -140,10 +140,12 @@ test('configure, map by click, prefill on a second page, send, and show the resp
   expect(req.headers['authorization']).toBe(`Bearer ${ACCESS_KEY}`);
   const body = req.body as Record<string, unknown>;
   expect(Object.keys(body).sort()).toEqual(
-    ['captured_at', 'content', 'content_format', 'fields', 'note', 'project', 'target', 'title', 'url', 'version'].sort(),
+    ['captured_at', 'content', 'content_format', 'domain', 'fields', 'note', 'project', 'target', 'title', 'url', 'version'].sort(),
   );
   expect(body.version).toBe(1);
   expect(body.url).toBe(`${pages.origin}/plain-2.html`);
+  // pages.origin is an IP address; the domain is its host name.
+  expect(body.domain).toBe(new URL(pages.origin).hostname);
   expect(body.note).toBe('Checked by e2e');
   expect((body.fields as Record<string, unknown>).price).toBe('21.50');
   expect(typeof body.captured_at).toBe('string');

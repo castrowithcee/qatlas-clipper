@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { CONTENT_FORMATS, type ContentFormat } from '../config/schema';
+import { normalizeDomain } from '../picker/mapping';
 
 export const PAYLOAD_VERSION = 1;
 
@@ -8,6 +9,7 @@ export const payloadSchema = z.strictObject({
   target: z.strictObject({ id: z.string(), name: z.string() }),
   url: z.string(),
   title: z.string(),
+  domain: z.string(),
   fields: z.record(z.string(), z.string()),
   content: z.string(),
   content_format: z.enum(CONTENT_FORMATS),
@@ -31,6 +33,15 @@ export interface PayloadInput {
   now?: () => Date;
 }
 
+/** Same value under which site mappings are stored; empty for addresses that are not http(s) pages. */
+export function domainOfUrl(url: string): string {
+  try {
+    return normalizeDomain(url);
+  } catch {
+    return '';
+  }
+}
+
 /** Pure; every project field is present (empty string if there is no value). */
 export function buildPayload(input: PayloadInput): Payload {
   const fields: Record<string, string> = {};
@@ -40,6 +51,7 @@ export function buildPayload(input: PayloadInput): Payload {
     target: { id: input.target.id, name: input.target.name },
     url: input.url,
     title: input.title,
+    domain: domainOfUrl(input.url),
     fields,
     // Format "none" never carries content, whatever the caller passes.
     content: input.contentFormat === 'none' ? '' : input.content,

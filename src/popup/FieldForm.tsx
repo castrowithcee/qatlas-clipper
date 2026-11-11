@@ -1,4 +1,4 @@
-import { FIELD_FORMATS, fieldFormatOf, type Field as FieldConfig, type FieldFormat } from '../config';
+import { FIELD_FORMATS, fieldFormatOf, type ContentFormat, type Field as FieldConfig, type FieldFormat } from '../config';
 import { valueWay } from '../options/draft';
 import { AddFieldRow } from './AddFieldRow';
 import { LongValue } from './LongValue';
@@ -116,6 +116,25 @@ function FieldRow({ field, value, source, invalid, onChange, onPick, mapped, onU
   );
 }
 
+export interface FixedValues {
+  title: string;
+  url: string;
+  domain: string;
+}
+
+/** Read-only row: `readOnly` (not `disabled`) keeps the value reachable by keyboard and screen readers. */
+function FixedRow({ label, value }: { label: string; value: string }) {
+  return (
+    <Field label={label}>
+      {(control) => (
+        <Tooltip content={value}>
+          {(tip) => <input {...control} {...tip} type="text" readOnly className="q-input popup-fixed-value" value={value} />}
+        </Tooltip>
+      )}
+    </Field>
+  );
+}
+
 interface FormProps {
   fields: FieldConfig[];
   /** Fields as read from the page for the chosen project. */
@@ -124,6 +143,8 @@ interface FormProps {
   edits: Record<string, string>;
   invalidKeys: string[];
   note: string;
+  /** Always-sent page values and the project's content format, shown read-only. */
+  fixed?: FixedValues & { contentFormat: ContentFormat };
   onChange: (key: string, value: string) => void;
   onNote: (note: string) => void;
   onPick: (field: FieldConfig) => void;
@@ -136,7 +157,7 @@ interface FormProps {
   onRemoveMapping?: (field: FieldConfig) => void;
 }
 
-export function FieldForm({ fields, found, edits, invalidKeys, note, onChange, onNote, onPick, onAddField, mappedKeys = [], onUpdateField, onRemoveMapping }: FormProps) {
+export function FieldForm({ fields, found, edits, invalidKeys, note, fixed, onChange, onNote, onPick, onAddField, mappedKeys = [], onUpdateField, onRemoveMapping }: FormProps) {
   const i18n = useI18n();
   return (
     <form className="popup-form" onSubmit={(e) => e.preventDefault()}>
@@ -159,6 +180,15 @@ export function FieldForm({ fields, found, edits, invalidKeys, note, onChange, o
         );
       })}
       {onAddField && <AddFieldRow onAdd={onAddField} />}
+      {fixed && (
+        <fieldset className="popup-fixed">
+          <legend className="q-label popup-fixed-legend">{i18n.t('popup.fixed.legend')}</legend>
+          <FixedRow label={i18n.t('popup.fixed.title')} value={fixed.title} />
+          <FixedRow label={i18n.t('popup.fixed.url')} value={fixed.url} />
+          <FixedRow label={i18n.t('popup.fixed.domain')} value={fixed.domain} />
+          <FixedRow label={i18n.t('popup.fixed.content')} value={i18n.t(`popup.fixed.content.${fixed.contentFormat}` as MessageKey)} />
+        </fieldset>
+      )}
       <Field label={i18n.t('popup.note.label')}>
         {(control) => <textarea {...control} className="q-input" rows={3} value={note} onChange={(e) => onNote(e.target.value)} />}
       </Field>

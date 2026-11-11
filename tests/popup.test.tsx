@@ -165,7 +165,7 @@ describe('popup', () => {
     const { view } = setup({ page });
     const input = (await screen.findByLabelText('Price')) as HTMLInputElement;
     expect(input.value).toBe(evil);
-    expect(screen.getAllByText(evil).length).toBeGreaterThan(0);
+    expect((screen.getByLabelText('Page title') as HTMLInputElement).value).toBe(evil);
     expect(view.container.querySelector('img')).toBeNull();
   });
 

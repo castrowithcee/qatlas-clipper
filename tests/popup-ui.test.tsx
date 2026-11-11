@@ -129,10 +129,26 @@ describe.each(['de', 'en'] as const)('popup form (%s)', (lang) => {
     expect(document.getElementById(errorId)!.textContent).toBe(lang === 'de' ? 'Bitte ausfüllen.' : 'Please fill this in.');
   });
 
-  it('shows the header with domain, project choice and a settings button', async () => {
+  it('shows the always-sent values as read-only rows and repeats nothing in the header', async () => {
     const { user, deps } = setup(lang, { cfg: config([target], 2) });
     await screen.findByLabelText(tx.required);
-    expect(screen.getByText('example.com')).toBeTruthy();
+    const de_ = lang === 'de';
+    const group = screen.getByRole('group', { name: de_ ? 'Wird immer mitgesendet' : 'Always sent' });
+    const rows: [string, string][] = [
+      [de_ ? 'Titel der Seite' : 'Page title', 'Article'],
+      [de_ ? 'Adresse der Seite' : 'Page address', URL_A],
+      ['Domain', 'example.com'],
+      [de_ ? 'Seiteninhalt' : 'Page content', 'Markdown'],
+    ];
+    for (const [label, value] of rows) {
+      const input = within(group).getByLabelText(label) as HTMLInputElement;
+      expect(input.value).toBe(value);
+      expect(input.readOnly).toBe(true);
+      expect(input.disabled).toBe(false);
+      await user.type(input, 'x');
+      expect(input.value).toBe(value);
+    }
+    expect(within(screen.getByRole('banner')).queryByText('Article')).toBeNull();
     expect(screen.getByLabelText(lang === 'de' ? 'Projekt' : 'Project')).toBeTruthy();
     const gear = screen.getByRole('button', { name: lang === 'de' ? 'Einstellungen öffnen' : 'Open settings' });
     expect(document.getElementById(gear.getAttribute('aria-describedby')!)!.getAttribute('role')).toBe('tooltip');
@@ -186,7 +202,6 @@ describe.each(['de', 'en'] as const)('popup states (%s)', (lang) => {
   it('no target keeps header and offers the options page', async () => {
     const { user, deps } = setup(lang, { cfg: config([]) });
     expect(await screen.findByText(de_ ? de['popup.noTarget.title'] : en['popup.noTarget.title'])).toBeTruthy();
-    expect(screen.getByText('example.com')).toBeTruthy();
     await user.click(screen.getByRole('button', { name: de_ ? 'Ziel anlegen' : 'Add target' }));
     expect(deps.openOptions).toHaveBeenCalled();
   });

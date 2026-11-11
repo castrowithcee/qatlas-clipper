@@ -15,6 +15,7 @@ qatlas-clipper sends one HTTP request per click on a send button to the URL of t
 | `target` | object `{ id, name }` | The target this request is for (stable id and display name, strings). |
 | `url` | string | Address of the page that was read. |
 | `title` | string | Title of the page. |
+| `domain` | string | Host name of the page in lower case without a leading `www.` (subdomains are kept), e.g. `example.com`; the same value under which click mappings are stored per website. Empty string if the address is not an http(s) page. |
 | `fields` | object, string to string | Every field of the project by its key. The value is what the user sees in the popup (read value, possibly edited); an empty string if there is none. Each field has one of three formats: text (one line), Markdown or HTML (cleaned: no scripts, frames, forms or event attributes). The format applies to clicked and automatically detected values, not to typed-in ones. |
 | `content` | string | Main content of the page (header, navigation and footer are left out), in the format named by `content_format`, cut at 100,000 characters (`[… truncated]` marks a cut). Empty string if `content_format` is `none`. |
 | `content_format` | string | `markdown` (default), `html` or `none`; set per project in the options page. `html` is cleaned: no `iframe`, `script`, `style`, form elements, event handler or `style` attributes, and all links and image addresses are absolute. |
@@ -30,6 +31,7 @@ Example:
   "target": { "id": "inbox", "name": "Inbox" },
   "url": "https://example.com/article",
   "title": "Article",
+  "domain": "example.com",
   "fields": { "title": "Article", "price": "" },
   "content": "# Article\n\nBody text.",
   "content_format": "markdown",

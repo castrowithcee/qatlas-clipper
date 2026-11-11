@@ -7,7 +7,7 @@ import { useI18n } from '../settings';
 import { Button } from '../ui/components';
 import { ALL_SITES_ORIGINS, defaultPermissions, originPattern, type PermissionsApi } from '../options/permissions';
 import { startPicker } from '../picker/start';
-import { buildPayload } from '../send/payload';
+import { buildPayload, domainOfUrl } from '../send/payload';
 import { loadSendState, requestSend } from '../send/messages';
 import type { SendOutcome } from '../send/response';
 import { defaultResultStorage, type SendState, type StoredResult } from '../send/results';
@@ -368,8 +368,6 @@ export function PopupApp({
   const missingKeys = hint?.kind === 'missing' ? hint.keys : [];
   const header = (
     <Header
-      title={page.title}
-      url={page.url}
       projects={ordered}
       matchingIds={page.matchingProjects.map((p) => p.id)}
       value={projectId}
@@ -398,6 +396,7 @@ export function PopupApp({
         edits={edits}
         invalidKeys={missingKeys}
         note={current.note}
+        fixed={{ title: page.title, url: page.url, domain: domainOfUrl(page.url), contentFormat: page.contentFormat }}
         onChange={(key, v) => {
           setHint((h) => (h?.kind === 'missing' ? null : h));
           persist({ ...current, projectId, fields: { ...current.fields, [projectId]: { ...edits, [key]: v } } });

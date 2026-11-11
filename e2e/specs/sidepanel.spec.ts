@@ -29,7 +29,7 @@ test('the side panel reads the page, shows a mapping made on the page and follow
   await page.goto(`${pages.origin}/picker-light.html`);
   const panel = await openSidePanel(context, serviceWorker, extensionId, page);
 
-  await expect(panel.getByText('Picker Light Page')).toBeVisible();
+  await expect(panel.getByRole('textbox', { name: 'Page title' })).toHaveValue('Picker Light Page');
   await expect(panel.getByRole('textbox', { name: 'Price' })).toHaveValue('');
 
   // Map the price on the page while the panel stays open.
@@ -55,5 +55,5 @@ test('the side panel reads the page, shows a mapping made on the page and follow
 
   // Navigating the tab reads the new page without reopening the panel.
   await page.goto(`${pages.origin}/plain-1.html`);
-  await expect(panel.getByText('Plain Page 1')).toBeVisible();
+  await expect(panel.getByRole('textbox', { name: 'Page title' })).toHaveValue('Plain Page 1');
 });

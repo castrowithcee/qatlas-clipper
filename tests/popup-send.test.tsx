@@ -149,10 +149,10 @@ describe('popup send', () => {
     const req = (deps.send as ReturnType<typeof vi.fn>).mock.calls[0]![0];
     expect(req).toMatchObject({ tabUrl: URL_A, projectId: 'p', targetId: 't1' });
     expect(Object.keys(req.payload).sort()).toEqual(
-      ['captured_at', 'content', 'content_format', 'fields', 'note', 'project', 'target', 'title', 'url', 'version'],
+      ['captured_at', 'content', 'content_format', 'domain', 'fields', 'note', 'project', 'target', 'title', 'url', 'version'],
     );
     expect(req.payload).toMatchObject({
-      fields: { title: 'Edited', price: '' }, note: 'my note', title: 'Article', url: URL_A, content: '# Body', content_format: 'markdown',
+      fields: { title: 'Edited', price: '' }, note: 'my note', title: 'Article', url: URL_A, domain: 'example.com', content: '# Body', content_format: 'markdown',
     });
     expect(screen.getByText('Saved <b>ok</b>')).toBeTruthy();
     const link = screen.getByRole('link') as HTMLAnchorElement;

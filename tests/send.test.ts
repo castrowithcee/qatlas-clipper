@@ -48,18 +48,27 @@ const req = (projectId: string, targetId: string, extra: Record<string, unknown>
   ({ tabUrl: TAB, projectId, targetId, payload: payloadFor(projectId, targetId), ...extra });
 
 describe('payload', () => {
-  it('has exactly the ten keys', () => {
+  it('has exactly the eleven keys', () => {
     const p = buildPayload({
       project: { id: 'p1', name: 'Articles', fields: [{ key: 'title' }, { key: 'price' }] },
       target: { id: 'a', name: 'Hook' },
       url: TAB, title: 'Article', values: { title: 'T', stray: 'x' }, content: '# T', contentFormat: 'markdown', note: 'note',
       now: () => new Date('2026-01-02T03:04:05.000Z'),
     });
-    expect(Object.keys(p).sort()).toEqual(['captured_at', 'content', 'content_format', 'fields', 'note', 'project', 'target', 'title', 'url', 'version']);
+    expect(Object.keys(p).sort()).toEqual(['captured_at', 'content', 'content_format', 'domain', 'fields', 'note', 'project', 'target', 'title', 'url', 'version']);
     expect(p).toEqual({
-      project: { id: 'p1', name: 'Articles' }, target: { id: 'a', name: 'Hook' }, url: TAB, title: 'Article',
+      project: { id: 'p1', name: 'Articles' }, target: { id: 'a', name: 'Hook' }, url: TAB, title: 'Article', domain: 'example.com',
       fields: { title: 'T', price: '' }, content: '# T', content_format: 'markdown', note: 'note', captured_at: '2026-01-02T03:04:05.000Z', version: 1,
     });
+  });
+});
+
+describe('payload domain', () => {
+  const base = { project: { id: 'p1', name: 'A', fields: [] }, target: { id: 'a', name: 'H' }, title: 'T', values: {}, note: '', content: '', contentFormat: 'markdown' as const };
+  it('lowercases, drops a leading www and keeps subdomains', () => {
+    expect(buildPayload({ ...base, url: 'https://www.Example.com/a' }).domain).toBe('example.com');
+    expect(buildPayload({ ...base, url: 'https://jobs.example.com/a' }).domain).toBe('jobs.example.com');
+    expect(buildPayload({ ...base, url: 'about:blank' }).domain).toBe('');
   });
 });
 
