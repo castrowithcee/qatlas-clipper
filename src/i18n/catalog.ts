@@ -3,7 +3,6 @@ import { helpDe, helpEn } from './help';
 /** German is the reference catalog; English must carry the same keys and placeholders (checked by a test). Plural forms use `<key>.one` / `<key>.other` suffixes. */
 export const de = {
   'settings.title': 'Einstellungen',
-  'settings.hint': 'Gilt sofort und wird nicht exportiert.',
   'settings.help': 'Die Einstellungen gelten sofort in Optionen und Popup. Sie werden nicht mit der Konfiguration exportiert.',
   'options.title': 'Qatlas Clipper',
   'options.loadError.title': 'Konfiguration nicht geladen',
@@ -169,6 +168,7 @@ export const de = {
   'options.scope.siteLabel': 'Website hinzufügen',
   'options.scope.siteHint': 'Zum Beispiel example.com. Du kannst auch eine ganze Adresse einfügen. Die Website gilt mit allen ihren Seiten.',
   'options.scope.siteAdd': 'Hinzufügen',
+  'options.scope.sitePlaceholder': 'example.com',
   'options.scope.siteList': 'Websites',
   'options.scope.siteRemove': 'Website {site} entfernen',
   'options.scope.siteInvalid': 'Das ist keine gültige Website. Beispiel: example.com',
@@ -449,7 +449,6 @@ export type MessageKey = keyof typeof de;
 
 export const en: Record<MessageKey, string> = {
   'settings.title': 'Settings',
-  'settings.hint': 'Applies immediately and is not exported.',
   'settings.help': 'These settings apply immediately in the options page and the popup. They are not exported with the configuration.',
   'options.title': 'Qatlas Clipper',
   'options.loadError.title': 'Configuration not loaded',
@@ -615,6 +614,7 @@ export const en: Record<MessageKey, string> = {
   'options.scope.siteLabel': 'Add website',
   'options.scope.siteHint': 'For example example.com. You can also paste a full address. The website applies with all of its pages.',
   'options.scope.siteAdd': 'Add',
+  'options.scope.sitePlaceholder': 'example.com',
   'options.scope.siteList': 'Websites',
   'options.scope.siteRemove': 'Remove website {site}',
   'options.scope.siteInvalid': 'This is not a valid website. Example: example.com',

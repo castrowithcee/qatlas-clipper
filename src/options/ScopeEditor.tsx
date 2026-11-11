@@ -3,7 +3,7 @@ import type { Scope } from '../config';
 import { PAGE_KINDS, type PageKind } from '../extract';
 import { useI18n } from '../settings';
 import type { MessageKey } from '../i18n';
-import { Button, Chip, Disclosure, Select, TextField } from '../ui/components';
+import { Chip, Disclosure, IconButton, Select, TextField } from '../ui/components';
 import { errorsAt, parseWebsite, setAllSites, setPageKind, type Issue } from './draft';
 
 interface Props {
@@ -91,7 +91,8 @@ export function ScopeEditor({ scope, basePath, issues, onChange }: Props) {
           <div className="options-add">
             <TextField
               label={t('options.scope.siteLabel')}
-              hint={t('options.scope.siteHint')}
+              help={t('options.scope.siteHint')}
+              placeholder={t('options.scope.sitePlaceholder')}
               error={inputError ?? (input === '' ? listError : undefined)}
               value={input}
               inputMode="url"
@@ -103,9 +104,7 @@ export function ScopeEditor({ scope, basePath, issues, onChange }: Props) {
               onKeyDown={onKeyDown}
               onBlur={add}
             />
-            <Button icon="plus" onClick={add}>
-              {t('options.scope.siteAdd')}
-            </Button>
+            <IconButton icon="plus" label={t('options.scope.siteAdd')} onClick={add} />
           </div>
         </div>
       )}

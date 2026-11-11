@@ -82,7 +82,9 @@ a.q-button { text-decoration: none; }
 .options-choice input:focus-visible { outline: 3px solid var(--color-focus); outline-offset: 2px; }
 .options-chips { display: flex; flex-wrap: wrap; gap: var(--space-2); list-style: none; margin: 0 0 var(--space-3); padding: 0; }
 .options-add { display: flex; flex-wrap: wrap; gap: var(--space-3); align-items: flex-start; }
-.options-add .q-button { margin-top: 1.75rem; }
+/* The add button sits in a tooltip wrapper; the info button in the label row must keep its place. */
+.options-add > .q-button, .options-add > .q-tooltip-wrap { margin-top: calc(1.75rem + var(--space-1)); }
+.options-add .q-tooltip-wrap > .q-button--icon:not(.q-help) { min-height: 2.5rem; border-color: var(--color-border); }
 
 /* Fields: table, details and mappings. Targets use the same table and details. */
 .options-field { border: 1px solid var(--color-border); border-radius: var(--radius-md); background: var(--color-surface); padding: var(--space-3) var(--space-4); margin-bottom: var(--space-3); }

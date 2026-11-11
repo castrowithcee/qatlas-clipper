@@ -103,6 +103,15 @@ describe('settings', () => {
     expect(storage.data[SETTINGS_KEY]).toEqual({ language: 'de', appearance: 'dark', openAs: 'popup', highlight: true });
   });
 
+  it('keeps the explanation in the tooltip instead of a permanent subtitle', async () => {
+    mount();
+    await screen.findByLabelText('Language');
+    expect(screen.queryByText('Applies immediately and is not exported.')).toBeNull();
+    const help = screen.getByRole('button', { name: 'More information' });
+    expect(help.getAttribute('aria-describedby')).toBeTruthy();
+    expect(document.getElementById(help.getAttribute('aria-describedby')!)?.textContent).toMatch(/apply immediately/);
+  });
+
   it('reacts to a change made in another context', async () => {
     const { bus } = mount();
     await screen.findByTestId('probe');
