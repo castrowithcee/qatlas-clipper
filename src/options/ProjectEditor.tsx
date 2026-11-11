@@ -4,7 +4,7 @@ import { FieldEditor } from './FieldEditor';
 import { ScopeEditor } from './ScopeEditor';
 import { deleteField, deleteMapping, errorsAt, renameFieldKey, setProjectFolder, setProjectTags, type Issue } from './draft';
 import { useI18n } from '../settings';
-import { Button, Dialog, IconButton, Select, TextField, Tooltip } from '../ui/components';
+import { Button, Dialog, IconButton, Select, TextField } from '../ui/components';
 import { TagInput } from './TagInput';
 import { TargetEditor } from './TargetEditor';
 import type { PermissionStatus } from './permissions';
@@ -115,14 +115,8 @@ function ProjectHeader({ name, index, count, onMove, onDelete, onExport }: Heade
     <header className="options-view-head">
       <h2>{name}</h2>
       <div className="options-view-actions">
-        <Tooltip content={order}>
-          {(tip) => <IconButton icon="arrow-up" label={t('options.projects.moveUp', { name })} disabled={index === 0} onClick={() => onMove(-1)} {...tip} />}
-        </Tooltip>
-        <Tooltip content={order}>
-          {(tip) => (
-            <IconButton icon="arrow-down" label={t('options.projects.moveDown', { name })} disabled={index === count - 1} onClick={() => onMove(1)} {...tip} />
-          )}
-        </Tooltip>
+        <IconButton icon="arrow-up" label={t('options.projects.moveUp', { name })} tooltip={order} disabled={index === 0} onClick={() => onMove(-1)} />
+        <IconButton icon="arrow-down" label={t('options.projects.moveDown', { name })} tooltip={order} disabled={index === count - 1} onClick={() => onMove(1)} />
         <Button icon="file-export" onClick={onExport}>
           {t('options.share.export')}
         </Button>

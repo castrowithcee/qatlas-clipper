@@ -242,6 +242,43 @@ describe('Tooltip', () => {
   });
 });
 
+describe('IconButton tooltip', () => {
+  it('shows its name as tooltip on hover and focus without a second description', async () => {
+    const user = userEvent.setup();
+    render(<IconButton icon="info" label="More info" />);
+    const button = screen.getByRole('button', { name: 'More info' });
+    const tips = () => screen.queryAllByRole('tooltip');
+    expect(tips()).toHaveLength(0);
+    expect(button.getAttribute('aria-describedby')).toBeNull();
+    await user.hover(button);
+    expect(tips()).toHaveLength(1);
+    expect(tips()[0]!.textContent).toBe('More info');
+    await user.unhover(button);
+    expect(tips()).toHaveLength(0);
+    await user.tab();
+    expect(document.activeElement).toBe(button);
+    expect(tips().map((t) => t.textContent)).toEqual(['More info']);
+  });
+
+  it('replaces the name with its own content, described by it, and keeps the callers handlers', async () => {
+    const user = userEvent.setup();
+    const onFocus = vi.fn();
+    const onBlur = vi.fn();
+    render(<IconButton icon="info" label="More info" tooltip="Own text" aria-describedby="extra" onFocus={onFocus} onBlur={onBlur} />);
+    const tips = screen.getAllByRole('tooltip', { hidden: true });
+    expect(tips).toHaveLength(1);
+    expect(tips[0]!.textContent).toBe('Own text');
+    const button = screen.getByRole('button', { name: 'More info' });
+    expect(button.getAttribute('aria-describedby')).toBe(`extra ${tips[0]!.id}`);
+    await user.tab();
+    expect(tips[0]!.hidden).toBe(false);
+    expect(onFocus).toHaveBeenCalledTimes(1);
+    await user.tab();
+    expect(tips[0]!.hidden).toBe(true);
+    expect(onBlur).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe('Dialog', () => {
   function Harness() {
     const [open, setOpen] = useState(false);

@@ -2,7 +2,7 @@ import { useEffect, useId, useRef, useState } from 'react';
 import type { Settings } from './schema';
 import type { LanguageChoice } from '../i18n';
 import type { Appearance } from '../ui';
-import { IconButton, Select, TileGroup, Tooltip, type IconName } from '../ui/components';
+import { IconButton, Select, TileGroup, type IconName } from '../ui/components';
 import { ALL_SITES_ORIGINS, defaultPermissions, type PermissionsApi } from '../options/permissions';
 import { sidePanelSupported } from './openAs';
 import { useSettings } from './SettingsProvider';
@@ -68,9 +68,7 @@ export function SettingsSection({ permissions = defaultPermissions }: { permissi
     <section aria-labelledby={`${id}-title`} className="settings">
       <h2 id={`${id}-title`}>
         {i18n.t('settings.title')}{' '}
-        <Tooltip content={i18n.t('settings.help')}>
-          {(props) => <IconButton icon="info" label={i18n.t('ui.moreInfo')} className="q-help" {...props} />}
-        </Tooltip>
+        <IconButton icon="info" label={i18n.t('ui.moreInfo')} tooltip={i18n.t('settings.help')} className="q-help" />
       </h2>
       <p className="hint">{i18n.t('settings.hint')}</p>
       <Select

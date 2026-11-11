@@ -104,12 +104,8 @@ function FieldRow({ field, value, source, invalid, onChange, onPick, mapped, onU
             />
           )}
           <SourceMark {...source} />
-          <Tooltip content={t('popup.field.pickTip')}>
-            {(tip) => <IconButton icon="pick-element" label={t('popup.field.pick', { label: field.label })} onClick={onPick} {...tip} />}
-          </Tooltip>
-          <Tooltip content={t('popup.menu.tip')}>
-            {(tip) => <Menu label={t('popup.menu.button', { label: field.label })} entries={entries} buttonProps={tip} />}
-          </Tooltip>
+          <IconButton icon="pick-element" label={t('popup.field.pick', { label: field.label })} tooltip={t('popup.field.pickTip')} onClick={onPick} />
+          <Menu label={t('popup.menu.button', { label: field.label })} tooltip={t('popup.menu.tip')} entries={entries} />
         </div>
       )}
     </Field>

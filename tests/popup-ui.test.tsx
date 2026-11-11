@@ -153,7 +153,11 @@ describe.each(['de', 'en'] as const)('popup form (%s)', (lang) => {
     expect(within(screen.getByRole('banner')).queryByText('Article')).toBeNull();
     expect(screen.getByLabelText(lang === 'de' ? 'Projekt' : 'Project')).toBeTruthy();
     const gear = screen.getByRole('button', { name: lang === 'de' ? 'Einstellungen öffnen' : 'Open settings' });
-    expect(document.getElementById(gear.getAttribute('aria-describedby')!)!.getAttribute('role')).toBe('tooltip');
+    // The tooltip repeats the name, so it is not announced a second time as a description.
+    expect(gear.getAttribute('aria-describedby')).toBeNull();
+    await user.hover(gear);
+    expect(screen.getAllByRole('tooltip').map((t) => t.textContent)).toContain(gear.getAttribute('aria-label'));
+    await user.unhover(gear);
     await user.click(gear);
     expect(deps.openOptions).toHaveBeenCalled();
   });
@@ -345,7 +349,10 @@ describe.each(['de', 'en'] as const)('highlight switch in the header (%s)', (lan
     const { user, deps } = setup(lang, { settings });
     const button = await screen.findByRole('button', { name });
     expect(button.getAttribute('aria-pressed')).toBe('true');
-    expect(document.getElementById(button.getAttribute('aria-describedby')!)!.textContent).toBe(name);
+    expect(button.getAttribute('aria-describedby')).toBeNull();
+    await user.hover(button);
+    expect(screen.getAllByRole('tooltip').map((t) => t.textContent)).toContain(name);
+    await user.unhover(button);
     await user.click(button);
     expect(screen.getByRole('button', { name }).getAttribute('aria-pressed')).toBe('false');
     expect((settings.data[SETTINGS_KEY] as { highlight: boolean }).highlight).toBe(false);

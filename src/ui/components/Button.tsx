@@ -1,5 +1,6 @@
 import type { ButtonHTMLAttributes, Ref } from 'react';
 import { Icon, type IconName } from './Icon';
+import { Tooltip } from './Tooltip';
 import './components.css';
 
 type Variant = 'primary' | 'secondary' | 'danger';
@@ -20,15 +21,37 @@ export function Button({ variant = 'secondary', icon, className, type = 'button'
 
 interface IconButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'children' | 'aria-label'> {
   icon: IconName;
-  /** Required: the accessible name of a button without visible text. */
+  /** Required: the accessible name of a button without visible text; also the default tooltip. */
   label: string;
+  /** Replaces the label as tooltip content; read as description, since it adds to the name. */
+  tooltip?: string;
   ref?: Ref<HTMLButtonElement>;
 }
 
-export function IconButton({ icon, label, className, type = 'button', ...rest }: IconButtonProps) {
+export function IconButton({ icon, label, tooltip, className, type = 'button', onFocus, onBlur, 'aria-describedby': describedBy, ...rest }: IconButtonProps) {
+  const content = tooltip ?? label;
   return (
-    <button type={type} aria-label={label} className={['q-button', 'q-button--icon', className].filter(Boolean).join(' ')} {...rest}>
-      <Icon name={icon} />
-    </button>
+    <Tooltip content={content} keepMounted={content !== label}>
+      {(tip) => (
+        <button
+          type={type}
+          aria-label={label}
+          className={['q-button', 'q-button--icon', className].filter(Boolean).join(' ')}
+          {...rest}
+          // A tooltip equal to the name must not be announced a second time.
+          aria-describedby={[describedBy, content !== label ? tip['aria-describedby'] : undefined].filter(Boolean).join(' ') || undefined}
+          onFocus={(e) => {
+            tip.onFocus();
+            onFocus?.(e);
+          }}
+          onBlur={(e) => {
+            tip.onBlur();
+            onBlur?.(e);
+          }}
+        >
+          <Icon name={icon} />
+        </button>
+      )}
+    </Tooltip>
   );
 }

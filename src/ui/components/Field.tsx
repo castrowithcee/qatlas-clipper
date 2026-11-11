@@ -2,7 +2,6 @@ import { useId, type ReactNode } from 'react';
 import { useI18n } from '../../settings/SettingsProvider';
 import { Icon } from './Icon';
 import { IconButton } from './Button';
-import { Tooltip } from './Tooltip';
 import './components.css';
 
 export interface FieldProps {
@@ -40,9 +39,7 @@ export function Field({ label, hint, error, help, labelPosition = 'top', disable
     </label>
   );
   const helpEl = help && (
-    <Tooltip content={help}>
-      {(props) => <IconButton icon="info" label={i18n.t('ui.moreInfo')} className="q-help" {...props} />}
-    </Tooltip>
+    <IconButton icon="info" label={i18n.t('ui.moreInfo')} tooltip={help} className="q-help" />
   );
   const control = children({ id, 'aria-invalid': error ? true : undefined, 'aria-describedby': describedBy });
   return (

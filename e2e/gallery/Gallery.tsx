@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react';
 import { useI18n } from '../../src/settings';
 import {
-  Button, Checkbox, Chip, DataTable, DetailPanel, Dialog, Disclosure, EmptyState, ErrorState, ICON_NAMES, Icon, IconButton, LoadingState, NotificationsProvider, RowActions, RowError, Select, Switch, TextField, Toast, Tooltip, TileGroup, useNotifications,
+  Button, Checkbox, Chip, DataTable, DetailPanel, Dialog, Disclosure, EmptyState, ErrorState, ICON_NAMES, Icon, IconButton, LoadingState, NotificationsProvider, RowActions, RowError, Select, Switch, TextField, Toast, TileGroup, useNotifications,
 } from '../../src/ui/components';
 import '../../src/ui/components/components.css';
 
@@ -135,9 +135,8 @@ export function Gallery() {
       </Section>
       <Section id="tooltip" title="Tooltip">
         <div style={{ paddingBottom: '4rem' }}>
-          <Tooltip content="Longer explanation that appears on focus or hover and closes with Escape.">
-            {(p) => <IconButton icon="info" label={i18n.t('ui.moreInfo')} {...p} data-testid="tooltip-trigger" />}
-          </Tooltip>
+          <IconButton icon="info" label={i18n.t('ui.moreInfo')} tooltip="Longer explanation that appears on focus or hover and closes with Escape." data-testid="tooltip-trigger" />
+          <IconButton icon="settings" label="Open settings" data-testid="tooltip-default" />
         </div>
       </Section>
       <Section id="toasts" title="Toast">

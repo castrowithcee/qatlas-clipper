@@ -16,7 +16,9 @@ interface Props {
   label: string;
   icon?: IconName;
   entries: MenuEntry[];
-  /** Extra props for the menu button, e.g. tooltip trigger props. */
+  /** Tooltip of the menu button; the label is the default. */
+  tooltip?: string;
+  /** Extra props for the menu button. */
   buttonProps?: ButtonHTMLAttributes<HTMLButtonElement>;
 }
 
@@ -26,7 +28,7 @@ const ITEM = '[role="menuitem"],[role="menuitemcheckbox"],[role="menuitemradio"]
  * Menu button following the WAI-ARIA menu button pattern. Selecting an entry closes the menu and returns focus to the
  * button; Escape and a click outside close it. The menu is fixed and clamped into the window.
  */
-export function Menu({ label, icon = 'ellipsis-vertical', entries, buttonProps }: Props) {
+export function Menu({ label, icon = 'ellipsis-vertical', tooltip, entries, buttonProps }: Props) {
   const id = useId();
   const [open, setOpen] = useState(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -162,6 +164,7 @@ export function Menu({ label, icon = 'ellipsis-vertical', entries, buttonProps }
         ref={buttonRef}
         icon={icon}
         label={label}
+        tooltip={tooltip}
         aria-haspopup="menu"
         aria-expanded={open}
         aria-controls={open ? id : undefined}

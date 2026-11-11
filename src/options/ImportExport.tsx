@@ -1,7 +1,7 @@
 import { useId, useRef, useState } from 'react';
 import { exportConfig, checkImportUrl, fetchImportText, MAX_IMPORT_CHARS, parseImportText, saveConfig, type Config, type StorageArea } from '../config';
 import { useI18n } from '../settings';
-import { Button, Dialog, Field, IconButton, TextField, Tooltip, useNotifications } from '../ui/components';
+import { Button, Dialog, Field, IconButton, TextField, useNotifications } from '../ui/components';
 import type { PermissionsApi } from './permissions';
 import { ShareImportSection } from './ShareImportDialog';
 import { ShareManager } from './ShareManager';
@@ -119,9 +119,7 @@ export function ImportExport({ storage, permissions, dirty, onImported, onImport
     <section aria-labelledby={`${id}-title`} className="options-io">
       <h2 id={`${id}-title`}>
         {t('options.nav.importExport')}{' '}
-        <Tooltip content={t('options.io.help')}>
-          {(props) => <IconButton icon="info" label={t('ui.moreInfo')} className="q-help" {...props} />}
-        </Tooltip>
+        <IconButton icon="info" label={t('ui.moreInfo')} tooltip={t('options.io.help')} className="q-help" />
       </h2>
       <section aria-labelledby={`${id}-export`} className="options-section">
         <h3 id={`${id}-export`}>{t('options.io.export.title')}</h3>

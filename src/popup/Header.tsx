@@ -1,4 +1,4 @@
-import { IconButton, Select, Tooltip } from '../ui/components';
+import { IconButton, Select } from '../ui/components';
 import { useI18n } from '../settings';
 
 interface Props {
@@ -39,32 +39,11 @@ export function Header({ projects, folders = [], tags = [], matchingIds, value, 
   return (
     <header className="popup-header">
       <div className="popup-header-top">
-        <Tooltip content={t('popup.header.highlight')}>
-          {(tip) => (
-            <IconButton
-              icon={highlight ? 'eye' : 'eye-off'}
-              label={t('popup.header.highlight')}
-              aria-pressed={highlight}
-              onClick={onToggleHighlight}
-              {...tip}
-            />
-          )}
-        </Tooltip>
+        <IconButton icon={highlight ? 'eye' : 'eye-off'} label={t('popup.header.highlight')} aria-pressed={highlight} onClick={onToggleHighlight} />
         {switchTo && (
-          <Tooltip content={t(switchTo === 'sidepanel' ? 'popup.header.toSidepanel' : 'popup.header.toPopup')}>
-            {(tip) => (
-              <IconButton
-                icon={switchTo}
-                label={t(switchTo === 'sidepanel' ? 'popup.header.toSidepanel' : 'popup.header.toPopup')}
-                onClick={onSwitchView}
-                {...tip}
-              />
-            )}
-          </Tooltip>
+          <IconButton icon={switchTo} label={t(switchTo === 'sidepanel' ? 'popup.header.toSidepanel' : 'popup.header.toPopup')} onClick={onSwitchView} />
         )}
-        <Tooltip content={t('popup.header.options')}>
-          {(tip) => <IconButton icon="settings" label={t('popup.header.options')} onClick={onOpenOptions} {...tip} />}
-        </Tooltip>
+        <IconButton icon="settings" label={t('popup.header.options')} onClick={onOpenOptions} />
       </div>
       <Select
         label={t('popup.project.label')}

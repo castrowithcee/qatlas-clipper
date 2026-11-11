@@ -225,27 +225,23 @@ export function FieldEditor({ fields, siteMappings, basePath, issues, onChange, 
                 {...dropProps(i)}
               >
                 <td>
-                  <Tooltip content={t('options.fields.grip.help')}>
-                    {(tip) => (
-                      <IconButton
-                        id={`${id}-grip-${row}`}
-                        icon="grip-vertical"
-                        label={t('options.fields.grip', { name })}
-                        className="options-grip"
-                        draggable
-                        onDragStart={(e) => {
-                          e.dataTransfer.effectAllowed = 'move';
-                          e.dataTransfer.setData('text/plain', name);
-                          const tr = e.currentTarget.closest('tr');
-                          if (tr) e.dataTransfer.setDragImage(tr, 0, 0);
-                          setDrag({ from: i, over: i });
-                        }}
-                        onDragEnd={() => setDrag(undefined)}
-                        onKeyDown={(e) => onGripKey(e, i, row)}
-                        {...tip}
-                      />
-                    )}
-                  </Tooltip>
+                  <IconButton
+                    id={`${id}-grip-${row}`}
+                    icon="grip-vertical"
+                    label={t('options.fields.grip', { name })}
+                    tooltip={t('options.fields.grip.help')}
+                    className="options-grip"
+                    draggable
+                    onDragStart={(e) => {
+                      e.dataTransfer.effectAllowed = 'move';
+                      e.dataTransfer.setData('text/plain', name);
+                      const tr = e.currentTarget.closest('tr');
+                      if (tr) e.dataTransfer.setDragImage(tr, 0, 0);
+                      setDrag({ from: i, over: i });
+                    }}
+                    onDragEnd={() => setDrag(undefined)}
+                    onKeyDown={(e) => onGripKey(e, i, row)}
+                  />
                 </td>
                 <td className="options-field-name">
                   {name}
@@ -443,9 +439,7 @@ function FieldDetails({ field, errors, sites, onChange, onRenameKey, onDeleteMap
               return (
                 <li key={site}>
                   <span className="options-mapping-label">{site}</span>
-                  <Tooltip content={selector}>
-                    {(tip) => <IconButton icon="info" label={t('options.mappings.show', { site })} className="q-help" {...tip} />}
-                  </Tooltip>
+                  <IconButton icon="info" label={t('options.mappings.show', { site })} tooltip={selector} className="q-help" />
                   <Button variant="danger" aria-label={t('options.mappings.delete', { site })} data-error-focus={error ? true : undefined} onClick={() => onDeleteMapping(site)}>
                     {t('options.mappings.remove')}
                   </Button>
