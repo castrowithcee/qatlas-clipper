@@ -76,6 +76,27 @@ for (const lang of ['de', 'en'] as const) {
       if ((await archive.locator('button.options-folder-toggle').getAttribute('aria-expanded')) === 'true') await archive.locator('button.options-folder-toggle').click();
       await expect(archive.locator('button.options-folder-toggle')).toHaveAttribute('aria-expanded', 'false');
       await shot(page.getByRole('complementary'), 'sidebar-folders', tag);
+      // While dragging a project onto the collapsed folder: drop frame and the "No folder" end zone; the drop returns to its own place.
+      const sidebar = page.getByRole('complementary');
+      const grip = sidebar.getByRole('button', { name: t('Projekt Products verschieben', 'Move project Products') });
+      const own = await grip.boundingBox();
+      if (!own) throw new Error('rows not laid out');
+      await page.mouse.move(own.x + own.width / 2, own.y + own.height / 2);
+      await page.mouse.down();
+      // A first small move starts the drag; the target is reached in steps so that dragover fires on it.
+      await page.mouse.move(own.x + own.width / 2 + 6, own.y + own.height / 2 + 6);
+      // The end zone appears with the drag and moves the folders down, so the folder row is measured now.
+      await expect(sidebar.locator('.options-drop-end')).toBeVisible();
+      const head = await archive.locator('.options-folder-head').boundingBox();
+      if (!head) throw new Error('folder row not laid out');
+      await page.mouse.move(head.x + head.width / 2, head.y + head.height / 2, { steps: 12 });
+      await page.mouse.move(head.x + head.width / 2 + 2, head.y + head.height / 2 + 1);
+      await expect(archive.locator('.options-folder-head.is-drop-into')).toBeVisible();
+      await shot(sidebar, 'sidebar-dragging', tag);
+      await page.mouse.move(own.x + own.width / 2, own.y + own.height / 2, { steps: 8 });
+      await page.mouse.up();
+      await expect(sidebar.locator('.options-drop-end')).toHaveCount(0);
+      await expect(archive.locator('button.options-folder-toggle')).toHaveAttribute('aria-expanded', 'false');
       // Tag field of the project: assigned tags as chips and the input with suggestions.
       await expect(page.getByRole('list', { name: t('Zugewiesene Tags', 'Assigned tags') }).getByText('Reading')).toBeVisible();
       await page.getByRole('combobox', { name: 'Tags' }).focus();
