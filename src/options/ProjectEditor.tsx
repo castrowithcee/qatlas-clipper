@@ -15,6 +15,7 @@ interface Props {
   folders?: Folder[];
   onMove: (delta: -1 | 1) => void;
   onDelete: () => void;
+  onExport: () => void;
   issues: Issue[];
   onChange: (project: Project) => void;
   headerValues: HeaderValues;
@@ -25,13 +26,13 @@ interface Props {
   onFieldRenamed?: (projectId: string, from: string, to: string) => void;
 }
 
-export function ProjectEditor({ project, index, count, folders = [], onMove, onDelete, issues, onChange, headerValues, onHeaderValues, permissionStatus, onRequestPermission, onFieldRenamed }: Props) {
+export function ProjectEditor({ project, index, count, folders = [], onMove, onDelete, onExport, issues, onChange, headerValues, onHeaderValues, permissionStatus, onRequestPermission, onFieldRenamed }: Props) {
   const { t } = useI18n();
   const base = `projects[${index}]`;
   const nameError = project.name.trim() === '' ? t('options.project.nameMissing') : errorsAt(issues, `${base}.name`)[0];
   return (
     <div className="options-project-view">
-      <ProjectHeader name={project.name || t('options.projects.unnamed')} index={index} count={count} onMove={onMove} onDelete={onDelete} />
+      <ProjectHeader name={project.name || t('options.projects.unnamed')} index={index} count={count} onMove={onMove} onDelete={onDelete} onExport={onExport} />
       <TextField label={t('options.project.name')} value={project.name} error={nameError} onChange={(e) => onChange({ ...project, name: e.target.value })} />
       <Select
         label={t('options.project.folder.label')}
@@ -90,9 +91,10 @@ interface HeaderProps {
   count: number;
   onMove: (delta: -1 | 1) => void;
   onDelete: () => void;
+  onExport: () => void;
 }
 
-function ProjectHeader({ name, index, count, onMove, onDelete }: HeaderProps) {
+function ProjectHeader({ name, index, count, onMove, onDelete, onExport }: HeaderProps) {
   const { t } = useI18n();
   const [confirming, setConfirming] = useState(false);
   const order = t('options.projects.order');
@@ -108,6 +110,9 @@ function ProjectHeader({ name, index, count, onMove, onDelete }: HeaderProps) {
             <IconButton icon="arrow-down" label={t('options.projects.moveDown', { name })} disabled={index === count - 1} onClick={() => onMove(1)} {...tip} />
           )}
         </Tooltip>
+        <Button icon="arrow-down" onClick={onExport}>
+          {t('options.share.export')}
+        </Button>
         <Button variant="danger" icon="trash" onClick={() => setConfirming(true)}>
           {t('options.projects.deleteConfirm')}
         </Button>

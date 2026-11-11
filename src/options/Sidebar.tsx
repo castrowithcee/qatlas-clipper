@@ -19,6 +19,7 @@ interface Props {
   onRenameFolder: (id: string, name: string) => void;
   onMoveFolder: (index: number, delta: -1 | 1) => void;
   onDeleteFolder: (id: string) => void;
+  onExportFolder: (id: string) => void;
 }
 
 type FolderDialog = { kind: 'add' } | { kind: 'rename'; id: string } | { kind: 'delete'; id: string };
@@ -33,7 +34,7 @@ export function Brand() {
   );
 }
 
-export function Sidebar({ projects, folders = [], config, current, dirty, onAdd, onAddFolder, onRenameFolder, onMoveFolder, onDeleteFolder }: Props) {
+export function Sidebar({ projects, folders = [], config, current, dirty, onAdd, onAddFolder, onRenameFolder, onMoveFolder, onDeleteFolder, onExportFolder }: Props) {
   const { t } = useI18n();
   const [dialog, setDialog] = useState<FolderDialog>();
   // Expansion is view state only; it is never part of the configuration.
@@ -83,6 +84,7 @@ export function Sidebar({ projects, folders = [], config, current, dirty, onAdd,
                 { kind: 'action', label: t('options.folders.rename'), onSelect: () => setDialog({ kind: 'rename', id: f.id }) },
                 ...(index > 0 ? [{ kind: 'action' as const, label: t('options.folders.moveUp'), onSelect: () => onMoveFolder(index, -1) }] : []),
                 ...(index < folders.length - 1 ? [{ kind: 'action' as const, label: t('options.folders.moveDown'), onSelect: () => onMoveFolder(index, 1) }] : []),
+                { kind: 'action', label: t('options.share.export'), onSelect: () => onExportFolder(f.id) },
                 { kind: 'action', label: t('options.folders.delete'), onSelect: () => setDialog({ kind: 'delete', id: f.id }) },
               ];
               return (

@@ -21,6 +21,7 @@ import { defaultPermissions, originPattern, originPatterns, type PermissionStatu
 import { HelpSection } from './HelpSection';
 import { ImportExport } from './ImportExport';
 import { ProjectEditor } from './ProjectEditor';
+import { ShareExportDialog, type ShareRequest } from './ShareExportDialog';
 import { Brand, Sidebar, type NavTarget } from './Sidebar';
 import { defaultFocusChannel, takeOptionsFocus, type FocusChannel } from './focus';
 import { navigate, parseHash, projectHash, useHash } from './route';
@@ -157,6 +158,7 @@ function Editor({ initial, initialValues, storage, permissions, subscribe, onRel
   const [storedValues, setStoredValues] = useState(initialValues);
   const [perm, setPerm] = useState<Record<string, PermissionStatus>>({});
   const [conflict, setConflictState] = useState<PendingConflict>();
+  const [shareRequest, setShareRequest] = useState<ShareRequest>();
   // Mirror of the state for async handlers (storage events, save), which must not see stale closures.
   const live = useRef<Live>({ saved: initial, storedValues: initialValues, draft: initial, values: initialValues });
   const conflictRef = useRef<PendingConflict | undefined>(undefined);
@@ -420,6 +422,7 @@ function Editor({ initial, initialValues, storage, permissions, subscribe, onRel
         onRenameFolder={(id, name) => editConfig((c) => renameFolder(c, id, name))}
         onMoveFolder={(index, delta) => editConfig((c) => moveFolder(c, index, index + delta))}
         onDeleteFolder={(id) => editConfig((c) => deleteFolder(c, id))}
+        onExportFolder={(id) => setShareRequest({ projectIds: [], folderIds: [id] })}
       />
     )}>
       {projectView && (
@@ -470,6 +473,7 @@ function Editor({ initial, initialValues, storage, permissions, subscribe, onRel
               folders={draft.folders ?? []}
               onMove={(d) => edit(moveItem(draft.projects, selectedIndex, d))}
               onDelete={deleteSelected}
+              onExport={() => setShareRequest({ projectIds: [selected.id], folderIds: [] })}
               issues={issues}
               headerValues={values}
               onHeaderValues={(v) => { commit({ values: v }); setStatus(undefined); }}
@@ -484,6 +488,7 @@ function Editor({ initial, initialValues, storage, permissions, subscribe, onRel
       {route.view === 'settings' && <SettingsSection />}
       {route.view === 'help' && <HelpSection />}
       {route.view === 'import-export' && <ImportExport storage={storage} permissions={permissions} dirty={dirty} onImported={onReload} onImporting={(active) => { importing.current = active; }} />}
+      <ShareExportDialog request={shareRequest} storage={storage} dirty={dirty} onClose={() => setShareRequest(undefined)} />
       <ConflictDialog conflict={conflict} onResolve={resolve} />
     </Shell>
   );

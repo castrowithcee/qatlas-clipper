@@ -141,3 +141,8 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 @media (max-width: 48rem) {
   .options-help-keys > div { grid-template-columns: minmax(0, 1fr); gap: var(--space-1); }
 }
+
+.options-share-tools { display: flex; gap: var(--space-2); margin-bottom: var(--space-3); }
+.options-share-tree { list-style: none; margin: 0 0 var(--space-3); padding: 0; display: flex; flex-direction: column; gap: var(--space-2); }
+.options-share-children { margin: var(--space-2) 0 0 var(--space-5); }
+.options-share { display: flex; flex-direction: column; gap: var(--space-3); }
