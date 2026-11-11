@@ -1,4 +1,4 @@
-import { useId, useLayoutEffect, useRef, useState, type InputHTMLAttributes, type KeyboardEvent } from 'react';
+import { Children, useId, useLayoutEffect, useRef, useState, type InputHTMLAttributes, type KeyboardEvent, type ReactNode } from 'react';
 import { Field, type FieldProps } from './Field';
 import { Icon, type IconName } from './Icon';
 import './components.css';
@@ -50,6 +50,10 @@ interface Props extends NativeInput, FieldProps {
   onEnter?: () => void;
   /** The list closed without a selection (Escape or leaving the field). */
   onCancel?: () => void;
+  /** Token field: these `Chip`s stand inside the field before the input (a token field, even when empty). */
+  tokens?: ReactNode;
+  /** Accessible name of the token list. */
+  tokensLabel?: string;
 }
 
 const EDGE = 8;
@@ -61,13 +65,15 @@ const EDGE = 8;
  */
 export function Combobox({
   label, hint, error, help, groups, text, onTextChange, onSelect, listLabel, emptyText, noResultsText, selectedValue,
-  closedText, icon = 'search', openIcon = 'search', autoActivate = false, keepOpen = false, onEnter, onCancel, className, ...rest
+  closedText, icon = 'search', openIcon = 'search', autoActivate = false, keepOpen = false, onEnter, onCancel, tokens, tokensLabel, className, ...rest
 }: Props) {
   const listId = useId();
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(-1);
   const panelRef = useRef<HTMLDivElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const tokenField = tokens !== undefined;
   const flat = groups.flatMap((g) => g.options);
   const typed = text.trim() !== '';
   const message = flat.length > 0 ? undefined : typed ? noResultsText : emptyText;
@@ -143,10 +149,23 @@ export function Combobox({
   return (
     <Field label={label} hint={hint} error={error} help={help} disabled={rest.disabled}>
       {(control) => (
-        <div className="q-combobox" ref={wrapRef}>
+        <div
+          className={['q-combobox', tokenField && 'q-combobox--tokens'].filter(Boolean).join(' ')}
+          ref={wrapRef}
+          onMouseDown={tokenField ? (e) => {
+            // A click on the field's padding or icon belongs to the input.
+            if (e.target !== e.currentTarget) return;
+            e.preventDefault();
+            inputRef.current?.focus();
+          } : undefined}
+        >
           <Icon name={open ? openIcon : icon} className="q-combobox-icon" />
+          {tokenField && Children.count(tokens) > 0 && (
+            <ul className="q-combobox-tokens" role="list" aria-label={tokensLabel}>{tokens}</ul>
+          )}
           <input
             {...rest}
+            ref={inputRef}
             {...control}
             type="text"
             role="combobox"

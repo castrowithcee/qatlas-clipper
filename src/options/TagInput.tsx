@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useState, type KeyboardEvent } from 'react';
 import type { Tag } from '../config';
 import { useI18n } from '../settings';
-import { Button, Chip, Combobox } from '../ui/components';
+import { Chip, Combobox } from '../ui/components';
 import { nameErrorIn } from './draft';
 import { nameKey } from './TagsSection';
 
@@ -17,11 +17,13 @@ interface Props {
   onCreate: (name: string) => void;
 }
 
-/** Assigned tags as chips plus a combobox: typing filters the unassigned tags, Enter takes the highlighted one or the typed name. */
+/** Token field: assigned tags as chips in the field before a combobox input: typing filters the unassigned tags, Enter takes the highlighted one or the typed name. */
 export function TagInput({ tags, assignedIds, error, onAssign, onRemove, onCreate }: Props) {
   const { t } = useI18n();
   const [text, setText] = useState('');
   const [problem, setProblem] = useState<string>();
+  // The chip the next Backspace removes.
+  const [marked, setMarked] = useState<string>();
   const assigned = tags.filter((x) => assignedIds.includes(x.id));
   const needle = text.trim().toLowerCase();
   const suggestions = tags.filter((x) => !assignedIds.includes(x.id) && x.name.toLowerCase().includes(needle));
@@ -29,6 +31,7 @@ export function TagInput({ tags, assignedIds, error, onAssign, onRemove, onCreat
   const reset = () => {
     setText('');
     setProblem(undefined);
+    setMarked(undefined);
   };
   const assign = (tag: Tag) => {
     onAssign(tag.id);
@@ -48,39 +51,49 @@ export function TagInput({ tags, assignedIds, error, onAssign, onRemove, onCreat
     reset();
   };
 
+  const onKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.key !== 'Backspace' || text !== '' || assigned.length === 0) return;
+    e.preventDefault();
+    const last = assigned[assigned.length - 1]!;
+    // The first Backspace only marks the last chip, the second one removes it.
+    if (marked === last.id) {
+      setMarked(undefined);
+      onRemove(last.id);
+    } else {
+      setMarked(last.id);
+    }
+  };
+
   return (
     <div className="options-tag-input">
-      <div className="options-tag-add">
-        <div className="options-tag-combo">
-          <Combobox
-            label={t('options.project.tags.label')}
-            help={t('options.project.tags.help')}
-            hint={t('options.project.tags.hint')}
-            error={problem ?? error}
-            text={text}
-            onTextChange={(v) => {
-              setText(v);
-              setProblem(undefined);
-            }}
-            groups={[{ id: 'tags', options: suggestions.map((x) => ({ value: x.id, label: x.name })) }]}
-            listLabel={t('options.project.tags.suggestions')}
-            onSelect={(id) => {
-              const tag = tags.find((x) => x.id === id);
-              if (tag) assign(tag);
-            }}
-            keepOpen
-            onEnter={commit}
-          />
-        </div>
-        <Button icon="plus" onClick={commit}>{t('options.project.tags.add')}</Button>
-      </div>
-      {assigned.length > 0 && (
-        <ul className="options-chips" aria-label={t('options.project.tags.list')}>
-          {assigned.map((x) => (
-            <Chip key={x.id} label={x.name} removeLabel={t('options.project.tags.remove', { name: x.name })} onRemove={() => onRemove(x.id)} />
-          ))}
-        </ul>
-      )}
+      <Combobox
+        label={t('options.project.tags.label')}
+        help={t('options.project.tags.help')}
+        placeholder={t('options.project.tags.placeholder')}
+        icon="tag"
+        openIcon="tag"
+        error={problem ?? error}
+        text={text}
+        onTextChange={(v) => {
+          setText(v);
+          setProblem(undefined);
+          setMarked(undefined);
+        }}
+        tokens={assigned.map((x) => (
+          <Chip key={x.id} label={x.name} marked={marked === x.id} removeLabel={t('options.project.tags.remove', { name: x.name })} onRemove={() => onRemove(x.id)} />
+        ))}
+        tokensLabel={t('options.project.tags.list')}
+        groups={[{ id: 'tags', options: suggestions.map((x) => ({ value: x.id, label: x.name })) }]}
+        listLabel={t('options.project.tags.suggestions')}
+        onSelect={(id) => {
+          const tag = tags.find((x) => x.id === id);
+          if (tag) assign(tag);
+        }}
+        keepOpen
+        onEnter={commit}
+        onKeyDown={onKeyDown}
+        onBlur={() => setMarked(undefined)}
+      />
     </div>
   );
 }

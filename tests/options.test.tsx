@@ -1079,7 +1079,7 @@ describe('options page language', () => {
     await user.selectOptions(screen.getByLabelText('Language'), 'de');
     await screen.findByRole('navigation', { name: de['options.nav.label'] });
     await user.click(screen.getByRole('link', { name: 'A' }));
-    for (const key of ['options.scope.title', 'options.projects.title', 'options.save', 'options.scope.kind.label', 'options.fields.table.source', 'options.fields.table.sites'] as const) {
+    for (const key of ['options.scope.title', 'options.projects.title', 'options.scope.kind.label', 'options.fields.table.source', 'options.fields.table.sites'] as const) {
       expect(screen.getAllByText(de[key]).length, key).toBeGreaterThan(0);
     }
     expect(within(screen.getByRole('main')).getByRole('button', { name: de['options.project.menu'].replace('{name}', 'A') })).toBeTruthy();
@@ -1594,5 +1594,75 @@ describe('saving without overwriting', { timeout: 20000 }, () => {
     await user.click(await screen.findByRole('button', { name: 'Replace' }, WAIT));
     expect(await screen.findByRole('link', { name: 'Imported' }, WAIT)).toBeTruthy();
     expect(screen.queryByRole('dialog', { name: CONFLICT })).toBeNull();
+  });
+});
+
+describe('save bar', () => {
+  const saveButton = () => screen.queryByRole('button', { name: 'Save changes' });
+  const discardButton = () => screen.queryByRole('button', { name: 'Discard changes' });
+  const rename = async (user: ReturnType<typeof userEvent.setup>, name: string) => {
+    const input = screen.getByLabelText('Project name');
+    await user.clear(input);
+    await user.type(input, name);
+  };
+
+  it('is absent without changes in the project, tags, settings, import and export and empty views', async () => {
+    for (const hash of ['', '#/tags', '#/settings', IMPORT_EXPORT, '#/help']) {
+      const user = await mount(fakeStorage(stored(project('p1', 'A'))), fakePermissions(), hash);
+      expect(user).toBeTruthy();
+      expect(saveButton(), hash).toBeNull();
+      expect(discardButton(), hash).toBeNull();
+      expect(screen.queryByText('Unsaved changes.'), hash).toBeNull();
+      cleanup();
+    }
+    await mount(fakeStorage());
+    expect(screen.getByText('No project yet')).toBeTruthy();
+    expect(saveButton()).toBeNull();
+  });
+
+  it('appears with its state after a change, in every view, and goes away after discarding', async () => {
+    const user = await mount(fakeStorage(stored(project('p1', 'A'))));
+    await rename(user, 'Mine');
+    expect(saveButton()).toBeTruthy();
+    expect(screen.getByText('Unsaved changes.').getAttribute('role')).toBe('status');
+    for (const name of ['Tags', 'Settings', 'Import and export']) {
+      await user.click(within(screen.getByRole('navigation', { name: 'Options' })).getByRole('link', { name }));
+      expect(saveButton(), name).toBeTruthy();
+      expect(discardButton(), name).toBeTruthy();
+    }
+    await user.click(discardButton()!);
+    expect(saveButton()).toBeNull();
+    expect(screen.queryByText('Unsaved changes.')).toBeNull();
+  });
+
+  it('goes away after saving', async () => {
+    const storage = fakeStorage(stored(project('p1', 'A')));
+    const user = await mount(storage);
+    await rename(user, 'Mine');
+    await user.click(saveButton()!);
+    await screen.findByText('Saved.');
+    expect(saveButton()).toBeNull();
+    expect(discardButton()).toBeNull();
+    expect((await loadConfig(storage)).projects[0]?.name).toBe('Mine');
+  });
+
+  it('stays with a disabled, busy save button while saving', async () => {
+    const storage = fakeStorage(stored(project('p1', 'A')));
+    let release = () => {};
+    const gate = new Promise<void>((r) => { release = r; });
+    const user = await mount(storage);
+    await rename(user, 'Mine');
+    const set = storage.set.bind(storage);
+    storage.set = async (items) => {
+      await gate;
+      return set(items);
+    };
+    await user.click(saveButton()!);
+    await waitFor(() => expect(saveButton()?.getAttribute('aria-busy')).toBe('true'));
+    expect(saveButton()).toHaveProperty('disabled', true);
+    expect(discardButton()).toHaveProperty('disabled', true);
+    release();
+    await screen.findByText('Saved.');
+    expect(saveButton()).toBeNull();
   });
 });

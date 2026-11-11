@@ -1,8 +1,8 @@
-import { useState, type FormEvent } from 'react';
-import type { Config } from '../config';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
+import type { Config, Tag } from '../config';
 import type { MessageKey } from '../i18n';
 import { useI18n } from '../settings';
-import { Button, Dialog, EmptyState, TextField } from '../ui/components';
+import { Button, Dialog, EmptyState, Icon, IconButton, Menu, TextField, type MenuEntry } from '../ui/components';
 import { addTag, deleteTag, errorsAt, renameTag, tagNameError, tagUsage, type Issue } from './draft';
 
 interface Props {
@@ -12,18 +12,17 @@ interface Props {
   onEdit: (change: (config: Config) => Config) => void;
 }
 
-type Dialogs = { kind: 'rename'; id: string } | { kind: 'delete'; id: string };
-
 export function TagsSection({ config, issues, onEdit }: Props) {
   const { t, tn } = useI18n();
   const tags = config.tags ?? [];
   const [name, setName] = useState('');
   // A missing name is reported only after an attempt.
   const [tried, setTried] = useState(false);
-  const [dialog, setDialog] = useState<Dialogs>();
+  const [renaming, setRenaming] = useState<string>();
+  const [deleting, setDeleting] = useState<string>();
   const problem = tagNameError(config, name);
   const error = problem && (tried || problem !== 'missing') ? t(nameKey(problem)) : undefined;
-  const target = dialog ? tags.find((x) => x.id === dialog.id) : undefined;
+  const target = deleting ? tags.find((x) => x.id === deleting) : undefined;
 
   const create = (e?: FormEvent) => {
     e?.preventDefault();
@@ -33,16 +32,23 @@ export function TagsSection({ config, issues, onEdit }: Props) {
     setTried(false);
   };
 
+  const menu = (tag: Tag): MenuEntry[] => [
+    { kind: 'action', icon: 'pencil', label: t('options.tags.rename'), onSelect: () => setRenaming(tag.id) },
+    { kind: 'separator' },
+    { kind: 'action', icon: 'trash', danger: true, label: t('options.tags.delete'), onSelect: () => setDeleting(tag.id) },
+  ];
+
   return (
     <div className="options-tags-view">
       <header className="options-view-head">
-        <h2>{t('options.tags.title')}</h2>
+        <span className="options-title-row">
+          <h2>{t('options.tags.title')}</h2>
+          <IconButton icon="info" label={t('ui.moreInfo')} tooltip={t('options.tags.intro')} className="q-help" />
+        </span>
       </header>
-      <p className="q-hint">{t('options.tags.intro')}</p>
       <form className="options-add options-tags-add" onSubmit={create} noValidate>
         <TextField
           label={t('options.tags.name')}
-          hint={t('options.tags.nameHint')}
           value={name}
           error={error}
           autoComplete="off"
@@ -51,7 +57,7 @@ export function TagsSection({ config, issues, onEdit }: Props) {
             setTried(false);
           }}
         />
-        <Button type="submit" icon="plus">{t('options.tags.add')}</Button>
+        <IconButton type="submit" icon="plus" label={t('options.tags.add')} />
       </form>
       {tags.length === 0 ? (
         <EmptyState title={t('options.tags.empty.title')} description={t('options.tags.empty.text')} />
@@ -61,39 +67,37 @@ export function TagsSection({ config, issues, onEdit }: Props) {
             const count = tagUsage(config, tag.id);
             const issue = errorsAt(issues, `tags[${i}].name`)[0];
             return (
-              <li key={tag.id} className="options-tag-row" data-testid="options-tag">
-                <span className="options-tag-name">{tag.name}</span>
+              <li key={tag.id} className="options-tag-row options-row" data-testid="options-tag" data-tag-id={tag.id}>
+                {renaming === tag.id ? (
+                  <TagNameInput
+                    config={config}
+                    tag={tag}
+                    onRename={(next) => onEdit((c) => renameTag(c, tag.id, next))}
+                    onDone={(restore) => {
+                      setRenaming(undefined);
+                      if (restore) requestAnimationFrame(() => document.querySelector<HTMLElement>(`[data-tag-id="${CSS.escape(tag.id)}"] [aria-haspopup="menu"]`)?.focus());
+                    }}
+                  />
+                ) : (
+                  <span className="options-tag-name">{tag.name}</span>
+                )}
                 <span className="options-tag-count q-hint" data-testid="options-tag-count">{tn('options.tags.usage', count)}</span>
-                <Button aria-label={t('options.tags.renameLabel', { name: tag.name })} onClick={() => setDialog({ kind: 'rename', id: tag.id })}>
-                  {t('options.tags.rename')}
-                </Button>
-                <Button variant="danger" icon="trash" aria-label={t('options.tags.deleteLabel', { name: tag.name })} onClick={() => setDialog({ kind: 'delete', id: tag.id })}>
-                  {t('options.tags.delete')}
-                </Button>
+                <Menu label={t('options.tags.menu', { name: tag.name })} entries={menu(tag)} />
                 {issue && <p role="alert" className="options-tag-error">{issue}</p>}
               </li>
             );
           })}
         </ul>
       )}
-      {dialog?.kind === 'rename' && target && (
-        <RenameDialog
-          config={config}
-          id={target.id}
-          initial={target.name}
-          onClose={() => setDialog(undefined)}
-          onSubmit={(next) => onEdit((c) => renameTag(c, target.id, next))}
-        />
-      )}
-      {dialog?.kind === 'delete' && target && (
+      {target && (
         <Dialog
           open
-          onClose={() => setDialog(undefined)}
+          onClose={() => setDeleting(undefined)}
           title={t('options.tags.deleteTitle')}
           actions={
             <>
-              <Button onClick={() => setDialog(undefined)}>{t('options.cancel')}</Button>
-              <Button variant="danger" icon="trash" onClick={() => { setDialog(undefined); onEdit((c) => deleteTag(c, target.id)); }}>
+              <Button onClick={() => setDeleting(undefined)}>{t('options.cancel')}</Button>
+              <Button variant="danger" icon="trash" onClick={() => { setDeleting(undefined); onEdit((c) => deleteTag(c, target.id)); }}>
                 {t('options.tags.deleteConfirm')}
               </Button>
             </>
@@ -112,33 +116,61 @@ export function TagsSection({ config, issues, onEdit }: Props) {
 export const nameKey = (problem: 'missing' | 'tooLong' | 'taken'): MessageKey =>
   problem === 'missing' ? 'options.tags.nameMissing' : problem === 'tooLong' ? 'options.tags.nameTooLong' : 'options.tags.nameTaken';
 
-function RenameDialog({ config, id, initial, onClose, onSubmit }: { config: Config; id: string; initial: string; onClose: () => void; onSubmit: (name: string) => void }) {
+/** The name of a tag, edited in its row: Enter and a valid blur apply it, Escape leaves it as it was. */
+function TagNameInput({ config, tag, onRename, onDone }: { config: Config; tag: Tag; onRename: (name: string) => void; onDone: (restore: boolean) => void }) {
   const { t } = useI18n();
-  const [name, setName] = useState(initial);
+  const [name, setName] = useState(tag.name);
   const [tried, setTried] = useState(false);
-  const problem = tagNameError(config, name, id);
+  const input = useRef<HTMLInputElement>(null);
+  const finished = useRef(false);
+  const errorId = `options-tag-name-error-${tag.id}`;
+  useEffect(() => {
+    input.current?.focus();
+    input.current?.select();
+  }, []);
+  const problem = tagNameError(config, name, tag.id);
   const error = problem && (tried || problem !== 'missing') ? t(nameKey(problem)) : undefined;
-  const send = (e?: FormEvent) => {
-    e?.preventDefault();
+  const commit = (restore: boolean) => {
     if (problem) return setTried(true);
-    onSubmit(name.trim());
-    onClose();
+    finished.current = true;
+    if (name.trim() !== tag.name) onRename(name.trim());
+    onDone(restore);
   };
   return (
-    <Dialog
-      open
-      onClose={onClose}
-      title={t('options.tags.renameTitle')}
-      actions={
-        <>
-          <Button onClick={onClose}>{t('options.cancel')}</Button>
-          <Button variant="primary" onClick={send}>{t('options.tags.rename')}</Button>
-        </>
-      }
-    >
-      <form onSubmit={send} noValidate>
-        <TextField data-autofocus label={t('options.tags.name')} hint={t('options.tags.nameHint')} value={name} error={error} autoComplete="off" onChange={(e) => setName(e.target.value)} />
-      </form>
-    </Dialog>
+    <div className="options-tag-edit">
+      <input
+        ref={input}
+        className="q-input"
+        value={name}
+        aria-label={t('options.tags.renameLabel', { name: tag.name })}
+        aria-invalid={error ? true : undefined}
+        aria-describedby={error ? errorId : undefined}
+        autoComplete="off"
+        onChange={(e) => {
+          setName(e.target.value);
+          setTried(false);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            commit(true);
+          } else if (e.key === 'Escape') {
+            e.preventDefault();
+            e.stopPropagation();
+            finished.current = true;
+            onDone(true);
+          }
+        }}
+        onBlur={() => {
+          if (!finished.current) commit(false);
+        }}
+      />
+      {error && (
+        <p id={errorId} className="q-error">
+          <Icon name="error" />
+          <span>{error}</span>
+        </p>
+      )}
+    </div>
   );
 }

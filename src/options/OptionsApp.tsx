@@ -452,29 +452,16 @@ function Editor({ initial, initialValues, storage, permissions, subscribe, onRel
         onImportFile={openShareFileFromSidebar}
       />
     )}>
-      {(projectView || route.view === 'tags') && (
-        <>
-          <div className="options-bar">
-            <Button variant="primary" onClick={save} disabled={busy || conflict !== undefined}>
-              {t('options.save')}
-            </Button>
-            <Button onClick={discard} disabled={!dirty || busy || conflict !== undefined}>
-              {t('options.discard')}
-            </Button>
-            <p role="status" className="q-hint">{dirty ? t('options.status.dirty') : ''}</p>
-          </div>
-          {summary.length > 0 && (
-            <div role="alert" className="options-problems">
-              <p>{t('options.problems.title')}</p>
-              <ul>
-                {summary.map((i, n) => {
-                  const m = /^projects\[(\d+)\]\.(.*)$/.exec(i.path);
-                  return <li key={n}>{m ? `${projectName(Number(m[1]))}: ${m[2]}` : i.path}: {i.message}</li>;
-                })}
-              </ul>
-            </div>
-          )}
-        </>
+      {(projectView || route.view === 'tags') && summary.length > 0 && (
+        <div role="alert" className="options-problems">
+          <p>{t('options.problems.title')}</p>
+          <ul>
+            {summary.map((i, n) => {
+              const m = /^projects\[(\d+)\]\.(.*)$/.exec(i.path);
+              return <li key={n}>{m ? `${projectName(Number(m[1]))}: ${m[2]}` : i.path}: {i.message}</li>;
+            })}
+          </ul>
+        </div>
       )}
       {projectView && (
         <>
@@ -526,6 +513,23 @@ function Editor({ initial, initialValues, storage, permissions, subscribe, onRel
       <ShareExportDialog request={shareRequest} storage={storage} dirty={dirty} onClose={() => setShareRequest(undefined)} />
       <ShareImportDialog share={shareImport} storage={storage} dirty={dirty} onClose={() => setShareImport(undefined)} onImported={importedShare} />
       <ConflictDialog conflict={conflict} onResolve={resolve} />
+      {dirty && (
+        <div className="options-bar-dock">
+          <div className="options-bar">
+            <p role="status" className="options-bar-state">
+              <span className="options-bar-dot" aria-hidden="true" />
+              {t('options.status.dirty')}
+            </p>
+            <Button onClick={discard} disabled={busy || conflict !== undefined}>
+              {t('options.discard')}
+            </Button>
+            <Button variant="primary" onClick={save} disabled={busy || conflict !== undefined} aria-busy={busy || undefined}>
+              {busy && <span className="q-spinner options-bar-spinner" aria-hidden="true" />}
+              {t('options.save')}
+            </Button>
+          </div>
+        </div>
+      )}
     </Shell>
   );
 }
