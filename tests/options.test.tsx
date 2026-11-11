@@ -416,12 +416,16 @@ describe('options page', () => {
       expect((await loadConfig(storage)).projects[0]?.fields[0]?.sources).toEqual({ schemaOrgPath: 'Article.headline' });
     });
 
-    it('offers the format only for the click way and saves the choice', async () => {
+    it('offers three formats for the click and detect ways, none for typed-in values, and saves the choice', async () => {
       const storage = fakeStorage(stored(project('p1', 'A')));
       const user = await mount(storage);
       await addField(user, 'Contact');
       const field = within(screen.getByRole('dialog', { name: 'Contact' }));
       expect((field.getByLabelText('Format') as HTMLSelectElement).value).toBe('text');
+      expect(Array.from((field.getByLabelText('Format') as HTMLSelectElement).options).map((o) => o.value)).toEqual(['text', 'markdown', 'html']);
+      await user.selectOptions(field.getByLabelText('Where does the value come from?'), 'detect');
+      expect(field.getByLabelText('Format')).toBeTruthy();
+      await user.selectOptions(field.getByLabelText('Where does the value come from?'), 'click');
       await user.selectOptions(field.getByLabelText('Format'), 'markdown');
       await user.click(screen.getByRole('button', { name: 'Save changes' }));
       await screen.findByText('Saved.');

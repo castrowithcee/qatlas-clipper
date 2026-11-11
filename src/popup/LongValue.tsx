@@ -22,7 +22,7 @@ interface Props {
   label: string;
   value: string;
   onChange: (value: string) => void;
-  /** Show the preview with Markdown formatting (only for values from clicked elements in Markdown format). */
+  /** Show the preview with Markdown formatting (only when the effective field format is Markdown; HTML is always shown as source text). */
   markdown: boolean;
 }
 

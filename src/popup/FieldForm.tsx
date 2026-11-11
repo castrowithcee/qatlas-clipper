@@ -1,4 +1,4 @@
-import { fieldFormatOf, type Field as FieldConfig, type FieldFormat } from '../config';
+import { FIELD_FORMATS, fieldFormatOf, type Field as FieldConfig, type FieldFormat } from '../config';
 import { valueWay } from '../options/draft';
 import { AddFieldRow } from './AddFieldRow';
 import { LongValue } from './LongValue';
@@ -58,18 +58,20 @@ export type FieldPatch = { required: boolean } | { format: FieldFormat };
 
 function FieldRow({ field, value, source, invalid, onChange, onPick, mapped, onUpdate, onRemoveMapping }: RowProps) {
   const { t } = useI18n();
+  const way = valueWay(field);
+  const effective = fieldFormatOf(field, way === 'click');
   const entries: MenuEntry[] = [{ kind: 'action', label: t('popup.menu.repick'), onSelect: onPick }];
   if (mapped && onRemoveMapping) entries.push({ kind: 'action', label: t('popup.menu.unmap'), onSelect: onRemoveMapping });
   if (onUpdate) {
     entries.push({ kind: 'checkbox', label: t('popup.menu.required'), checked: field.required, onSelect: () => onUpdate({ required: !field.required }) });
-    // The format only applies to values read from a clicked element.
-    if (valueWay(field) === 'click') {
-      for (const format of ['text', 'markdown'] as const) {
+    // The format applies to clicked and detected values; typed-in values have none.
+    if (way !== 'manual') {
+      for (const format of FIELD_FORMATS) {
         entries.push({
           kind: 'radio',
           group: t('popup.menu.format'),
-          label: t(format === 'text' ? 'popup.menu.formatText' : 'popup.menu.formatMarkdown'),
-          checked: fieldFormatOf(field, true) === format,
+          label: t(`popup.menu.format${format === 'text' ? 'Text' : format === 'markdown' ? 'Markdown' : 'Html'}` as MessageKey),
+          checked: format === effective,
           onSelect: () => onUpdate({ format }),
         });
       }
@@ -98,7 +100,7 @@ function FieldRow({ field, value, source, invalid, onChange, onPick, mapped, onU
               label={field.label}
               value={value}
               onChange={onChange}
-              markdown={valueWay(field) === 'click' && fieldFormatOf(field, true) === 'markdown'}
+              markdown={way !== 'manual' && effective === 'markdown'}
             />
           )}
           <SourceMark {...source} />

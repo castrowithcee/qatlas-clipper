@@ -397,6 +397,17 @@ describe('popup: field menu', () => {
     expect(screen.queryByRole('menuitem', { name: 'Remove assignment for this website' })).toBeNull();
   });
 
+  it('offers the three formats for detected and clicked values, none for typed-in ones', async () => {
+    const mk = (extra: Record<string, unknown>) => project('m', 'Menu', [field('price', 'Price', extra)]);
+    for (const [extra, count] of [[{ sources: { detect: 'title' } }, 3], [{ sources: {} }, 3], [{ sources: { manual: { type: 'text' } } }, 0]] as const) {
+      const { user, view } = setup({ projects: [mk(extra)], page });
+      await screen.findByLabelText('Price');
+      await open(user, 'Price');
+      expect(screen.queryAllByRole('menuitemradio').map((r) => r.textContent)).toEqual(count ? ['Text', 'Markdown', 'HTML'] : []);
+      view.unmount();
+    }
+  });
+
   it('saves required and format immediately and keeps typed values', async () => {
     const storage = fakeStorage(stored(menuProject()));
     const { user } = setup({ storage, page });

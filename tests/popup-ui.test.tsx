@@ -287,6 +287,18 @@ describe('long values', () => {
     expect(dialog.querySelector('.popup-long-text')!.textContent).toBe(text);
   });
 
+  it('shows an HTML value as source text and not formatted', async () => {
+    const html = `<p>Intro</p>\n<ul>\n<li>1</li>\n<li>2</li>\n<li>3</li>\n<li>4</li>\n<li>5</li>\n</ul>`;
+    const cfg = config();
+    (cfg[CONFIG_KEY] as { projects: { fields: unknown[] }[] }).projects[0]!.fields = [{ key: 'size', label: 'Size', required: false, format: 'html', sources: {} }];
+    const { user } = setup('en', { ...withFound(html), cfg });
+    expect((await screen.findByLabelText('Size') as HTMLTextAreaElement).value).toBe(html);
+    await user.click(await screen.findByRole('button', { name: 'Show more' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Size' });
+    expect(dialog.querySelector('li, p:not(.popup-long-text)')).toBeNull();
+    expect(dialog.querySelector('.popup-long-text')!.textContent).toBe(html);
+  });
+
   it('does not create elements from script or image tags in the preview', async () => {
     const evil = `<script>window.__x=1</script>\n<img src=x onerror="window.__x=2">\n1\n2\n3\n4\n5\n6`;
     const { user } = setup('en', withFound(evil));

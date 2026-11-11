@@ -265,8 +265,8 @@ export function FieldEditor({ fields, siteMappings, basePath, issues, onChange, 
                     )}
                   </Tooltip>
                 </td>
-                {/* The format only applies to clicked elements; every other way gives plain text, as the popup shows it. */}
-                <td>{t(`options.fields.format.${fieldFormatOf(f, valueWay(f) === 'click')}` as MessageKey)}</td>
+                {/* Typed-in values have no format; they are sent as entered, like text. */}
+                <td>{t(`options.fields.format.${valueWay(f) === 'manual' ? 'text' : fieldFormatOf(f, valueWay(f) === 'click')}` as MessageKey)}</td>
                 <td>{f.required ? t('options.fields.yes') : t('options.fields.no')}</td>
                 <td>{sites.length}</td>
                 <td>
@@ -374,11 +374,11 @@ function FieldDetails({ field, errors, sites, onChange, onRenameKey, onDeleteMap
         options={WAYS.map((w) => ({ value: w, label: t(`options.fields.way.${w}` as MessageKey) }))}
         onChange={(e) => onChange(setValueWay(field, e.target.value as ValueWay))}
       />
-      {way === 'click' && (
+      {way !== 'manual' && (
         <Select
           label={t('options.fields.format.label')}
           help={t('options.fields.format.help')}
-          value={fieldFormatOf(field, valueWay(field) === 'click')}
+          value={fieldFormatOf(field, way === 'click')}
           options={FIELD_FORMATS.map((f) => ({ value: f, label: t(`options.fields.format.${f}` as MessageKey) }))}
           onChange={(e) => onChange({ ...field, format: e.target.value as FieldFormat })}
         />
