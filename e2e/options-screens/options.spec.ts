@@ -108,6 +108,15 @@ for (const lang of ['de', 'en'] as const) {
       await expect(replace).toBeVisible();
       await shot(page, 'import-preview', tag);
       await replace.getByRole('button', { name: t('Abbrechen', 'Cancel') }).click();
+      // Help: own address, entry marked as current, offline text with the example of the sent data.
+      await nav.getByRole('link', { name: t('Hilfe', 'Help') }).click();
+      await expect(nav.getByRole('link', { name: t('Hilfe', 'Help') })).toHaveAttribute('aria-current', 'page');
+      await expect(page.getByRole('heading', { name: t('Gesendete Daten und Antwort', 'Sent data and response'), level: 3 })).toBeVisible();
+      await shot(page, 'help', tag);
+      await page.setViewportSize({ width: 360, height: 800 });
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+      await shot(page, 'help-360', tag);
+      await page.setViewportSize({ width: 1100, height: 900 });
       await page.goto(`chrome-extension://${extensionId}/options.html#/projects/missing`);
       await expect(page.getByText(t('Projekt nicht gefunden', 'Project not found'))).toBeVisible();
       await shot(page, 'not-found', tag);

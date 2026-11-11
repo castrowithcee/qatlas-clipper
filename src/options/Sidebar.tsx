@@ -1,9 +1,9 @@
 import type { Project } from '../config';
 import { useI18n } from '../settings';
 import { Button, Icon } from '../ui/components';
-import { IMPORT_EXPORT_HASH, projectHash, SETTINGS_HASH } from './route';
+import { HELP_HASH, IMPORT_EXPORT_HASH, projectHash, SETTINGS_HASH } from './route';
 
-export type NavTarget = { view: 'project'; id: string } | { view: 'settings' } | { view: 'import-export' };
+export type NavTarget = { view: 'project'; id: string } | { view: 'settings' } | { view: 'import-export' } | { view: 'help' };
 
 interface Props {
   projects: Project[];
@@ -58,6 +58,7 @@ export function Sidebar({ projects, current, dirty, onAdd }: Props) {
         <ul className="options-nav-areas">
           <li>{link(SETTINGS_HASH, isCurrent('settings'), t('options.nav.settings'))}</li>
           <li>{link(IMPORT_EXPORT_HASH, isCurrent('import-export'), t('options.nav.importExport'))}</li>
+          <li>{link(HELP_HASH, isCurrent('help'), t('options.nav.help'))}</li>
         </ul>
       </nav>
     </aside>

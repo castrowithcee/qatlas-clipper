@@ -1,4 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { HELP_SECTIONS, PAYLOAD_KEYS } from '../src/options/helpContent';
+import { examplePayload } from '../src/options/HelpSection';
 import { de, en } from '../src/i18n/catalog';
 import { createTranslator, resolveLanguage } from '../src/i18n';
 
@@ -50,5 +53,29 @@ describe('translator', () => {
   it('falls back to English, then to the key', () => {
     expect(createTranslator('de', catalogs).t('only' as never)).toBe('fallback');
     expect(createTranslator('de', catalogs).t('nope' as never)).toBe('nope');
+  });
+});
+
+describe('help texts', () => {
+  const keys = HELP_SECTIONS.flatMap((s) => [s.title, ...s.blocks.flatMap((b) => ('key' in b ? [b.key] : 'keys' in b ? b.keys : []))]);
+  it('has every heading and block text in both languages', () => {
+    for (const key of [...keys, ...PAYLOAD_KEYS.map((k) => `help.payload.k.${k}` as const)]) {
+      expect(de[key]?.trim(), key).toBeTruthy();
+      expect(en[key]?.trim(), key).toBeTruthy();
+    }
+  });
+  it('uses every help key in the view', () => {
+    const used = new Set<string>([...keys, ...PAYLOAD_KEYS.map((k) => `help.payload.k.${k}`), 'help.title', 'help.intro', 'help.jump', 'options.nav.help']);
+    expect(Object.keys(de).filter((k) => /^(help\.|options\.nav\.help)/.test(k) && !used.has(k))).toEqual([]);
+  });
+  it('describes every key of the sent object', () => {
+    const sent = Object.keys(JSON.parse(examplePayload()) as object);
+    expect([...PAYLOAD_KEYS].sort()).toEqual(sent.sort());
+  });
+  it('shows the same example as docs/webhook.md apart from the field list', () => {
+    const doc = readFileSync(new URL('../docs/webhook.md', import.meta.url), 'utf8');
+    const json = /```json\n([\s\S]*?)\n```/.exec(doc)?.[1] ?? '';
+    const strip = (o: Record<string, unknown>) => ({ ...o, fields: undefined });
+    expect(strip(JSON.parse(examplePayload()))).toEqual(strip(JSON.parse(json)));
   });
 });

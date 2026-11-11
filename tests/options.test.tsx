@@ -1155,6 +1155,8 @@ describe('options navigation', () => {
     expect(parseHash('')).toEqual({ view: 'home' });
     expect(parseHash('#/settings')).toEqual({ view: 'settings' });
     expect(parseHash('#/import-export')).toEqual({ view: 'import-export' });
+    expect(parseHash('#/help')).toEqual({ view: 'help' });
+    expect(parseHash('#/help/x')).toEqual({ view: 'home' });
     expect(parseHash(projectHash('a/b c'))).toEqual({ view: 'project', id: 'a/b c' });
     expect(parseHash('#/projects/%E0%A4%A')).toEqual({ view: 'home' });
     expect(parseHash('#/nonsense')).toEqual({ view: 'home' });
@@ -1163,7 +1165,7 @@ describe('options navigation', () => {
   it('lists the name block, every project and the areas, and marks the current entry', async () => {
     const user = await mount(two());
     expect(screen.getByRole('heading', { name: 'Qatlas Clipper', level: 1 })).toBeTruthy();
-    expect(nav().getAllByRole('link').map((a) => a.textContent)).toEqual(['A', 'B', 'Settings', 'Import and export']);
+    expect(nav().getAllByRole('link').map((a) => a.textContent)).toEqual(['A', 'B', 'Settings', 'Import and export', 'Help']);
     expect(nav().getByRole('button', { name: 'Add project' })).toBeTruthy();
     expect(current()).toEqual(['A']);
     expect(screen.getByRole('heading', { name: 'A', level: 2 })).toBeTruthy();
@@ -1176,6 +1178,32 @@ describe('options navigation', () => {
     await user.click(nav().getByRole('link', { name: 'Import and export' }));
     expect(current()).toEqual(['Import and export']);
     expect(screen.getByLabelText('From file')).toBeTruthy();
+  });
+
+  it('opens the help from its address and marks its entry as the current page', async () => {
+    const user = await mount(two(), undefined, '#/help');
+    expect(current()).toEqual(['Help']);
+    expect(screen.getByRole('heading', { name: 'Help', level: 2 })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Project', level: 3 })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Save changes' })).toBeNull();
+    await user.click(nav().getByRole('link', { name: 'A' }));
+    expect(current()).toEqual(['A']);
+    await user.click(nav().getByRole('link', { name: 'Help' }));
+    expect(current()).toEqual(['Help']);
+    expect(window.location.hash).toBe('#/help');
+  });
+
+  it('moves focus to a section from the jump list without changing the address', async () => {
+    const user = await mount(two(), undefined, '#/help');
+    Element.prototype.scrollIntoView = vi.fn();
+    await user.click(within(screen.getByRole('navigation', { name: 'On this page' })).getByRole('button', { name: 'Formats' }));
+    expect(document.activeElement).toBe(screen.getByRole('heading', { name: 'Formats', level: 3 }));
+    expect(window.location.hash).toBe('#/help');
+  });
+
+  it('treats unknown addresses like before', async () => {
+    await mount(two(), undefined, '#/help/other');
+    expect(current()).toEqual(['A']);
   });
 
   it('opens the view of the address and follows browser back and forward', async () => {
@@ -1364,7 +1392,7 @@ describe('saving without overwriting', { timeout: 20000 }, () => {
     await screen.findByRole('navigation', { name: 'Options' }, WAIT);
     return user;
   };
-  const links = () => within(screen.getByRole('navigation', { name: 'Options' })).getAllByRole('link').map((a) => a.textContent).filter((x) => x !== 'Settings' && x !== 'Import and export');
+  const links = () => within(screen.getByRole('navigation', { name: 'Options' })).getAllByRole('link').map((a) => a.textContent).filter((x) => x !== 'Settings' && x !== 'Import and export' && x !== 'Help');
   const rename = async (user: ReturnType<typeof userEvent.setup>, name: string) => {
     const input = screen.getByLabelText('Project name');
     await user.clear(input);

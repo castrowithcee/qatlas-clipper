@@ -1,3 +1,5 @@
+import { helpDe, helpEn } from './help';
+
 /** German is the reference catalog; English must carry the same keys and placeholders (checked by a test). Plural forms use `<key>.one` / `<key>.other` suffixes. */
 export const de = {
   'settings.title': 'Einstellungen',
@@ -317,6 +319,7 @@ export const de = {
   'picker.keyHint': 'Esc bricht ab',
   'picker.saved': 'Gespeichert für {site}',
   'picker.saveFailed': 'Die Zuordnung konnte nicht gespeichert werden: {message}',
+  ...helpDe,
 } as const;
 
 export type MessageKey = keyof typeof de;
@@ -639,6 +642,7 @@ export const en: Record<MessageKey, string> = {
   'picker.keyHint': 'Esc cancels',
   'picker.saved': 'Saved for {site}',
   'picker.saveFailed': 'The mapping could not be saved: {message}',
+  ...helpEn,
 };
 
 export type Language = 'de' | 'en';

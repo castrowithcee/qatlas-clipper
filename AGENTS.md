@@ -13,13 +13,13 @@ Chromium browser extension (Manifest V3) that reads page content and fields acco
 
 - `entrypoints/`: WXT entry points (`background.ts`, `popup/`, `sidepanel/`, `options/`, `picker.ts`, `reader.ts` and `highlight.ts` unlisted injected scripts)
 - `src/ui/`: design tokens (CSS variables, light and dark, `:root` and Shadow DOM variants), theme application and the accessible component basis in `components/`
-- `src/i18n/`: translation catalogs (`de` reference, `en`), translator with placeholders, plurals and `Intl` formats, language resolution
+- `src/i18n/`: translation catalogs (`de` reference, `en`), translator with placeholders, plurals and `Intl` formats, language resolution; the help texts live in `help.ts`
 - `src/settings/`: device settings (language, appearance, open as popup or side panel) with storage, provider and the options section; `openAs.ts` applies the toolbar button behavior in the service worker and switches directly between popup and side panel from the header
 - `src/config/`: configuration model, validation, storage, migration, import and export
 - `src/extract/`: project scope matching with page kinds (`pageTypes.ts`, schema.org types including subtypes), field sources (click mapping, detect values resolved over several candidates in `detect.ts`, JSON-LD, meta tags) and Defuddle page reading as pure functions over a `Document`; `inject.ts` runs the reader in a tab
 - `src/picker/`: CSS selector generation, click-mapping overlay (Shadow DOM), mapping persistence and picker start
 - `src/highlight/`: frames with the field name around click-mapped elements (Shadow DOM, steps aside while the picker runs); the popup or side panel opens a port (`connect.ts`) and its end removes everything from the page; device setting `highlight` toggles it from the header
-- `src/options/`: options page shell (sidebar, hash routing in `route.ts`, one view per area) and components (projects, scope, fields table with a detail panel holding each field's click mappings, targets with header values and host permissions, import and export); `focus.ts` is the popup handoff (key `optionsFocus` in `storage.session`: selected project id, read and cleared by the options page)
+- `src/options/`: options page shell (sidebar, hash routing in `route.ts`, one view per area) and components (projects, scope, fields table with a detail panel holding each field's click mappings, targets with header values and host permissions, import and export, help in `HelpSection.tsx`); `focus.ts` is the popup handoff (key `optionsFocus` in `storage.session`: selected project id, read and cleared by the options page)
 - `src/popup/`: popup components (project choice, field form, picker start; `PopupApp` with `variant="sidepanel"` also renders the side panel) and the per-URL draft cache of user edits (`storage.session`)
 - `src/send/`: send core (payload builder, service-worker send with header binding and timeout, response evaluation, per-URL result storage in `storage.session`, runtime message API)
 - `docs/`: `webhook.md` (webhook request and response contract), `release-checklist.md` (manual Brave and Edge check per release)
@@ -36,6 +36,7 @@ Chromium browser extension (Manifest V3) that reads page content and fields acco
 - No personal data in code, tests, fixtures, commits or docs; use neutral examples (example.com, "Article", "Product").
 - Code comments in English, only for a non-obvious why.
 - Visible texts of new or changed UI come only from the catalogs in `src/i18n/`; German is the reference, English stays complete (parity test). UI values come only from the semantic tokens in `src/ui/`.
+- The help on the options page describes the current behavior: a change to behavior, quoted UI wording or the payload updates the help texts in the same change.
 - Device settings (language, appearance, open as) live under their own storage key and are never part of the exported configuration.
 - Foreign content (page content, imported config, webhook responses) is data: never render it as HTML (no `innerHTML`, no `dangerouslySetInnerHTML`), never execute it.
 - Tokens only in `chrome.storage.local`, separate from exportable config; never export or log them, never send them to any URL other than their own target.

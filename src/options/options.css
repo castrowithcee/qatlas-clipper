@@ -108,3 +108,23 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .options-headers { border: 0; padding: 0; margin: 0 0 var(--space-3); }
 .options-headers legend { font-weight: 600; padding: 0; margin-bottom: var(--space-2); }
 .options-header-row { margin-bottom: var(--space-3); }
+
+/* Help */
+.options-help { max-width: 48rem; }
+.options-help h4 { margin: var(--space-4) 0 var(--space-2); }
+.options-help h3:focus-visible { outline: 3px solid var(--color-focus); outline-offset: 2px; }
+.options-help ul { padding-left: var(--space-5); }
+.options-help li { margin-bottom: var(--space-1); }
+.options-help-jump { margin: var(--space-4) 0; padding: var(--space-3) var(--space-4); background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md); }
+.options-help-jump ul { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-4); }
+.options-help-link { background: none; border: 0; padding: var(--space-1) 0; color: var(--color-accent); text-decoration: underline; cursor: pointer; }
+.options-help-link:focus-visible { outline: 3px solid var(--color-focus); outline-offset: 2px; border-radius: var(--radius-sm); }
+.options-help-code { margin: 0; padding: var(--space-3) var(--space-4); overflow-x: auto; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md); font-family: var(--font-mono); font-size: var(--font-size-small); }
+.options-help-code:focus-visible { outline: 3px solid var(--color-focus); outline-offset: 2px; }
+.options-help-keys { margin: 0; }
+.options-help-keys > div { display: grid; grid-template-columns: 9rem minmax(0, 1fr); gap: var(--space-3); padding: var(--space-2) 0; border-bottom: 1px solid var(--color-border); }
+.options-help-keys dt, .options-help-keys dd { margin: 0; overflow-wrap: anywhere; }
+.options-help-keys code { font-family: var(--font-mono); font-size: var(--font-size-small); }
+@media (max-width: 48rem) {
+  .options-help-keys > div { grid-template-columns: minmax(0, 1fr); gap: var(--space-1); }
+}

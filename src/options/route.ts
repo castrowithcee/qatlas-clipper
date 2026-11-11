@@ -1,13 +1,14 @@
 import { useSyncExternalStore } from 'react';
 
 /** Views of the options page; each has its own address in the URL hash. */
-export type Route = { view: 'project'; id: string } | { view: 'settings' } | { view: 'import-export' } | { view: 'home' };
+export type Route = { view: 'project'; id: string } | { view: 'settings' } | { view: 'import-export' } | { view: 'help' } | { view: 'home' };
 
 /** Unknown or malformed hashes fall back to `home`, which shows the first project. */
 export function parseHash(hash: string): Route {
   const path = hash.replace(/^#\/?/, '').replace(/\/+$/, '');
   if (path === 'settings') return { view: 'settings' };
   if (path === 'import-export') return { view: 'import-export' };
+  if (path === 'help') return { view: 'help' };
   const m = /^projects\/([^/]+)$/.exec(path);
   if (m?.[1]) {
     try {
@@ -23,6 +24,7 @@ export function parseHash(hash: string): Route {
 export const projectHash = (id: string): string => `#/projects/${encodeURIComponent(id)}`;
 export const SETTINGS_HASH = '#/settings';
 export const IMPORT_EXPORT_HASH = '#/import-export';
+export const HELP_HASH = '#/help';
 
 /** `replace` keeps the history free of addresses that no longer exist, e.g. a deleted project. */
 export function navigate(hash: string, replace = false): void {

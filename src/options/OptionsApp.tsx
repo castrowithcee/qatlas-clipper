@@ -18,6 +18,7 @@ import {
   type SubscribeStored,
 } from '../config';
 import { defaultPermissions, originPattern, originPatterns, type PermissionStatus, type PermissionsApi } from './permissions';
+import { HelpSection } from './HelpSection';
 import { ImportExport } from './ImportExport';
 import { ProjectEditor } from './ProjectEditor';
 import { Brand, Sidebar, type NavTarget } from './Sidebar';
@@ -281,7 +282,7 @@ function Editor({ initial, initialValues, storage, permissions, subscribe, onRel
   const selected = draft.projects[selectedIndex];
   const notFound = route.view === 'project' && !selected;
   const projectView = route.view === 'project' || route.view === 'home';
-  const current: NavTarget | undefined = route.view === 'settings' || route.view === 'import-export' ? route : selected ? { view: 'project', id: selected.id } : undefined;
+  const current: NavTarget | undefined = route.view === 'settings' || route.view === 'import-export' || route.view === 'help' ? route : selected ? { view: 'project', id: selected.id } : undefined;
 
   const edit = (projects: Project[]) => {
     commit({ draft: { ...live.current.draft, projects } });
@@ -461,6 +462,7 @@ function Editor({ initial, initialValues, storage, permissions, subscribe, onRel
         </>
       )}
       {route.view === 'settings' && <SettingsSection />}
+      {route.view === 'help' && <HelpSection />}
       {route.view === 'import-export' && <ImportExport storage={storage} permissions={permissions} dirty={dirty} onImported={onReload} onImporting={(active) => { importing.current = active; }} />}
       <ConflictDialog conflict={conflict} onResolve={resolve} />
     </Shell>
