@@ -33,6 +33,8 @@ test('configure, map by click, prefill on a second page, send, and show the resp
   pages,
   webhook,
 }) => {
+  // One flow across several pages takes most of the default 30 s under parallel load.
+  test.slow();
   // 1. Configuration through the options UI: file import, then a header value in the target editor.
   const options = await context.newPage();
   await options.goto(`chrome-extension://${extensionId}/options.html#/import-export`);
