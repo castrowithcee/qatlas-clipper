@@ -63,11 +63,24 @@ for (const lang of ['de', 'en'] as const) {
       const closeField = (label: string) => field(label).getByRole('button', { name: t('Schließen', 'Close') }).click();
       await shot(page, 'project', tag);
       await shot(page.getByRole('complementary'), 'sidebar', tag);
+      // Collapsed sidebar (device setting): the content takes the full width; expanded again for the steps below.
+      await page.getByRole('button', { name: t('Seitenleiste einklappen', 'Collapse sidebar') }).click();
+      await expect(page.getByRole('button', { name: t('Seitenleiste ausklappen', 'Expand sidebar') })).toBeFocused();
+      // The tooltip of the focused button would cover the project title.
+      await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+      await expect(page.getByRole('tooltip')).toHaveCount(0);
+      await shot(page, 'project-collapsed', tag);
+      await page.getByRole('button', { name: t('Seitenleiste ausklappen', 'Expand sidebar') }).click();
+      await expect(page.getByRole('button', { name: t('Seitenleiste einklappen', 'Collapse sidebar') })).toBeFocused();
       // Options menu on the title "Projects".
       const titleMenuButton = page.getByRole('navigation', { name: t('Optionen', 'Options') }).getByRole('button', { name: t('Optionen für Projekte', 'Options for projects') });
       await titleMenuButton.click();
       await expect(page.getByRole('menu', { name: t('Optionen für Projekte', 'Options for projects') })).toBeVisible();
       await shot(page, 'sidebar-menu', tag);
+      // The full-page capture briefly shrinks the viewport to the narrow layout, which hides the sidebar and drops the focus from the open
+      // menu. Wait until the wide layout is back, then put the focus on the menu again, so that Escape reaches it.
+      await page.waitForFunction(() => innerWidth > 800 && !document.querySelector('.options-nav-slot')?.hasAttribute('hidden'));
+      await page.getByRole('menuitem').first().focus();
       await page.keyboard.press('Escape');
       await expect(page.getByRole('menu')).toHaveCount(0);
       // Sorted A–Z (device setting), then back to manual: the sort menu entries and the sorted sidebar.

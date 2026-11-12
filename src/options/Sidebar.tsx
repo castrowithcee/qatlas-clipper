@@ -3,6 +3,7 @@ import { sortByLabel, type Config, type Folder, type Project } from '../config';
 import { useI18n, useSettings } from '../settings';
 import { Button, Dialog, Icon, IconButton, Menu, type IconName, type MenuEntry } from '../ui/components';
 import { folderNameError, groupNeighbor, projectGroup } from './draft';
+import { useNavCollapse } from './NavDrawer';
 import { ProjectMenu } from './ProjectMenu';
 import { useReorder } from './reorder';
 import { ShareFileInput } from './ShareImportDialog';
@@ -37,8 +38,19 @@ type FolderDialog = { id: string };
 
 export function Brand() {
   const { t } = useI18n();
+  const collapse = useNavCollapse();
   return (
     <div className="options-brand">
+      {collapse && (
+        <IconButton
+          data-nav-collapse=""
+          icon="panel-left-close"
+          label={t('options.nav.collapse')}
+          aria-expanded
+          aria-controls={collapse.controls}
+          onClick={collapse.toggle}
+        />
+      )}
       <img src="/icon/32.png" alt="" width={32} height={32} />
       <h1>{t('options.title')}</h1>
     </div>

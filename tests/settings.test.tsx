@@ -59,9 +59,9 @@ const theme = () => document.documentElement.dataset.theme;
 
 describe('settings', () => {
   it('falls back to defaults for invalid data', () => {
-    expect(parseSettings({ language: 'fr', appearance: 3 })).toEqual({ language: 'auto', appearance: 'system', openAs: 'popup', highlight: true, projectSort: 'manual' });
-    expect(parseSettings('x')).toEqual({ language: 'auto', appearance: 'system', openAs: 'popup', highlight: true, projectSort: 'manual' });
-    expect(parseSettings({ language: 'de' })).toEqual({ language: 'de', appearance: 'system', openAs: 'popup', highlight: true, projectSort: 'manual' });
+    expect(parseSettings({ language: 'fr', appearance: 3 })).toEqual({ language: 'auto', appearance: 'system', openAs: 'popup', highlight: true, projectSort: 'manual', sidebarCollapsed: false });
+    expect(parseSettings('x')).toEqual({ language: 'auto', appearance: 'system', openAs: 'popup', highlight: true, projectSort: 'manual', sidebarCollapsed: false });
+    expect(parseSettings({ language: 'de' })).toEqual({ language: 'de', appearance: 'system', openAs: 'popup', highlight: true, projectSort: 'manual', sidebarCollapsed: false });
   });
 
   it('defaults the project sort to manual and falls back to it for an invalid value', () => {
@@ -70,6 +70,9 @@ describe('settings', () => {
     expect(parseSettings({ projectSort: 7 }).projectSort).toBe('manual');
     expect(parseSettings({ projectSort: 'nameAsc' }).projectSort).toBe('nameAsc');
     expect(parseSettings({ projectSort: 'nameDesc' }).projectSort).toBe('nameDesc');
+    expect(parseSettings({}).sidebarCollapsed).toBe(false);
+    expect(parseSettings({ sidebarCollapsed: 'yes' }).sidebarCollapsed).toBe(false);
+    expect(parseSettings({ sidebarCollapsed: true }).sidebarCollapsed).toBe(true);
   });
 
   it('treats stored settings without the highlight key as on, and keeps an explicit off', () => {
@@ -108,7 +111,7 @@ describe('settings', () => {
     expect(document.documentElement.lang).toBe('de');
     await user.click(screen.getByRole('radio', { name: 'Dunkel' }));
     expect(theme()).toBe('dark');
-    expect(storage.data[SETTINGS_KEY]).toEqual({ language: 'de', appearance: 'dark', openAs: 'popup', highlight: true, projectSort: 'manual' });
+    expect(storage.data[SETTINGS_KEY]).toEqual({ language: 'de', appearance: 'dark', openAs: 'popup', highlight: true, projectSort: 'manual', sidebarCollapsed: false });
   });
 
   it('keeps the explanation in the tooltip instead of a permanent subtitle', async () => {
@@ -123,7 +126,7 @@ describe('settings', () => {
   it('reacts to a change made in another context', async () => {
     const { bus } = mount();
     await screen.findByTestId('probe');
-    act(() => bus.emit({ language: 'de', appearance: 'dark', openAs: 'popup', highlight: true, projectSort: 'manual' }));
+    act(() => bus.emit({ language: 'de', appearance: 'dark', openAs: 'popup', highlight: true, projectSort: 'manual', sidebarCollapsed: false }));
     expect(screen.getByTestId('probe').textContent).toBe('Einstellungen');
     expect(theme()).toBe('dark');
   });
@@ -146,10 +149,10 @@ describe('settings', () => {
   });
 
   it('is not part of the exported configuration', async () => {
-    const storage = fakeStorage({ [SETTINGS_KEY]: { language: 'de', appearance: 'dark', openAs: 'sidepanel', highlight: false, projectSort: 'nameDesc' } });
+    const storage = fakeStorage({ [SETTINGS_KEY]: { language: 'de', appearance: 'dark', openAs: 'sidepanel', highlight: false, projectSort: 'nameDesc', sidebarCollapsed: true } });
     await saveConfig({ schemaVersion: 1, projects: [] }, storage);
     const text = await exportConfig(storage);
-    expect(text).not.toMatch(/language|appearance|openAs|highlight|projectSort|nameDesc|settings/);
+    expect(text).not.toMatch(/language|appearance|openAs|highlight|projectSort|sidebarCollapsed|nameDesc|settings/);
     expect(JSON.parse(text)).toEqual({ schemaVersion: 1, projects: [] });
     expect(SETTINGS_KEY).not.toBe(CONFIG_KEY);
     expect(SETTINGS_KEY).not.toBe(HEADER_VALUES_KEY);
@@ -180,7 +183,7 @@ describe('open as setting', () => {
     screen.getByRole('radio', { name: 'Side panel' }).click();
     expect(permissions.request).toHaveBeenCalledTimes(1);
     expect(permissions.request).toHaveBeenCalledWith(ALL);
-    await waitFor(() => expect(storage.data[SETTINGS_KEY]).toEqual({ language: 'auto', appearance: 'system', openAs: 'sidepanel', highlight: true, projectSort: 'manual' }));
+    await waitFor(() => expect(storage.data[SETTINGS_KEY]).toEqual({ language: 'auto', appearance: 'system', openAs: 'sidepanel', highlight: true, projectSort: 'manual', sidebarCollapsed: false }));
   });
 
   it('keeps the popup and explains when the request is declined', async () => {
