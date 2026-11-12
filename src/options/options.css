@@ -5,7 +5,7 @@ h3 { font-size: 1.05em; margin: 0 0 var(--space-2); }
 h4 { font-size: 1em; margin: 0; }
 
 /* Page structure: sidebar and one view at a time */
-.options-shell { display: grid; grid-template-columns: 17rem minmax(0, 1fr); align-items: start; min-height: 100vh; }
+.options-shell { display: grid; grid-template-columns: 19rem minmax(0, 1fr); align-items: start; min-height: 100vh; }
 .options-main { padding: var(--space-4) var(--space-5) calc(var(--space-5) + 4.5rem); min-width: 0; }
 .options-sidebar {
   position: sticky; top: 0; height: 100vh; box-sizing: border-box; display: flex; flex-direction: column; gap: var(--space-3);
@@ -25,11 +25,21 @@ h4 { font-size: 1em; margin: 0; }
 .options-nav-link > span { min-width: 0; }
 .options-row { display: flex; align-items: center; gap: var(--space-1); }
 .options-row > .options-nav-link { flex: 1 1 auto; min-width: 0; }
-/* Row menus: space stays reserved and the button stays in the tab order; it shows on hover, focus, open menu and touch. */
-.options-row .q-menu-wrap, .options-row .options-grip { flex: none; opacity: 0; }
-.options-row:hover .q-menu-wrap, .options-row:focus-within .q-menu-wrap, .options-row:has([aria-expanded="true"]) .q-menu-wrap,
-.options-row:hover .options-grip, .options-row:focus-within .options-grip { opacity: 1; }
-@media (hover: none) { .options-row .q-menu-wrap, .options-row .options-grip { opacity: 1; } }
+/* Row menus: with a pointer, grip and menu button float over the row ends and take no space, so names never move or rewrap when they show.
+   Centered without transform: a transform would make the fixed menu positioned against the button and scroll the list.
+   They stay in the tab order; they show on hover, focus, open menu and during a drag. Without hover (touch) they stay in the row. */
+@media (hover: hover) {
+  .options-row { position: relative; }
+  .options-row .q-menu-wrap, .options-row .options-grip {
+    position: absolute; top: 0; bottom: 0; margin-block: auto; height: fit-content; z-index: 1; opacity: 0;
+    background: var(--color-surface); border-radius: var(--radius-md);
+  }
+  .options-row .options-grip { left: 0; }
+  .options-row .q-menu-wrap { right: 0; }
+  .options-row:hover .q-menu-wrap, .options-row:focus-within .q-menu-wrap, .options-row:has(.q-menu-wrap [aria-expanded="true"]) .q-menu-wrap,
+  .options-row:hover .options-grip, .options-row:focus-within .options-grip, .options-row.is-dragged .options-grip { opacity: 1; }
+}
+@media (hover: none) { .options-row .q-menu-wrap, .options-row .options-grip { flex: none; } }
 /* The grip keeps the focus during a drag; its tooltip would cover the drop targets. */
 .options-sidebar.is-dragging .q-tooltip { display: none; }
 /* Drop marks of the sidebar: a line before or after the row, a frame around a folder that takes the project. */
