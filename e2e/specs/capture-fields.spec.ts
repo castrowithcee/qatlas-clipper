@@ -21,8 +21,10 @@ test('a field added in the popup is picked on the page, read on reopening and sh
   await page.goto(`${pages.origin}/plain-1.html`);
   let popup = await openPopup(context, serviceWorker, extensionId, page);
   await popup.getByLabel('New field').fill('Cost');
+  // The popup can close before click() resolves; a listener added afterwards never fires.
+  const closed = popup.waitForEvent('close');
   await popup.getByRole('button', { name: 'Add field' }).click();
-  await popup.waitForEvent('close');
+  await closed;
 
   await expect(page.getByText('Choose element for "Cost"')).toBeVisible();
   // The options page (not reloaded) already shows the saved field.
