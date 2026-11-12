@@ -9,11 +9,13 @@ export const settingsSchema = z.object({
   highlight: z.boolean().catch(true).default(true),
   /** Display order of projects and folders on this device; the stored manual order never changes. */
   projectSort: z.enum(['manual', 'nameAsc', 'nameDesc']).catch('manual'),
+  /** Options page, wide view only: the sidebar is hidden and the content takes the full width. */
+  sidebarCollapsed: z.boolean().catch(false).default(false),
 });
 
 export type Settings = z.infer<typeof settingsSchema>;
 
-export const DEFAULT_SETTINGS: Settings = { language: 'auto', appearance: 'system', openAs: 'popup', highlight: true, projectSort: 'manual' };
+export const DEFAULT_SETTINGS: Settings = { language: 'auto', appearance: 'system', openAs: 'popup', highlight: true, projectSort: 'manual', sidebarCollapsed: false };
 
 export const parseSettings = (raw: unknown): Settings =>
   settingsSchema.safeParse(raw ?? {}).data ?? DEFAULT_SETTINGS;

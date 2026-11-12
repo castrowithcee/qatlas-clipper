@@ -4,7 +4,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import userEvent from '@testing-library/user-event';
 import { CONFIG_KEY, type StorageArea } from '../src/config';
 import { OptionsApp } from '../src/options/OptionsApp';
-import { SETTINGS_KEY } from '../src/settings';
+import { SETTINGS_KEY, SettingsProvider } from '../src/settings';
 
 afterEach(() => {
   cleanup();
@@ -25,11 +25,15 @@ const project = (id: string, name: string, extra: Record<string, unknown> = {}) 
 });
 const permissions = { contains: async () => false, request: async () => false, remove: async () => true };
 
-async function mount(narrow: boolean, projects: unknown[] = [project('a', 'Alpha'), project('b', 'Beta')]) {
+async function mount(narrow: boolean, projects: unknown[] = [project('a', 'Alpha'), project('b', 'Beta')], settings: Record<string, unknown> = {}) {
   vi.stubGlobal('matchMedia', (query: string) => ({ matches: narrow, media: query, addEventListener() {}, removeEventListener() {} }));
   window.location.hash = '#/projects/a';
-  const storage = fakeStorage({ [CONFIG_KEY]: { schemaVersion: 1, projects }, [SETTINGS_KEY]: { language: 'en' } });
-  render(<OptionsApp storage={storage} permissions={permissions} />);
+  const storage = fakeStorage({ [CONFIG_KEY]: { schemaVersion: 1, projects }, [SETTINGS_KEY]: { language: 'en', ...settings } });
+  render(
+    <SettingsProvider storage={storage} subscribe={() => () => {}} media={{ matches: false, addEventListener() {}, removeEventListener() {} }} browserLanguage="en-US">
+      <OptionsApp storage={storage} permissions={permissions} />
+    </SettingsProvider>,
+  );
   await screen.findByRole('heading', { name: 'Qatlas Clipper', hidden: true });
   await screen.findByLabelText('Project name');
   return userEvent.setup();
@@ -124,5 +128,47 @@ describe('navigation drawer', () => {
     const cell = document.querySelector('.options-address')!;
     expect(cell.textContent).toContain(url);
     expect(cell.querySelector('[aria-hidden="true"]')?.textContent).toMatch(/…$/);
+  });
+});
+
+describe('sidebar collapse', () => {
+  const collapse = () => screen.getByRole('button', { name: 'Collapse sidebar' });
+  const expand = () => screen.getByRole('button', { name: 'Expand sidebar' });
+
+  it('collapses and expands in wide windows, with aria-expanded and the focus on the opposite button', async () => {
+    const user = await mount(false);
+    expect(collapse().getAttribute('aria-expanded')).toBe('true');
+    expect(collapse().getAttribute('aria-controls')).toBe(panel().id);
+    expect(screen.queryByRole('button', { name: 'Expand sidebar' })).toBeNull();
+    collapse().focus();
+    await user.keyboard('{Enter}');
+    expect(panel().hasAttribute('hidden')).toBe(true);
+    expect(screen.queryByRole('navigation', { name: 'Options' })).toBeNull();
+    expect(expand().getAttribute('aria-expanded')).toBe('false');
+    expect(expand().getAttribute('aria-controls')).toBe(panel().id);
+    await waitFor(() => expect(document.activeElement).toBe(expand()));
+    // The save bar stays reachable while the sidebar is away.
+    await user.type(screen.getByLabelText('Project name'), 'x');
+    expect(await screen.findByRole('button', { name: 'Save changes' })).toBeTruthy();
+    await user.click(expand());
+    expect(panel().hasAttribute('hidden')).toBe(false);
+    expect(screen.getByRole('navigation', { name: 'Options' })).toBeTruthy();
+    await waitFor(() => expect(document.activeElement).toBe(collapse()));
+  });
+
+  it('starts collapsed when the stored setting says so', async () => {
+    await mount(false, undefined, { sidebarCollapsed: true });
+    expect(panel().hasAttribute('hidden')).toBe(true);
+    expect(expand()).toBeTruthy();
+  });
+
+  it('has no effect and no button in narrow windows', async () => {
+    const user = await mount(true, undefined, { sidebarCollapsed: true });
+    expect(screen.queryByRole('button', { name: 'Collapse sidebar' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Expand sidebar' })).toBeNull();
+    await user.click(menuButton());
+    expect(panel().hasAttribute('hidden')).toBe(false);
+    expect(within(panel()).getByRole('navigation', { name: 'Options' })).toBeTruthy();
+    expect(within(panel()).queryByRole('button', { name: 'Collapse sidebar' })).toBeNull();
   });
 });

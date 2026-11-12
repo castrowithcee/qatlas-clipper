@@ -1,5 +1,5 @@
-import { useEffect, useId, useRef, useState, useSyncExternalStore, type KeyboardEvent, type ReactNode } from 'react';
-import { useI18n } from '../settings';
+import { createContext, useContext, useEffect, useId, useRef, useState, useSyncExternalStore, type KeyboardEvent, type ReactNode } from 'react';
+import { useI18n, useSettings } from '../settings';
 import { IconButton } from '../ui/components';
 import { useHash } from './route';
 
@@ -18,6 +18,16 @@ function useNarrow(): boolean {
     () => media?.matches ?? false,
   );
 }
+
+interface Collapse {
+  controls: string;
+  toggle: () => void;
+}
+
+const CollapseContext = createContext<Collapse | undefined>(undefined);
+
+/** The collapse control for the sidebar header; undefined where there is nothing to collapse (narrow view, or already collapsed). */
+export const useNavCollapse = () => useContext(CollapseContext);
 
 interface Props {
   /** The full sidebar; it stays mounted while the drawer is closed so its view state survives. */
@@ -40,6 +50,11 @@ export function NavDrawer({ sidebar, title, children }: Props) {
   const button = useRef<HTMLButtonElement>(null);
   const panel = useRef<HTMLDivElement>(null);
   const shown = open;
+  // Narrow view has its own menu; the stored setting has no effect there.
+  const { settings, update } = useSettings();
+  const collapsed = !narrow && settings.sidebarCollapsed;
+  // Set by the buttons only: a settings update from elsewhere must not pull the focus out of what the user is doing.
+  const moveFocus = useRef(false);
   const wasShown = useRef(false);
 
   useEffect(() => {
@@ -47,6 +62,13 @@ export function NavDrawer({ sidebar, title, children }: Props) {
     else if (wasShown.current) button.current?.focus();
     wasShown.current = shown;
   }, [shown]);
+
+  // Focus follows the change to the button that now offers the opposite action.
+  useEffect(() => {
+    if (!moveFocus.current) return;
+    moveFocus.current = false;
+    document.querySelector<HTMLElement>(collapsed ? '[data-nav-expand]' : '[data-nav-collapse]')?.focus();
+  }, [collapsed]);
 
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
     // A menu or name field inside the panel handles its own Escape first.
@@ -70,7 +92,7 @@ export function NavDrawer({ sidebar, title, children }: Props) {
   };
 
   return (
-    <div className="options-shell">
+    <div className={collapsed ? 'options-shell is-collapsed' : 'options-shell'}>
       {narrow && (
         <header className="options-topbar" inert={shown}>
           <IconButton
@@ -89,14 +111,35 @@ export function NavDrawer({ sidebar, title, children }: Props) {
         id={panelId}
         ref={panel}
         className="options-nav-slot"
-        {...(narrow ? { role: 'dialog', 'aria-modal': true, 'aria-label': t('options.nav.label'), tabIndex: -1, hidden: !open, onKeyDown } : {})}
+        {...(narrow ? { role: 'dialog', 'aria-modal': true, 'aria-label': t('options.nav.label'), tabIndex: -1, hidden: !open, onKeyDown } : { hidden: collapsed })}
         onClick={(e) => {
           if (narrow && e.target instanceof Element && e.target.closest('a[href]')) setOpen(false);
         }}
       >
-        {sidebar}
+        <CollapseContext.Provider value={narrow || collapsed ? undefined : { controls: panelId, toggle: () => {
+          moveFocus.current = true;
+          void update({ sidebarCollapsed: true });
+        } }}>
+          {sidebar}
+        </CollapseContext.Provider>
       </div>
-      <main className="options-main" inert={shown}>{children}</main>
+      <main className="options-main" inert={shown}>
+        {collapsed && (
+          <IconButton
+            data-nav-expand=""
+            className="options-expand"
+            icon="panel-left-open"
+            label={t('options.nav.expand')}
+            aria-expanded={false}
+            aria-controls={panelId}
+            onClick={() => {
+              moveFocus.current = true;
+              void update({ sidebarCollapsed: false });
+            }}
+          />
+        )}
+        {children}
+      </main>
     </div>
   );
 }
