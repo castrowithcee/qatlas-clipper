@@ -8,12 +8,12 @@ mkdirSync(OUT, { recursive: true });
 
 const config = {
   schemaVersion: 1,
-  folders: [{ id: 'clients', name: 'Clients' }, { id: 'archive', name: 'Archive' }],
+  folders: [{ id: 'clients', name: 'Clients' }, { id: 'archive', name: 'Archive' }, { id: 'fresh', name: 'Neuer Ordner' }],
   tags: [{ id: 'urgent', name: 'Urgent' }, { id: 'internal', name: 'Internal' }, { id: 'reading', name: 'Reading' }],
   projects: [
     {
       id: 'articles',
-      name: 'Articles',
+      name: 'Product reviews 2026',
       tagIds: ['reading', 'internal'],
       scope: { allSites: false, domains: ['example.com', 'example.org'], pageKind: 'article' },
       fields: [
@@ -30,6 +30,7 @@ const config = {
     { id: 'products', name: 'Products', scope: { allSites: true, domains: [] }, fields: [], siteMappings: {}, targets: [] },
     { id: 'shop', name: 'Shop orders', folderId: 'clients', tagIds: ['urgent'], scope: { allSites: true, domains: [] }, fields: [], siteMappings: {}, targets: [] },
     { id: 'blog', name: 'Blog posts', folderId: 'clients', tagIds: ['reading'], scope: { allSites: true, domains: [] }, fields: [], siteMappings: {}, targets: [] },
+    { id: 'long', name: 'Quarterly competitor price comparison across sales regions', scope: { allSites: true, domains: [] }, fields: [], siteMappings: {}, targets: [] },
     { id: 'old', name: 'Old notes', folderId: 'archive', scope: { allSites: true, domains: [] }, fields: [], siteMappings: {}, targets: [] },
   ],
 };
@@ -80,7 +81,7 @@ for (const lang of ['de', 'en'] as const) {
       await pickSort(t('Manuell', 'Manual'));
       // Sidebar with folders: projects without a folder first, one folder expanded, one collapsed.
       const folderRows = page.locator('ul.options-nav-projects li[data-testid="options-folder"]');
-      await expect(folderRows).toHaveCount(2);
+      await expect(folderRows).toHaveCount(3);
       const clients = folderRows.filter({ hasText: 'Clients' });
       const archive = folderRows.filter({ hasText: 'Archive' });
       if ((await clients.locator('button.options-folder-toggle').getAttribute('aria-expanded')) !== 'true') await clients.locator('button.options-folder-toggle').click();
@@ -125,13 +126,13 @@ for (const lang of ['de', 'en'] as const) {
       await expect(folderRows).toHaveCount(1);
       await shot(page.getByRole('complementary'), 'sidebar-filter', tag);
       await page.getByRole('button', { name: t('Filter zurücksetzen', 'Reset filter') }).click();
-      await expect(folderRows).toHaveCount(2);
+      await expect(folderRows).toHaveCount(3);
       // New folder: created at once with a name field in its row; a taken name shows the field error. Escape keeps the default name.
       await titleMenuButton.click();
       await page.getByRole('menuitem', { name: t('Ordner anlegen', 'Add folder') }).click();
       const folderName = page.getByLabel(t('Ordnername', 'Folder name'));
       await expect(folderName).toBeFocused();
-      await expect(folderRows).toHaveCount(3);
+      await expect(folderRows).toHaveCount(4);
       await shot(page.getByRole('complementary'), 'sidebar-folder-new', tag);
       await folderName.fill('clients');
       await expect(folderName).toHaveAttribute('aria-invalid', 'true');
@@ -205,7 +206,7 @@ for (const lang of ['de', 'en'] as const) {
       await shot(page, 'import-export', tag);
       // Export manager: mixed folder state, the shared export dialog and the targets warning.
       const tree = page.getByRole('list', { name: t('Ordner und Projekte', 'Folders and projects') });
-      await tree.getByRole('checkbox', { name: 'Articles' }).check();
+      await tree.getByRole('checkbox', { name: 'Product reviews 2026' }).check();
       await tree.getByRole('checkbox', { name: 'Shop orders' }).check();
       await shot(page, 'export-manager', tag);
       await page.getByRole('button', { name: t('Auswahl exportieren…', 'Export selection…') }).click();
@@ -266,7 +267,7 @@ for (const lang of ['de', 'en'] as const) {
       await page.goto(`chrome-extension://${extensionId}/options.html#/projects/missing`);
       await expect(page.getByText(t('Projekt nicht gefunden', 'Project not found'))).toBeVisible();
       await shot(page, 'not-found', tag);
-      await nav.getByRole('link', { name: 'Articles' }).click();
+      await nav.getByRole('link', { name: 'Product reviews 2026' }).click();
       await expect(page.getByLabel(t('Projektname', 'Project name'))).toBeVisible();
 
       // Narrow window: the content comes first, a menu button opens the whole navigation as a panel, the page does not scroll sideways.
@@ -279,7 +280,7 @@ for (const lang of ['de', 'en'] as const) {
       await shot(page, 'project-360', tag);
       await menuButton.click();
       await expect(menuButton).toHaveAttribute('aria-expanded', 'true');
-      for (const name of ['Articles', 'Products', t('Projekte', 'Projects'), t('Einstellungen', 'Settings'), t('Import und Export', 'Import and export')]) {
+      for (const name of ['Product reviews 2026', 'Products', t('Projekte', 'Projects'), t('Einstellungen', 'Settings'), t('Import und Export', 'Import and export')]) {
         await nav.getByText(name, { exact: true }).scrollIntoViewIfNeeded();
         await expect(nav.getByText(name, { exact: true })).toBeVisible();
       }
