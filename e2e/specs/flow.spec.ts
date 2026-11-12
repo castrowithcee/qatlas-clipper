@@ -103,8 +103,10 @@ test('configure, map by click, prefill on a second page, send, and show the resp
   await page1.goto(`${pages.origin}/plain-1.html`);
   popup = await openPopup(context, serviceWorker, extensionId, page1);
   await expect(popup.getByRole('textbox', { name: 'Price' })).toHaveValue('');
+  // The popup can close before click() resolves; a listener added afterwards never fires.
+  const closed = popup.waitForEvent('close');
   await popup.getByRole('button', { name: /^Price: / }).click();
-  await popup.waitForEvent('close');
+  await closed;
 
   await expect(page1.getByText('Choose element for "Price"')).toBeVisible();
   await page1.locator('#price').click();

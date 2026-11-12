@@ -18,8 +18,10 @@ test('a contact block mapped by click reaches the webhook as Markdown with line 
   const page = await context.newPage();
   await page.goto(`${pages.origin}/contact.html`);
   let popup = await openPopup(context, serviceWorker, extensionId, page);
+  // The popup can close before click() resolves; a listener added afterwards never fires.
+  const closed = popup.waitForEvent('close');
   await popup.getByRole('button', { name: /^Contact: / }).click();
-  await popup.waitForEvent('close');
+  await closed;
   await expect(page.getByText('Choose element for "Contact"')).toBeVisible();
   // Click the padding so the block itself, not a line inside it, is chosen.
   await page.locator('#contact').click({ position: { x: 4, y: 4 } });
